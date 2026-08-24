@@ -6,9 +6,7 @@
 
 <h1>JoyAI-Echo</h1>
 
-<p><strong>🎬 Pushing the Frontier of Long Video Generation</strong></p>
-
-<p>Standalone, inference-only release for <strong>minute-level multi-shot audio-video generation</strong> with a distilled DMD generator, paired cross-modal memory, and story-level consistency.</p>
+<p><strong>🎬  Long-Horizon Audio-Visual Generation for Persistent Stories and Interactive Worlds</strong></p>
 
 <p>
   <a href="https://www.researchgate.net/publication/405770309_JoyAI-Echo_Pushing_the_Frontier_of_Long_Audio-Visual_Generation"><b>📄 Paper 1.0</b></a> |
@@ -35,21 +33,13 @@
 
 - 🎉 **JoyAI-Echo 1.5 is now available!** Explore the [JoyAI-Echo 1.5 project page](https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/). 🚀 Code will be released soon.
 
-## Abstract
-
-Long video generation still suffers from error accumulation, weak temporal coherence, and prohibitive latency, limiting its applicability to interactive scenarios. We present **JoyAI-Echo**, a framework that breaks these barriers through four key advances.
-Central to its performance, a cross-modal audio-visual memory bank preserves character appearance and voice timbre consistently over five-minute videos, while a post-training pipeline combines memory-based reinforcement learning with distribution matching distillation for a **7.5× speedup** to substantially boost visual quality and alignment.
-Empowered by these two components, **JoyAI-Echo** decisively outperforms *HappyOyster* (directing mode) on long-form generation and even surpasses the short-video specialist *Wan 2.6* on human-centric tasks.
-Beyond raw generation quality, an interactive agent enables real-time user editing through conversational instructions, and a lightweight super-resolution module maintains high definition under streaming latency, further elevating the overall experience and delivering instantly editable, conversation-speed video creation.
-For the first time, **JoyAI-Echo** simultaneously achieves long-range cross-modal consistency, real-time inference for minute-long video, conversational interactivity, and high-resolution output — without compromise, inaugurating a new era of interactive video generation.
-Codes and weights will be open-sourced.
 
 ## Highlights
 
-- 🎞️ **Minute-level multi-shot stories**: generate a sequence of coherent shots from one prompt JSON.
-- ⚡ **DMD-distilled few-step inference**: ~7.5x faster than the original pipeline.
-- 🔊 **Joint audio-video generation**: one pipeline produces synchronized video and audio.
-- 🧠 **Paired cross-modal memory bank**: conditions each new shot on prior visual identity and voice context for story-level consistency.
+- 🎬 **Long-form audio-visual stories**: turn one brief into a coherent multi-shot film, demonstrated at 10 minutes.
+- ⚡ **Few-step generation**: 8-step long-video and 4-step causal world models.
+- 🧠 **Composable cross-shot memory**: preserve character appearance, voice, and continuity across shots.
+- 🕹️ **Persistent interactive worlds**: metric 6-DoF control with stable 60-second rollouts.
 
 
 ## ComfyUI Integration
