@@ -14,7 +14,7 @@
   <a href="https://www.researchgate.net/publication/405770309_JoyAI-Echo_Pushing_the_Frontier_of_Long_Audio-Visual_Generation"><b>📄 Paper 1.0</b></a> |
   <a href="https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-1.5-Page/blob/main/Doc/joyai-echo-15.pdf"><b>📄 Paper 1.5</b></a> |
   <a href="https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-1.5-Page/blob/main/Doc/Echo_WM.pdf"><b>📄 Echo-WM Paper</b></a> |
-  <a href="https://echo-team-joy-future-academy-jd.github.io/Echo-LongVideo-Page/"><b>🌐 Project Page</b></a> |
+  <a href="https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/"><b>🌐 Project Page</b></a> |
   <a href="#quickstart"><b>🚀 Quickstart</b></a> |
   <a href="https://huggingface.co/jdopensource/JoyAI-Echo"><b>🤗 Hugging Face</b></a> |
   <a href="https://github.com/zhuang2002/ComfyUI_JoyAI_Echo"><b>🖥️ ComfyUI</b></a> |
@@ -31,9 +31,9 @@
 
 </div>
 
-## Updates
+## 📢 Updates
 
-- **JoyAI-Echo 1.5 is now available!** Visit the [JoyAI-Echo 1.5 project page](https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-1.5-Page). Code will be released soon.
+- 🎉 **JoyAI-Echo 1.5 is now available!** Explore the [JoyAI-Echo 1.5 project page](https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/). 🚀 Code will be released soon.
 
 ## Abstract
 
