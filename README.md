@@ -11,11 +11,12 @@
 <p>Standalone, inference-only release for <strong>minute-level multi-shot audio-video generation</strong> with a distilled DMD generator, paired cross-modal memory, and story-level consistency.</p>
 
 <p>
-  <a href="https://www.researchgate.net/publication/405770309_JoyAI-Echo_Pushing_the_Frontier_of_Long_Audio-Visual_Generation"><b>📄 Paper</b></a> |
+  <a href="https://www.researchgate.net/publication/405770309_JoyAI-Echo_Pushing_the_Frontier_of_Long_Audio-Visual_Generation"><b>📄 Paper 1.0</b></a> |
+  <a href="https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-1.5-Page/blob/main/Doc/joyai-echo-15.pdf"><b>📄 Paper 1.5</b></a> |
+  <a href="https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-1.5-Page/blob/main/Doc/Echo_WM.pdf"><b>📄 Echo-WM Paper</b></a> |
   <a href="https://echo-team-joy-future-academy-jd.github.io/Echo-LongVideo-Page/"><b>🌐 Project Page</b></a> |
   <a href="#quickstart"><b>🚀 Quickstart</b></a> |
   <a href="https://huggingface.co/jdopensource/JoyAI-Echo"><b>🤗 Hugging Face</b></a> |
-  <a href="#results"><b>📊 Results</b></a> |
   <a href="https://github.com/zhuang2002/ComfyUI_JoyAI_Echo"><b>🖥️ ComfyUI</b></a> |
   <a href="#citation"><b>📝 Citation</b></a>
 </p>
@@ -29,6 +30,10 @@
 </p>
 
 </div>
+
+## Updates
+
+- **JoyAI-Echo 1.5 is now available!** Visit the [JoyAI-Echo 1.5 project page](https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-1.5-Page). Code will be released soon.
 
 ## Abstract
 
@@ -62,35 +67,6 @@ We are actively working on I2V support and plan to release it in a future versio
 ## Demo Gallery
 
 Explore long-form and short-form JoyAI-Echo cases on the [Project Page](https://echo-team-joy-future-academy-jd.github.io/Echo-LongVideo-Page/). 🍿
-
-## Results
-
-### Reported Scale
-
-| Item | Value |
-| --- | ---: |
-| 🎬 Long-form coherent story length | **5 min** |
-| ⚡ Generation speedup over the original multi-step pipeline | **7.5x** |
-| 📚 Benchmark stories | **100** |
-| 🎞️ Generated evaluation shots | **3,000** |
-| 🕒 Frames per shot | **241 @ 25 fps** |
-
-### Human Evaluation
-
-GSB user study on long- and short-video generation. The numbers denote the percentage of user preferences.
-
-| Aspect<br>(Long Video) | JoyAI-Echo | Tie | HappyOyster<br> (Directing) | 
-| --- | ---: | ---: | ---: | 
-| Visual aesthetics | **63.6%** | 8.8% | 27.6% | 
-| Audio quality | **81.7%** | 6.5% | 11.8% |
-| Prompt following | **80.6%** | 13.5% | 5.9% | 
-| IP consistency | **59.4%** | 12.9% | 27.7% |
-
-| Aspect<br>(Short Video) | JoyAI-Echo | Tie | Wan 2.6 |
-| ---  | ---: | ---: | ---: |
-| Visual aesthetics | **58.8%** | 14.7% | 26.5% |
-| Audio quality  | 32.3% | 30.9% | 36.8% |
-| Prompt following | 33.8% | 36.8% | 29.4% |
 
 ## Repository Layout
 
