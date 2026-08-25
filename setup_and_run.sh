@@ -61,40 +61,63 @@ echo "  ✓ Dependencies installed"
 # 4. Download models
 echo ""
 echo "[4/5] Downloading models (first run only)..."
+echo ""
+echo "  File size estimates:"
+echo "  • echo-longvideo-release.safetensors: 2.5 GB"
+echo "  • gemma-3-12b (text encoder):         8.0 GB"
+echo "  • Total:                               10.5 GB"
+echo ""
+
 CKPT_DIR="$REPO_DIR/checkpoints"
 mkdir -p "$CKPT_DIR"
 
 # Check main model
-if [ ! -f "$CKPT_DIR/echo-longvideo-release.safetensors" ]; then
+MODEL_FILE="$CKPT_DIR/echo-longvideo-release.safetensors"
+if [ ! -f "$MODEL_FILE" ]; then
     echo "  Downloading echo-longvideo-release.safetensors (2.5 GB)..."
-    python -c "
+    if python -c "
 from huggingface_hub import hf_hub_download
 hf_hub_download(
     repo_id='jdopensource/JoyAI-Echo',
     filename='echo-longvideo-release.safetensors',
     local_dir='$CKPT_DIR'
-)
-" || echo "  ERROR: Failed to download model"
+)" 2>&1 | grep -E "Downloading|Downloaded"; then
+        SIZE=$(du -h "$MODEL_FILE" 2>/dev/null | cut -f1)
+        echo "    ✓ Downloaded ($SIZE)"
+    else
+        echo "    ERROR: Failed to download model"
+        exit 1
+    fi
 else
-    echo "  ✓ Main model already downloaded"
+    SIZE=$(du -h "$MODEL_FILE" | cut -f1)
+    echo "  ✓ Main model ready ($SIZE)"
 fi
 
 # Check text encoder
-if [ ! -d "$CKPT_DIR/gemma-3-12b" ]; then
-    echo "  Downloading gemma-3-12b (8 GB)..."
-    python -c "
+GEMMA_DIR="$CKPT_DIR/gemma-3-12b"
+if [ ! -d "$GEMMA_DIR" ] || [ -z "$(ls -A "$GEMMA_DIR" 2>/dev/null)" ]; then
+    echo "  Downloading gemma-3-12b (8.0 GB)..."
+    if python -c "
 from huggingface_hub import snapshot_download
 snapshot_download(
     repo_id='google/gemma-2-12b',
-    local_dir='$CKPT_DIR/gemma-3-12b',
+    local_dir='$GEMMA_DIR',
     local_dir_use_symlinks=False
-)
-" || echo "  WARNING: Failed to download Gemma. May use fallback."
+)" 2>&1 | grep -E "Downloading|Downloaded"; then
+        SIZE=$(du -sh "$GEMMA_DIR" 2>/dev/null | cut -f1)
+        echo "    ✓ Downloaded ($SIZE)"
+    else
+        echo "    WARNING: Failed to download Gemma (will use fallback or CPU)"
+    fi
 else
-    echo "  ✓ Text encoder already downloaded"
+    SIZE=$(du -sh "$GEMMA_DIR" | cut -f1)
+    echo "  ✓ Text encoder ready ($SIZE)"
 fi
 
-echo "  ✓ Models ready"
+echo ""
+echo "  Total checkpoint size:"
+du -sh "$CKPT_DIR" 2>/dev/null | sed 's/^/    /'
+echo ""
 
 # 5. Run examples
 echo ""
@@ -121,15 +144,40 @@ read -p "Run default example now? (y/n) " -n 1 -r
 echo ""
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo ""
-    echo "Running inference (this will take 1-2 minutes)..."
-    python inference.py
-
+    echo "Running inference (this will take 1-2 minutes on A100/H100)..."
+    echo "Expected output size: ~500 MB - 1 GB per video"
     echo ""
-    echo "✓ Complete! Check 'inference_result/dmd' for outputs"
-    ls -lh inference_result/dmd/*/inference_*/video* 2>/dev/null || echo "(no outputs yet)"
+
+    START_TIME=$(date +%s)
+    if python inference.py; then
+        END_TIME=$(date +%s)
+        DURATION=$((END_TIME - START_TIME))
+
+        echo ""
+        echo "✓ Complete! (${DURATION}s)"
+        echo ""
+        echo "Outputs:"
+        find inference_result/dmd -type f -name "*.mp4" -o -name "*.wav" 2>/dev/null | while read f; do
+            SIZE=$(du -h "$f" | cut -f1)
+            echo "  $f ($SIZE)"
+        done || echo "  (no outputs yet)"
+    else
+        echo "ERROR: Inference failed"
+        exit 1
+    fi
 else
     echo ""
-    echo "Setup complete! Run 'python inference.py' to generate videos."
+    echo "Setup complete!"
+    echo ""
+    echo "Next steps:"
+    echo "  1. Run single shot: python inference.py"
+    echo "  2. Run multi-shot:  python inference.py --prompts_glob 'prompts/example_multi_shot.json'"
+    echo "  3. Custom config:   python inference.py --width 1024 --height 576"
+    echo ""
+    echo "Expected sizes:"
+    echo "  • Single shot (9.6s):    ~100-150 MB"
+    echo "  • Multi-shot (5 min):    ~2-3 GB"
+    echo "  • Audio + video + logs:  +200-300 MB"
 fi
 
 echo ""
