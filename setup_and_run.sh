@@ -49,22 +49,22 @@ echo "  ✓ Activated .venv"
 # 3. Install dependencies
 echo ""
 echo "[3/5] Installing dependencies (CUDA 12.8)..."
-pip install --upgrade pip setuptools wheel > /dev/null 2>&1
+"$PYTHON" -m pip install --upgrade pip setuptools wheel > /dev/null 2>&1
 
 # Install PyTorch from official index
 echo "  Installing PyTorch..."
-pip install --index-url https://download.pytorch.org/whl/cu128 \
+"$PYTHON" -m pip install --index-url https://download.pytorch.org/whl/cu128 \
     torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 > /dev/null 2>&1
 
 # Install requirements
 echo "  Installing requirements..."
-pip install -r requirements.txt > /dev/null 2>&1
+"$PYTHON" -m pip install -r requirements.txt > /dev/null 2>&1
 
 # Install local packages
 for pkg_dir in ltx-core ltx-pipelines ltx-distillation; do
     if [ -d "$pkg_dir" ]; then
         echo "  Installing $pkg_dir..."
-        pip install -e "$pkg_dir" > /dev/null 2>&1
+        "$PYTHON" -m pip install -e "$pkg_dir" > /dev/null 2>&1
     fi
 done
 
