@@ -168,7 +168,7 @@ class EchoWMEngine:
 
         video, audio = self.pipeline(
             prompt=prompt,
-            negative_prompt=NEGATIVE_PROMPT,
+            negative_prompt=self.cfg.get("negative_prompt", NEGATIVE_PROMPT),
             seed=seed,
             height=height,
             width=width,
