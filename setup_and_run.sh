@@ -37,7 +37,7 @@ echo "  Python: $PYTHON ($PYTHON_VERSION)"
 echo ""
 echo "[2/5] Setting up virtual environment..."
 if [ ! -d ".venv" ]; then
-    python -m venv .venv
+    "$PYTHON" -m venv .venv
     echo "  ✓ Created .venv"
 else
     echo "  ✓ .venv already exists"
