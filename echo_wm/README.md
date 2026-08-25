@@ -1,11 +1,11 @@
-# Echo-WM: Open and Enterable Omnimodal World Models
-
 <div align="center">
+
+<h1>Echo-WM: Open and Enterable Omnimodal World Models</h1>
 
 **An open audio-visual world model for controllable, persistent, and interactive world generation.**
 
 [Model Weights](https://huggingface.co/Echo-Team/Echo-WM) ·
-[Project Page](https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/wm/) 
+[Project Page](https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/wm/)
 
 </div>
 
@@ -18,9 +18,6 @@
 | Model | Horizon | Input | Control | Output |
 |---|---:|---|---|---|
 | **Echo-WM Base** | ~10 s | First-frame image + prompt | Action DSL / pure camera control | Video + audio |
-
-
-
 
 ## 🚀 Environment Setup
 
@@ -48,84 +45,20 @@ Verify CUDA before loading the checkpoint:
 python -c "import torch; print('PyTorch:', torch.__version__); print('CUDA available:', torch.cuda.is_available())"
 ```
 
-`requirements.txt` caps `transformers` below 5.0 and `gradio` below 6.0. Both
-bounds are required: the bundled text encoder expects the `transformers` 4.x
-Siglip layout, and `gradio` 6.x pulls a `huggingface-hub` release that conflicts
-with `transformers` 4.x. Do not lift these bounds without updating
-`ltx-core/src/ltx_core/text_encoders/`.
-
-`xformers` is listed as an optional acceleration dependency. It is not required
-to validate the command-line entrypoint or run the focused tests.
-
-### Verified Versions
-
-This release was validated end to end on:
-
-| Package | Version |
-|---|---|
-| Python | 3.11 |
-| `torch` / `torchaudio` | 2.9.1+cu128 |
-| `torchvision` | 0.24.1+cu128 |
-| `transformers` | 4.57.6 |
-| `gradio` | 5.32.0 |
-| `numpy` | 2.4.6 |
-
-Hardware: single NVIDIA H200. A 241-frame clip peaks near 50 GB of device
-memory, so a 24 GB card requires a shorter `--num-frames`.
-
 ## 📥 Download Checkpoints
 
-The public inference entrypoint expects both files below:
-
-```text
-echo_wm/checkpoints/echo-wm-base.safetensors
-echo_wm/checkpoints/gemma-3/
-```
-
-Download the complete public checkpoint bundle:
+Download the base model and the Gemma 3 text encoder:
 
 ```bash
 cd /path/to/JoyAI-Echo/echo_wm
-python -c "from huggingface_hub import snapshot_download; snapshot_download('Echo-Team/Echo-WM', local_dir='checkpoints')"
-```
 
-If your environment provides the Hugging Face CLI, the equivalent command is:
-
-```bash
 hf download Echo-Team/Echo-WM --local-dir checkpoints
+hf download google/gemma-3-12b-it-qat-q4_0-unquantized --local-dir checkpoints/gemma-3
 ```
 
-Before inference, check that these paths exist:
-
-```bash
-test -f checkpoints/echo-wm-base.safetensors
-test -d checkpoints/gemma-3
-```
-
-## 🧪 Validate The Installation
-
-Run the focused WM tests:
-
-```bash
-cd /path/to/JoyAI-Echo/echo_wm
-pip install pytest
-python -m pytest -q tests/test_echo_wm.py
-```
-
-Check the public CLI without loading a model:
-
-```bash
-cd /path/to/JoyAI-Echo/echo_wm
-python inference_wm.py --help
-```
-
-List the checked-in examples:
-
-```bash
-cd /path/to/JoyAI-Echo/echo_wm
-python scripts/run_wm_case.py --list
-```
-
+Gemma 3 is a gated repository: accept the license on its model page and run
+`hf auth login` first. The text encoder runs in bfloat16, so use the
+`-qat-q4_0-unquantized` weights above — not the quantized Q4_0 files.
 
 ## 💻 Inference
 
@@ -190,8 +123,9 @@ The prompt must use the six fields described in
 --fov-deg FLOAT          Use an explicit horizontal FOV (default: 70)
 --video-cfg FLOAT        Video guidance scale (default: 4.0)
 --audio-cfg FLOAT        Audio guidance scale (default: 2.0)
---no-audio               Write a video-only MP4
---action-overlay         Also write a separate <name>_action.mp4 HUD copy
+--no-audio               Write a video-only MP4 (audio is on by default)
+--no-action-overlay      Skip the HUD copy. A separate <name>_action.mp4 with the
+                         WASD/rotation HUD is written by default.
 --steps INT              Override the default 30 inference steps
 --seed INT               Set the random seed
 ```
@@ -234,93 +168,34 @@ PORT=7860 \
 ```
 
 Open `http://localhost:7860`. The interface accepts a first-frame image, a
-six-field prompt, an Action DSL string, FOV/action settings, separate video/audio
-CFG controls, and optional audio/overlay output.
+six-field prompt, an Action DSL string, FOV/action settings, and separate
+video/audio CFG controls. Audio and the action HUD overlay are both enabled by
+default; each has a checkbox to turn it off.
 
-## 🖼️ Example Gallery
+## 🚦 Multi-GPU Runs
 
-| Case | Scene | Action | Seed |
-|---|---|---|---:|
-| `0004` | Warm whimsical interior with two figures | `w-60,a-60,w-60,d-60` | 4 |
-| `0009` | Red torii gate beside reflective water | `w-60,a-60,w-60,d-60` | 9 |
-| `0010` | Green river through a fantasy canyon | `w-60,a-60,w-60,d-60` | 34 |
-
-Run all cases across the GPUs you have:
+Run the checked-in cases across the GPUs you have. Cases are split round-robin,
+one inference process per GPU at a time, so the GPU count need not match the
+case count:
 
 ```bash
 cd /path/to/JoyAI-Echo/echo_wm
 GPU_LIST=0,1,2 bash scripts/run_wm_cases_multigpu.sh
+CASES="0009 0010" GPU_LIST=0 bash scripts/run_wm_cases_multigpu.sh   # subset, serial
 ```
-
-The GPU count does not have to match the case count. Cases are split round-robin
-across `GPU_LIST`, and each GPU works through its own share one at a time. With
-three cases on two GPUs, the first GPU runs cases 1 and 3 in sequence while the
-second runs case 2. A single GPU runs them all serially:
-
-```bash
-GPU_LIST=0,1 bash scripts/run_wm_cases_multigpu.sh   # 3 cases, 2 GPUs
-GPU_LIST=0 bash scripts/run_wm_cases_multigpu.sh     # 3 cases, serial
-```
-
-Supported environment variables:
 
 ```text
 GPU_LIST        Comma-separated GPU indices (default: 0,1,2)
 CASES           Subset of cases to run (default: every case directory found)
 PYTHON_BIN      Interpreter to use (default: python3)
-ACTION_OVERLAY  Set to any value to also write the HUD copies
+ACTION_OVERLAY  Write the HUD copies (default: 1; set to 0 to skip them)
 ```
 
-The script calls `python3` by default. If your environment interpreter is not on
-`PATH` under that name, point it at one explicitly:
-
-```bash
-GPU_LIST=0,1,2 PYTHON_BIN="$(which python)" bash scripts/run_wm_cases_multigpu.sh
-```
-
-To run a subset, or to also create the separate HUD copies:
-
-```bash
-CASES="0009 0010" GPU_LIST=0,1 bash scripts/run_wm_cases_multigpu.sh
-GPU_LIST=0,1,2 ACTION_OVERLAY=1 bash scripts/run_wm_cases_multigpu.sh
-```
-
-Outputs are written under `outputs/wm_cases_multigpu/<case>/`, with a
-per-case `run_gpu<N>.log`. The script exits non-zero if any case fails, after
-letting the remaining cases finish.
-
-Only one inference process runs per GPU at a time. Keep it that way: loading a
-checkpoint is host-memory hungry, and several concurrent loads on one machine can
-trip a container memory limit even when device memory is fine.
-
-
-
-## ⚙️ Configuration
-
-Public semantic defaults are in `configs/inference_wm.yaml`:
-
-```yaml
-video:
-  width: 1280
-  height: 704
-  num_frames: 241
-  fps: 24
-  steps: 30
-  video_cfg: 4.0
-  audio_cfg: 2.0
-
-action:
-  translation_speed: 0.05
-  rotation_speed_deg: 0.5
-  pitch_limit_deg: 60.0
-  fov_deg: 70.0
-```
-
-Private training normalization, scale factors, trainer YAML, and data-filtering
-settings are intentionally excluded from the public configuration.
-
-
-
+Outputs land in `outputs/wm_cases_multigpu/<case>/` with a per-case
+`run_gpu<N>.log`. Failures are reported at the end, after the remaining cases
+finish. Don't raise the per-GPU concurrency: loading a checkpoint is
+host-memory hungry, and parallel loads can trip a container memory limit even
+when device memory is fine.
 
 ## 📄 Citation
 
@@ -332,5 +207,4 @@ settings are intentionally excluded from the public configuration.
   year    = {2026}
 }
 ```
-
 

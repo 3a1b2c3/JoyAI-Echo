@@ -92,8 +92,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--no-audio", action="store_true")
     parser.add_argument(
-        "--action-overlay", action="store_true",
-        help="Write a second MP4 with a Genie-style WASD/rotation HUD overlay.",
+        "--action-overlay", action=argparse.BooleanOptionalAction, default=True,
+        help="Write a second MP4 with a Genie-style WASD/rotation HUD overlay "
+             "(default: enabled; disable with --no-action-overlay).",
     )
     return parser.parse_args()
 

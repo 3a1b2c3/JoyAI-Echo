@@ -5,7 +5,7 @@ Features:
   - Image upload or selection from examples
   - Six-field cinematic prompt from PROMPT_SKILL.md
   - Action string input with presets (WASD + camera controls)
-  - Optional Genie-style HUD overlay
+  - Genie-style HUD overlay (on by default)
   - Video + audio generation
 
 Run:

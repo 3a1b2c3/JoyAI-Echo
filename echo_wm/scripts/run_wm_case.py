@@ -47,7 +47,10 @@ def main() -> None:
     parser.add_argument("--width", type=int)
     parser.add_argument("--height", type=int)
     parser.add_argument("--steps", type=int)
-    parser.add_argument("--action-overlay", action="store_true")
+    parser.add_argument(
+        "--action-overlay", action=argparse.BooleanOptionalAction, default=True,
+        help="Also write the HUD copy (default: enabled).",
+    )
     args = parser.parse_args()
     if args.list:
         for case_dir in _case_dirs():
@@ -70,8 +73,7 @@ def main() -> None:
         command += ["--checkpoint", str(args.checkpoint)]
     if args.gemma_path:
         command += ["--gemma-path", str(args.gemma_path)]
-    if args.action_overlay:
-        command += ["--action-overlay"]
+    command += ["--action-overlay" if args.action_overlay else "--no-action-overlay"]
     if "seed" in data:
         command += ["--seed", str(data["seed"])]
     for flag, value in (("--num-frames", args.num_frames), ("--width", args.width),
