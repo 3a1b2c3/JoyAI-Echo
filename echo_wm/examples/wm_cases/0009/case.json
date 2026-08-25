@@ -1,0 +1,6 @@
+{
+  "prompt": "Environment: A red torii gate stands beside still reflective water in a misty autumn grove. Red and orange leaves frame a small shrine, while cool blue-grey haze softens the distant trees and warm sunlight filters between the trunks.\n\nCharacter: No visible character; keep the grove, torii, shrine, water reflection, and drifting mist stable and recognizable throughout the shot.\n\nStyle: Cinematic natural landscape imagery with realistic vegetation, delicate atmospheric perspective, finely resolved bark and stone textures, gentle sunlight, and a restrained filmic autumn palette.\n\nPerspective: Wide third-person landscape view at eye level, centered on the torii and its reflection with the shrine held in the background.\n\nSounds: Soft leaves rustle overhead, shallow water laps against the bank, distant birds call through the mist, and a faint shrine bell resonates across the grove. A sparse shakuhachi-and-koto melody enters quietly between the bell tones and leaves room for the natural sounds.\n\nSpeech: None.",
+  "action": "w-60,a-60,w-60,d-60",
+  "fov_deg": 70.0,
+  "seed": 9
+}

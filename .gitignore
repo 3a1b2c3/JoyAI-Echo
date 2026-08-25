@@ -47,6 +47,8 @@ tmp/
 checkpoints/*
 !checkpoints/.gitkeep
 !checkpoints/README.md
+echo_wm/checkpoints/*
+!echo_wm/checkpoints/*.manifest.json
 *.safetensors
 *.pt
 *.bin

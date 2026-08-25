@@ -8,7 +8,7 @@ Expected layout (matches `configs/inference.yaml`):
 
 ```
 checkpoints/
-├── echo-longvideo-release.safetensors   # full release model (transformer + VAE + vocoder)
+├── echo-longvideo-release.safetensors   # long-video release model
 └── gemma-3-12b/                         # Gemma 3 12B text encoder
     ├── config.json
     ├── tokenizer.json

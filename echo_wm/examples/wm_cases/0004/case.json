@@ -1,0 +1,6 @@
+{
+  "prompt": "Environment: A warm whimsical interior with peach walls, painted columns, hanging ornaments, arched doorways, shelves, plants, and colorful household objects. Soft window light fills the room while hanging beads and small charms frame two figures near the back wall.\n\nCharacter: Two small human figures stand partly obscured by the furnishings, facing each other in a quiet conversation. Preserve their silhouettes, clothing, proportions, and the intimate domestic scale of the first frame.\n\nStyle: Whimsical stylized fantasy animation with rounded forms, tactile hand-painted surfaces, warm cinematic light, layered color, and playful production-design detail.\n\nPerspective: Wide third-person interior view at eye level, holding the original composition with the doorway, stair, figures, and room depth clearly visible.\n\nSounds: Soft footsteps and cloth movement sit under quiet room tone; hanging charms chime when the air shifts, and distant household activity remains gentle and unobtrusive. A light marimba-and-pizzicato-string theme adds warmth without covering the foreground sounds.\n\nSpeech: One figure speaks softly with a welcoming voice: \"Everything is ready for the next visitor.\"",
+  "action": "w-60,a-60,w-60,d-60",
+  "fov_deg": 70.0,
+  "seed": 4
+}
