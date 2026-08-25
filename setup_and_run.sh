@@ -13,13 +13,25 @@ echo ""
 
 # 1. Check Python
 echo "[1/5] Checking Python..."
-if ! command -v python &>/dev/null; then
-    echo "ERROR: Python not found. Install Python 3.11+"
+
+# Try python, then python3, then python3.11
+PYTHON=""
+for py in python python3 python3.11; do
+    if command -v "$py" &>/dev/null; then
+        PYTHON="$py"
+        break
+    fi
+done
+
+if [ -z "$PYTHON" ]; then
+    echo "ERROR: Python not found. Install Python 3.11+:"
+    echo "  Ubuntu/WSL: sudo apt install python3.11 python3.11-venv python3.11-dev"
+    echo "  macOS:      brew install python@3.11"
     exit 1
 fi
 
-PYTHON_VERSION=$(python --version 2>&1 | awk '{print $2}')
-echo "  Python: $PYTHON_VERSION"
+PYTHON_VERSION=$("$PYTHON" --version 2>&1 | awk '{print $2}')
+echo "  Python: $PYTHON ($PYTHON_VERSION)"
 
 # 2. Create venv
 echo ""
