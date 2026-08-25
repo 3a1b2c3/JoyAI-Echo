@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/image.png" alt="JoyAI-Echo generated video gallery" width="100%">
+  <img src="echo_longvideo/assets/image.png" alt="JoyAI-Echo generated video gallery" width="100%">
 </p>
 
 <div align="center">
@@ -13,225 +13,49 @@
   <a href="https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-1.5-Page/blob/main/Doc/joyai-echo-15.pdf"><b>📄 Paper 1.5</b></a> |
   <a href="https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-1.5-Page/blob/main/Doc/Echo_WM.pdf"><b>📄 Echo-WM Paper</b></a> |
   <a href="https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/"><b>🌐 Project Page</b></a> |
-  <a href="#quickstart"><b>🚀 Quickstart</b></a> |
   <a href="https://huggingface.co/jdopensource/JoyAI-Echo"><b>🤗 Hugging Face</b></a> |
-  <a href="https://github.com/zhuang2002/ComfyUI_JoyAI_Echo"><b>🖥️ ComfyUI</b></a> |
-  <a href="#citation"><b>📝 Citation</b></a>
-</p>
-
-<p>
-  <img src="https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11">
-  <img src="https://img.shields.io/badge/PyTorch-2.8-EE4C2C?style=flat-square&logo=pytorch&logoColor=white" alt="PyTorch 2.8">
-  <img src="https://img.shields.io/badge/CUDA-12.8-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="CUDA 12.8">
-  <img src="https://img.shields.io/badge/Release-Inference--Only-black?style=flat-square" alt="Inference">
-  <img src="https://img.shields.io/badge/Long%20Video-5%20min-d61f2c?style=flat-square" alt="5 minute long video">
+  <a href="https://github.com/zhuang2002/ComfyUI_JoyAI_Echo"><b>🖥️ ComfyUI</b></a>
 </p>
 
 </div>
 
-## 📢 Updates
+This repository holds two independent projects. Each has its own environment,
+checkpoints, and entrypoint — pick the one you need and follow its README.
 
-- 🎉 **JoyAI-Echo 1.5 is now available!** Explore the [JoyAI-Echo 1.5 project page](https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/). 🚀 Code will be released soon.
-
-
-## Highlights
-
-- 🎬 **Long-form audio-visual stories**: turn one brief into a coherent multi-shot film, demonstrated at 10 minutes.
-- ⚡ **Few-step generation**: 8-step long-video and 4-step causal world models.
-- 🧠 **Composable cross-shot memory**: preserve character appearance, voice, and continuity across shots.
-- 🕹️ **Persistent interactive worlds**: metric 6-DoF control with stable 60-second rollouts.
-
-
-## ComfyUI Integration
-
-Recommended ComfyUI node package: **[ComfyUI_JoyAI_Echo](https://github.com/zhuang2002/ComfyUI_JoyAI_Echo)** — faithful to the official inference pipeline with full bf16 precision (no GGUF quantization), per-shot editable prompts with instant video preview, 3-phase GPU memory hot-swap (48GB VRAM), built-in LLM prompt enhancement, and cross-shot memory chaining for story-level consistency.
-
-## Current Release Scope
-
-JoyAI-Echo currently focuses on **text-to-video (T2V)** and **multi-shot long-video generation with paired audio-video memory**. The memory used in our official pipeline is built from generated T2V shots.
-
-Please note that **image-to-video (I2V)** is **not supported in the current release**.
-
-We are actively working on I2V support and plan to release it in a future version.
-
-## Demo Gallery
-
-Explore long-form and short-form JoyAI-Echo cases on the [Project Page](https://echo-team-joy-future-academy-jd.github.io/Echo-LongVideo-Page/). 🍿
-
-## Repository Layout
+| Project | What it does | Guide |
+|---|---|---|
+| **JoyAI-Echo** (long video) | Long-horizon, multi-shot audio-visual generation. Up to ~5 minutes, with a paired audio-video memory bank carrying continuity across shots. | [`echo_longvideo/`](echo_longvideo/README.md) |
+| **Echo-WM** (world model) | Omnimodal world model with camera/WASD action control. ~10 s clips from a first frame plus a prompt, video and audio together. | [`echo_wm/`](echo_wm/README.md) |
 
 ```text
-.
-+-- configs/
-|   `-- inference.yaml                # all inference parameters (YAML)
-+-- checkpoints/                      # model weights (download separately)
-|   +-- echo-longvideo-release.safetensors
-|   `-- gemma-3-12b/
-+-- prompts/                          # multi-shot prompt JSON files
-|   +-- example_single_shot.json
-|   `-- example_multi_shot.json
-+-- ltx-core/src/ltx_core/            # transformer, VAE, text-encoder building blocks
-+-- ltx-pipelines/src/ltx_pipelines/  # sampler and pipeline utilities
-+-- ltx-distillation/
-|   +-- src/ltx_distillation/         # DMD wrappers, AV pipelines, memory bank, utils
-|   `-- scripts/multishot_inference_dmd.py
-+-- inference.py                      # main entrypoint (load once, infer all)
-+-- requirements.txt
-`-- environment.yml
+JoyAI-Echo/
++-- echo_longvideo/   # long-video generation: inference.py, configs/, prompts/, ltx-*
+`-- echo_wm/          # world model: inference_wm.py, Gradio demo, bundled ltx-*
 ```
+
+The two do not share a Python environment or a checkpoint directory. `echo_wm/`
+bundles its own copy of `ltx-core` and `ltx-pipelines`, so installing one project
+never affects the other.
 
 ## Quickstart
 
-### 1. Clone
+Long video:
 
 ```bash
-
-git clone https://github.com/jd-opensource/JoyAI-Echo.git
-cd JoyAI-Echo
+cd echo_longvideo
+conda env create -f environment.yml && conda activate echo-long
 ```
 
-### 2. Create the environment
-
-The reference environment is **Python 3.11 + PyTorch 2.8 + CUDA 12.8**.
-
-With conda:
+World model:
 
 ```bash
-conda env create -f environment.yml
-conda activate echo-long
+cd echo_wm
+conda create -n echo-wm python=3.11 -y && conda activate echo-wm
+pip install -r requirements.txt
 ```
 
-With `uv`:
-
-```bash
-uv venv --python 3.11 .venv
-source .venv/bin/activate
-uv pip install --extra-index-url https://download.pytorch.org/whl/cu128 -r requirements.txt
-```
-
-[`ffmpeg`](https://ffmpeg.org/download.html) must be available on `PATH` for shot concatenation. The conda recipe includes it. If you use `uv`, install it with your system package manager:
-
-```bash
-sudo apt install ffmpeg
-# macOS:
-brew install ffmpeg
-```
-
-### 3. Download checkpoint
-
-Download the JoyAI-Echo release checkpoint and Gemma text encoder:
-
-| File | Description | Size | Link |
-| --- | --- | --- | --- |
-| `echo-longvideo-release.safetensors` | Full model (transformer + VAE + vocoder) | ~46 GB |[`JoyAI-Echo`](https://huggingface.co/jdopensource/JoyAI-Echo)  |
-| `gemma-3-12b/` | Instruction-tuned model (text encoder) | ~24 GB | [`gemma-3-12b-it`](https://huggingface.co/google/gemma-3-12b-it) |
-
-Place them under `checkpoints/`:
-
-```text
-checkpoints/
-+-- echo-longvideo-release.safetensors
-`-- gemma-3-12b/
-```
-
-### 4. Write a story prompt
-
-**Enhance your prompt first.** We provide prompt enhancers — system prompts that expand a short story or idea into well-formed shot prompts: **`prompts/long_story_writer_system_prompt.md`** for long, multi-shot video, and **`prompts/short_story_writer_system_prompt.md`** for single-shot short video. We **strongly recommend** running your input through the matching enhancer before inference; un-enhanced prompts tend to produce noticeably weaker results.
-
-Create a JSON file under `prompts/`. Each file is a single object with a `prompts` list, where **every string is one complete shot**. A single string produces one shot; multiple strings produce a multi-shot story, with each new shot conditioned on the previous ones through the paired audio-video memory bank.
-
-Inside each string, write these parts in order:
-
-| Part | What to describe |
-| --- | --- |
-| **Roles & Subjects** | Describe the appearance of all visible people, including age, build, hair, face, wardrobe, and speaking voice timbre when applicable. |
-| **Action & Dialogue** | What the subject does and speaks. |
-| **Style** | The overall visual and emotional aesthetic — e.g. realistic motorsport film language, cool daylight, restrained cinematic tension. |
-| **Camera Movement** | The shot type and framing or movement — e.g. a stable close-up on the face, or a medium shot from the waist up. |
-| **Background** | The setting and scene details behind the subject. |
-| **Sound Effects & BGM** | The sounds in the scene and the background music — e.g. room tone, wind, footsteps and fabric, with a soft low music bed under the dialogue or nobackground music |
-
-A more convenient prompt-writing workflow will be released as a **director agent** for everyone to use.
-
-### 5. Run inference
-
-```bash
-python inference.py
-```
-
-This loads the model once and processes all prompt files under `prompts/`.
-
-> 💡 **Note**: The inference pipeline is optimized to run on lower-VRAM
-> GPUs. Peak GPU usage is around **46–50 GB**, at the cost of slightly
-> longer per-shot inference time.
-
-Outputs are written to:
-
-```text
-inference_result/outputs/<prompt-name>/inference_<timestamp>/
-```
-
-## Configuration
-
-All inference parameters are managed in `configs/inference.yaml`. The file is organized into sections:
-
-| Section | Contents |
-| --- | --- |
-| `paths` | Checkpoint path, prompts directory, output root |
-| `video` | Resolution, frame count, FPS, seed |
-| `denoising` | Step list and sigma schedule |
-| `memory` | Memory bank size, save mode, LoRA settings |
-| `audio_memory` | Audio window, mel-spectrogram params |
-| `inference` | Device, dtype, grad scale |
-
-### Override via CLI
-
-Any YAML parameter can be overridden from the command line:
-
-```bash
-python inference.py --seed 42 --num-frames 121
-```
-
-Use a custom config file:
-
-```bash
-python inference.py --config configs/my_experiment.yaml
-```
-
-The Python entrypoint exposes the full configuration surface:
-
-```bash
-python inference.py --help
-```
-
-## Hardware
-
-Peak GPU usage is around **46–50 GB** for the default **25 fps x 241 frames x 1280 x 736** setting, so a single H100/A100-class (80 GB) or 48 GB GPU is sufficient.
-
-For smaller GPUs, reduce frames:
-
-```bash
-python inference.py --num-frames 121
-```
-
-## TODO List
-
-- [x] Release inference code
-- [x] Release model checkpoints
-- [x] Add prompt examples
-- [ ] Release Echo-SR (Super-resolution)
-- [ ] Release Director Agent 
-
-## Links
-
-- Project page: [`https://echo-team-joy-future-academy-jd.github.io/Echo-LongVideo-Page/`](https://echo-team-joy-future-academy-jd.github.io/Echo-LongVideo-Page/)
-- Repository: [`https://github.com/jd-opensource/JoyAI-Echo`](https://github.com/jd-opensource/JoyAI-Echo)
-- Huggingface: [`https://huggingface.co/jdopensource/JoyAI-Echo`](https://huggingface.co/jdopensource/JoyAI-Echo)
-- Research Group & Research Paper: [`https://github.com/Echo-Team-Joy-Future-Academy-JD`](https://github.com/Echo-Team-Joy-Future-Academy-JD), [Echo-Memory](https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-Memory), [Echo-Infinity](https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-Infinity)
-
-## Acknowledgements
-
-We gratefully acknowledge the open-source projects this work builds upon — in particular [LTX2.3](https://huggingface.co/Lightricks/LTX-2.3) for the base video generator and [Gemma](https://huggingface.co/google/gemma-3-12b-it) for the text encoder. Thanks to the broader research community whose contributions made this release possible.
+Checkpoints are downloaded separately in both cases. See each README for the
+exact files and paths.
 
 **For academic research and non-commercial use only.**
 
@@ -249,12 +73,14 @@ If JoyAI-Echo helps your research or products, please cite:
 }
 ```
 
+For Echo-WM, see the citation block in [`echo_wm/README.md`](echo_wm/README.md).
+
 ## License
 
 This project is based on LTX-2 by Lightricks Ltd.
 
-Portions of the original LTX-2 codebase have been modified by JD.com for academic and research purposes only. 
+Portions of the original LTX-2 codebase have been modified by JD.com for academic and research purposes only.
 This project is not intended for commercial use. For commercial use of LTX-2 or its derivatives, please contact Lightricks Ltd.
 
-All original copyright, license, patent, trademark, and attribution notices from LTX-2 are retained. 
+All original copyright, license, patent, trademark, and attribution notices from LTX-2 are retained.
 This project remains subject to the LTX-2 Community License Agreement.

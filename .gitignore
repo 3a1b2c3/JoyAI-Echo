@@ -31,7 +31,8 @@ Thumbs.db
 .claude/
 
 # --- Local user config ---
-configs/*.local.yaml
+# Unanchored so the rule applies to every project subtree.
+**/configs/*.local.yaml
 
 # --- Inference artifacts ---
 inference_result/
@@ -44,11 +45,11 @@ tmp/
 
 # --- Model weights / large binaries ---
 # Checkpoint files are downloaded separately; do not commit.
-checkpoints/*
-!checkpoints/.gitkeep
-!checkpoints/README.md
-echo_wm/checkpoints/*
-!echo_wm/checkpoints/*.manifest.json
+# Unanchored so both echo_longvideo/ and echo_wm/ are covered.
+**/checkpoints/*
+!**/checkpoints/.gitkeep
+!**/checkpoints/README.md
+!**/checkpoints/*.manifest.json
 *.safetensors
 *.pt
 *.bin
