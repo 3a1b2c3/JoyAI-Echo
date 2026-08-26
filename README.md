@@ -13,8 +13,10 @@
   <a href="https://arxiv.org/abs/2608.23383"><b>📄 Paper 1.5</b></a> |
   <a href="https://arxiv.org/abs/2608.23189"><b>📄 Echo-WM Paper</b></a> |
   <a href="https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/"><b>🌐 Project Page</b></a> |
-  <a href="https://huggingface.co/jdopensource/JoyAI-Echo"><b>🤗 Long Video Hugging Face</b></a> |
-  <a href="https://huggingface.co/Echo-Team/Echo-WM"><b>🤗 WM Hugging Face</b></a> |
+  <a href="https://huggingface.co/jdopensource/JoyAI-Echo"><b>🤗 Long Video Hugging Face</b></a>
+</p>
+<p>
+  <a href="https://huggingface.co/Echo-Team/Echo-WM"><b>🤗 World Model Hugging Face</b></a> |
   <a href="https://github.com/zhuang2002/ComfyUI_JoyAI_Echo"><b>🖥️ ComfyUI</b></a>
 </p>
 
@@ -59,6 +61,33 @@ Checkpoints are downloaded separately in both cases. See each README for the
 exact files and paths.
 
 **For academic research and non-commercial use only.**
+
+## Roadmap
+
+The current release is built on **LTX-2.3**. Next we are bringing up **LTX-2.5**
+as the backbone, then the serving stack around it.
+
+| | Item | Status | Notes |
+|---|---|---|---|
+| **Backbone** | LTX-2.3 Base | ✅ shipped | Bidirectional audio-visual DiT used by Echo-LongVideo and Echo-WM Base |
+| | LTX-2.3 Causal / Flash | ✅ shipped | Chunk-causal attention, KV-cache rollout, 4-step student — see [`echo_wm/README_CAUSAL.md`](echo_wm/README_CAUSAL.md) |
+| | LTX-2.5 Base | 🗓️ planned | Load official LTX-2.5 weights (Gemma 4 TE, 2.5 VAE / DiT) into the existing bidirectional path |
+| | LTX-2.5 Causal | 🗓️ planned | Same causal / Flash recipe on the 2.5 backbone: block-causal masks, sink+FIFO cache, few-step distillation |
+| **Accel** | Few-step distillation | 🗓️ planned | Push 2.5 Base and Causal onto a shared consistency / DMD student |
+| | Attention kernels | 🗓️ planned | FlashAttention / FlashInfer for video, audio, and UCPE branches |
+| | KV-cache infra | 🗓️ planned | Paged / variable-length cache, RoPE + UCPE rebase on eviction |
+| | Runtime compile | 🗓️ planned | FP8 + `torch.compile` / TensorRT execution for the DiT forward |
+| | Serving | 🗓️ planned | Multi-GPU data-parallel inference and host-side prep overlap |
+
+```text
+LTX-2.3  ── Base ✅ ── Causal / Flash ✅
+                │
+                ▼
+LTX-2.5  ── Base 🗓️ ── Causal 🗓️ ── Accel infra 🗓️
+```
+
+Nothing in the planned rows is available in this repo yet. Tracking only —
+APIs and configs will land with the corresponding drop.
 
 ## Citation
 
