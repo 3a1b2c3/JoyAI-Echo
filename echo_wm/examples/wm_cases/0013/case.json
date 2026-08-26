@@ -1,0 +1,6 @@
+{
+  "prompt": "Environment: A rustic log cabin with a tall stone chimney and a covered porch stands at the left edge of an alpine meadow thick with lupine, arrowleaf balsamroot, and red paintbrush. A weathered split-rail fence runs behind the flowers, dark conifers ring the clearing, and a snow-capped mountain range rises under a clear blue sky.\n\nCharacter: A fluffy orange-and-white dog walks away from camera through the tall grass with its plumed white tail raised. Keep the coat pattern, raised tail, hind-leg markings, and body proportions stable, and keep the gait an unhurried forward walk.\n\nStyle: Photorealistic rendering with bright high-altitude summer light, vivid natural color, crisp flower and grass detail, and a clean deep-focus landscape look.\n\nPerspective: Third-person low rear view near grass height, holding the dog centered in the lower frame with the cabin, fence, and mountain skyline visible behind.\n\nSounds: Grass and flower stems brush against the dog's coat, paws press into soft soil, a light breeze moves across the meadow, and songbirds call from the treeline. The dog gives an occasional bright bark. A gentle acoustic guitar and warm string theme sits under the foreground sounds.\n\nSpeech: None.",
+  "action": "w-60,wl-60,wj-60,w-60",
+  "fov_deg": 70.0,
+  "seed": 13
+}

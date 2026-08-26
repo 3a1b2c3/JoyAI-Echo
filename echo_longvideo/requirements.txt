@@ -30,7 +30,11 @@ numpy>=2.2,<3
 scipy>=1.13
 einops>=0.8
 Pillow>=10
+opencv-python-headless>=4.10
 tqdm>=4.66
 
 # --- video / audio I/O ---
 av>=14.0
+
+# --- optional world-model UI and automatic camera helpers ---
+gradio>=5.0
