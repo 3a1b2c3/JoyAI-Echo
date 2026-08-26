@@ -83,6 +83,40 @@ ACTION_HELP = (
     "`none` holds still. Combine, e.g. `wj` = forward + pan-left. Frames total ≈ num_frames − 1 (240 for a 10s clip)."
 )
 
+# Case directories under examples/ that hold `<id>/input.png` + `<id>/case.json`.
+# The causal cases target the chained multi-shot script, not this single-shot demo.
+CASE_COLLECTIONS = ("wm_cases",)
+
+
+def discover_cases() -> dict[str, dict]:
+    """Map "<collection>/<id>" -> case fields merged with its first-frame path.
+
+    Cases live in examples/<collection>/<id>/ with a case.json carrying the public
+    semantic controls (prompt, action, optional fov_deg/seed) next to input.png.
+    """
+    cases: dict[str, dict] = {}
+    for collection in CASE_COLLECTIONS:
+        root = EXAMPLES_DIR / collection
+        if not root.is_dir():
+            continue
+        for case_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+            meta_path = case_dir / "case.json"
+            image_path = case_dir / "input.png"
+            if not meta_path.is_file() or not image_path.is_file():
+                continue
+            try:
+                meta = json.loads(meta_path.read_text())
+            except json.JSONDecodeError as exc:
+                print(f"[cases] skipping {case_dir.name}: bad case.json ({exc})", flush=True)
+                continue
+            meta["image"] = str(image_path)
+            label = case_dir.name if len(CASE_COLLECTIONS) == 1 else f"{collection}/{case_dir.name}"
+            cases[label] = meta
+    return cases
+
+
+CASES = discover_cases()
+
 
 class EchoWMEngine:
     """Loads the Echo-WM model once; generates on demand."""
@@ -252,6 +286,19 @@ def build_ui(engine: EchoWMEngine) -> gr.Blocks:
     def on_preset(name: str):
         return gr.update(value=ACTION_PRESETS.get(name, "w-240"))
 
+    def on_case(name: str):
+        """Fill the first frame and the case's authored controls."""
+        case = CASES.get(name)
+        if case is None:
+            return (gr.update(),) * 5
+        return (
+            gr.update(value=case["image"]),
+            gr.update(value=case.get("prompt", "")),
+            gr.update(value=case.get("action", "w-240")),
+            gr.update(value=case.get("fov_deg", 70.0)),
+            gr.update(value=case.get("seed", 42)),
+        )
+
     def on_generate(
         image_path, prompt, action_str, seed, num_frames, fps, steps,
         video_cfg, audio_cfg, width, height, fov_deg,
@@ -320,6 +367,11 @@ def build_ui(engine: EchoWMEngine) -> gr.Blocks:
 
         with gr.Row():
             with gr.Column(scale=1):
+                case_picker = gr.Dropdown(
+                    list(CASES),
+                    label="Example case (fills image, prompt, action, FOV, seed)",
+                    value=None,
+                )
                 image = gr.Image(label="First-frame image", type="filepath", height=300)
 
                 with gr.Row():
@@ -377,6 +429,10 @@ def build_ui(engine: EchoWMEngine) -> gr.Blocks:
                 raw_file = gr.File(label="Raw video (no overlay)", interactive=False)
 
         # Event handlers
+        case_picker.change(
+            on_case, inputs=case_picker,
+            outputs=[image, prompt, action, fov_deg, seed],
+        )
         preset.change(on_preset, inputs=preset, outputs=action)
         generate_btn.click(
             on_generate,
