@@ -4,8 +4,8 @@
 
 **An open audio-visual world model for controllable, persistent, and interactive world generation.**
 
-[🤗 Model Weights](https://huggingface.co/Echo-Team/Echo-WM) ·
-[🌐 Project Page](https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/wm/)
+[Model Weights](https://huggingface.co/Echo-Team/Echo-WM) ·
+[Project Page](https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/wm/)
 
 </div>
 
@@ -206,10 +206,14 @@ when device memory is fine.
 ## 📄 Citation
 
 ```bibtex
-@article{echo_wm,
-  title   = {Echo-WM: Open and Enterable Omnimodal World Models},
-  author  = {Echo Team},
-  journal = {arXiv preprint},
-  year    = {2026}
+@article{zhang2026echowm,
+  title         = {EchoWM: Open and Enterable Omnimodal World Models},
+  author        = {Zhang, Songchun and Li, Yaowei and Zhuang, Junhao and Jin, Weiyang and Wang, Haoyu and Lu, Xin and Sun, Yilang and Zhang, Shiyi and Li, Haoran and Ma, Xiaoxiao and Li, Yuming and Liu, Yijun and Su, Yaofeng and Ma, Yanwen and Wu, Haoyu and Su, Zihan and Ma, Yue and Zhang, Lvmin and Huang, Haoyang and Xue, Zeyue and Rao, Anyi and Duan, Nan},
+  journal       = {arXiv preprint arXiv:2608.23189},
+  year          = {2026},
+  eprint        = {2608.23189},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV},
+  url           = {https://arxiv.org/abs/2608.23189}
 }
 ```
