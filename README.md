@@ -240,12 +240,10 @@ We gratefully acknowledge the open-source projects this work builds upon — in 
 If JoyAI-Echo helps your research or products, please cite:
 
 ```bibtex
-@techreport{echo2026joyai,
-  title        = {JoyAI-Echo: Pushing the Frontier of Long Video Generation},
-  author       = {{Echo Team @ Joy Future Academy, JD}},
-  institution  = {Joy Future Academy, JD},
-  year         = {2026},
-  month        = {May}
+@article{li2026joyai,
+  title={JoyAI-Echo: Pushing the Frontier of Long Audio-Visual Generation},
+  author={Li, Haoran and Li, Fredreic and Ma, Shichen and Huang, Jie and Liu, Yijun and Shi, Jiaqi and Ma, Yanwen},
+  year={2026}
 }
 ```
 
