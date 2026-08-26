@@ -20,11 +20,17 @@ Use `--list` to see available cases. Use `--dry-run` to print the resolved
 
 The checked-in cases are intentionally single-shot I2V inputs:
 
-| Case | Motion | Input |
+| Case | Scene | Action |
 | --- | --- | --- |
-| `0004` | indoor forward + left/right navigation | `input.png` |
-| `0009` | outdoor forward + left/right navigation | `input.png` |
-| `0010` | green canyon, forward + left/right navigation | `input.png` |
+| `0004` | whimsical interior | `w-60,a-60,w-60,d-60` |
+| `0009` | autumn torii grove | `w-60,a-60,w-60,d-60` |
+| `0010` | green fantasy canyon | `w-60,a-60,w-60,d-60` |
+| `0011` | alpine wingsuit flight | `w-60,wl-60,wj-60,w-60` |
+| `0012` | jungle river, first-person bird | `w-60,wl-60,w-60,wj-60` |
+| `0013` | meadow cabin, dog from behind | `w-60,wl-60,wj-60,w-60` |
+
+`0004`-`0010` strafe with `a`/`d`; `0011`-`0013` hold `w` and steer with `l`/`j`,
+so forward motion and yaw are combined in the same segment.
 
 To run a fast validation instead of the default 10-second generation:
 

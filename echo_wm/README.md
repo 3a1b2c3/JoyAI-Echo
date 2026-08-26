@@ -88,16 +88,20 @@ outputs/wm_cases/0010/result.mp4
 outputs/wm_cases/0010/result.json
 ```
 
-To run the other cases, replace `0010` with `0004` or `0009`.
+To run the other cases, replace `0010` with any other case name. Use
+`--list` to print them all.
 
 ### Example: image + prompt + action string
 
 The repository examples are:
 
 ```text
-examples/wm_cases/0004/input.png
-examples/wm_cases/0009/input.png
-examples/wm_cases/0010/input.png
+examples/wm_cases/0004/input.png   whimsical interior
+examples/wm_cases/0009/input.png   autumn torii grove
+examples/wm_cases/0010/input.png   green fantasy canyon
+examples/wm_cases/0011/input.png   alpine wingsuit flight
+examples/wm_cases/0012/input.png   jungle river, first-person bird
+examples/wm_cases/0013/input.png   meadow cabin, dog from behind
 ```
 
 For example:
