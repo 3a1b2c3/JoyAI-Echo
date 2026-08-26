@@ -84,8 +84,6 @@ If JoyAI-Echo helps your research or products, please cite:
 }
 ```
 
-For Echo-WM, see the citation block in [`echo_wm/README.md`](echo_wm/README.md).
-
 ## License
 
 This project is based on LTX-2 by Lightricks Ltd.
