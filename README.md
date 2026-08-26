@@ -62,16 +62,16 @@ exact files and paths.
 
 **For academic research and non-commercial use only.**
 
-## Roadmap
+## Echo-WM Roadmap
 
-Current release is **LTX-2.3**. **LTX-2.5** and the accel stack are next.
+Echo-WM is on **LTX-2.3** today. **LTX-2.5** Base / Causal and the accel stack are next.
 
 | | Item | Status |
 |---|---|:---:|
-| **Backbone** | LTX-2.3 Base | ✅ |
-| | LTX-2.3 Causal / Flash | ✅ |
-| | LTX-2.5 Base | |
-| | LTX-2.5 Causal | |
+| **Backbone** | Echo-WM Base (LTX-2.3) | ✅ |
+| | Echo-WM Flash / Causal (LTX-2.3) | ✅ |
+| | Echo-WM Base (LTX-2.5) | |
+| | Echo-WM Causal (LTX-2.5) | |
 | **Accel** | Few-step distillation | |
 | | FlashAttention / FlashInfer | |
 | | Paged KV-cache | |
