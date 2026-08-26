@@ -108,6 +108,11 @@ class EchoWMEngine:
         print(f"  checkpoint: {checkpoint}", flush=True)
         print(f"  gemma: {gemma_path}", flush=True)
 
+        # The pipeline only records paths here; the 47GB of weights are read lazily on
+        # the first generation. Probe the checkpoint header now so a wrong --checkpoint
+        # fails at startup instead of surfacing minutes later as a failed generation.
+        self._probe_checkpoint(checkpoint)
+
         self.pipeline = TI2VidOneStagePipeline(
             checkpoint_path=str(checkpoint),
             gemma_root=str(gemma_path),
@@ -115,7 +120,22 @@ class EchoWMEngine:
             device=device,
             action_config=None,  # Will be set per generation
         )
-        print("[engine] Ready.", flush=True)
+        print("[engine] Ready (weights load on first generation).", flush=True)
+
+    @staticmethod
+    def _probe_checkpoint(checkpoint: Path) -> None:
+        """Validate the checkpoint is a readable safetensors file before serving."""
+        if not checkpoint.is_file():
+            raise SystemExit(f"[engine] Checkpoint not found: {checkpoint}")
+        from safetensors import safe_open
+
+        try:
+            with safe_open(str(checkpoint), framework="pt") as f:
+                n_tensors = len(f.keys())
+        except Exception as exc:  # noqa: BLE001 - surface any unreadable file the same way
+            raise SystemExit(f"[engine] Cannot read checkpoint {checkpoint}: {exc}") from exc
+        size_gb = checkpoint.stat().st_size / 1024**3
+        print(f"  verified: {n_tensors} tensors, {size_gb:.1f} GiB", flush=True)
 
     @torch.inference_mode()
     def generate(
@@ -397,6 +417,8 @@ def main() -> None:
     demo = build_ui(engine)
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
+    print(f"[server] Serving on http://127.0.0.1:{args.port} "
+          f"(forward port {args.port} if you are on a remote host)", flush=True)
     demo.queue().launch(
         server_name=args.host,
         server_port=args.port,
