@@ -66,17 +66,18 @@ exact files and paths.
 
 Echo-WM is on **LTX-2.3** today. **LTX-2.5** Base / Causal and the accel stack are next.
 
-| | Item | Status |
-|---|---|:---:|
-| **Backbone** | Echo-WM Base (LTX-2.3) | ✅ |
-| | Echo-WM Flash / Causal (LTX-2.3) | ✅ |
-| | Echo-WM Base (LTX-2.5) | |
-| | Echo-WM Causal (LTX-2.5) | |
-| **Accel** | Few-step distillation | |
-| | FlashAttention / FlashInfer | |
-| | Paged KV-cache | |
-| | FP8 / TensorRT | |
-| | Multi-GPU serving | |
+**Backbone**
+- [x] Echo-WM Base (LTX-2.3)
+- [x] Echo-WM Flash / Causal (LTX-2.3)
+- [ ] Echo-WM Base (LTX-2.5)
+- [ ] Echo-WM Causal (LTX-2.5)
+
+**Accel**
+- [ ] Few-step distillation
+- [ ] FlashAttention / FlashInfer
+- [ ] Paged KV-cache
+- [ ] FP8 / TensorRT
+- [ ] Multi-GPU serving
 
 ## Citation
 
