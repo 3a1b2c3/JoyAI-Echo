@@ -22,7 +22,9 @@
 
 Base-model instructions continue below. For the 4-step **Echo-WM Flash
 Preview**, DMD-distilled guidance, and bounded cache options, see
-**[README_CAUSAL.md](README_CAUSAL.md)**.
+**[README_CAUSAL.md](README_CAUSAL.md)**. 
+
+**We’ve just released the short-horizon (preview) version of Echo-WM Flash, with the long-horizon version coming soon.**
 
 ## 🚀 Environment Setup
 
