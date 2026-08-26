@@ -32,8 +32,8 @@ checkpoints, and entrypoint — pick the one you need and follow its README.
 
 ```text
 JoyAI-Echo/
-+-- echo_longvideo/   # long-video generation: inference.py, configs/, prompts/, ltx-*
-`-- echo_wm/          # world model: inference_wm.py, Gradio demo, bundled ltx-*
+├── echo_longvideo/   # long-video generation: inference.py, configs/, prompts/, ltx-*
+└── echo_wm/          # world model: inference_wm.py, Gradio demo, bundled ltx-*
 ```
 
 The two do not share a Python environment or a checkpoint directory. `echo_wm/`
