@@ -64,19 +64,32 @@ exact files and paths.
 
 ## Echo-WM Roadmap
 
-Echo-WM is on **LTX-2.3** today. **LTX-2.5** Base / Causal and the accel stack are next.
+On **LTX-2.3** now. Next: **LTX-2.5** Base / Causal, then the accel stack.
 
-**Backbone**
-- [x] Echo-WM Base (LTX-2.3)
-- [x] Echo-WM Flash / Causal (LTX-2.3)
-- [ ] Echo-WM Base (LTX-2.5)
-- [ ] Echo-WM Causal (LTX-2.5)
+<table>
+<tr>
+<th align="left" width="50%">Backbone</th>
+<th align="left" width="50%">Accel</th>
+</tr>
+<tr>
+<td valign="top">
 
-**Accel**
+- [x] LTX-2.3 · Base
+- [x] LTX-2.3 · Flash / Causal
+- [ ] LTX-2.5 · Base
+- [ ] LTX-2.5 · Causal
+
+</td>
+<td valign="top">
+
 - [ ] FlashAttention / FlashInfer
 - [ ] Paged KV-cache
 - [ ] FP8 / TensorRT
 - [ ] Multi-GPU serving
+
+</td>
+</tr>
+</table>
 
 ## Citation
 
