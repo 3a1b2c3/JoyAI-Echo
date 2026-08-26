@@ -13,8 +13,10 @@
   <a href="https://arxiv.org/abs/2608.23383"><b>📄 Paper 1.5</b></a> |
   <a href="https://arxiv.org/abs/2608.23189"><b>📄 Echo-WM Paper</b></a> |
   <a href="https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/"><b>🌐 Project Page</b></a> |
-  <a href="https://huggingface.co/jdopensource/JoyAI-Echo"><b>🤗 Long Video Hugging Face</b></a> |
-  <a href="https://huggingface.co/Echo-Team/Echo-WM"><b>🤗 WM Hugging Face</b></a> |
+  <a href="https://huggingface.co/jdopensource/JoyAI-Echo"><b>🤗 Long Video Hugging Face</b></a>
+</p>
+<p>
+  <a href="https://huggingface.co/Echo-Team/Echo-WM"><b>🤗 World Model Hugging Face</b></a> |
   <a href="https://github.com/zhuang2002/ComfyUI_JoyAI_Echo"><b>🖥️ ComfyUI</b></a>
 </p>
 
@@ -30,8 +32,8 @@ checkpoints, and entrypoint — pick the one you need and follow its README.
 
 ```text
 JoyAI-Echo/
-+-- echo_longvideo/   # long-video generation: inference.py, configs/, prompts/, ltx-*
-`-- echo_wm/          # world model: inference_wm.py, Gradio demo, bundled ltx-*
+├── echo_longvideo/   # long-video generation: inference.py, configs/, prompts/, ltx-*
+└── echo_wm/          # world model: inference_wm.py, Gradio demo, bundled ltx-*
 ```
 
 The two do not share a Python environment or a checkpoint directory. `echo_wm/`
@@ -59,6 +61,26 @@ Checkpoints are downloaded separately in both cases. See each README for the
 exact files and paths.
 
 **For academic research and non-commercial use only.**
+
+## Echo-WM Roadmap
+
+Echo-WM is on **LTX-2.3** today. Next we move Base and Causal onto **LTX-2.5**,
+then cut long-rollout cost with sparse attention and a tighter cache / runtime
+stack.
+
+### Backbone
+
+- [x] **LTX-2.3 · Base** — bidirectional audio-visual DiT used by Echo-WM Base (~10 s).
+- [x] **LTX-2.3 · Flash / Causal** — chunk-causal attention, KV-cache rollout, 4-step Flash. See [`echo_wm/README_CAUSAL.md`](echo_wm/README_CAUSAL.md).
+- [ ] **LTX-2.5 · Base** — load official LTX-2.5 weights (Gemma 4 TE, 2.5 VAE / DiT) into the existing bidirectional path.
+- [ ] **LTX-2.5 · Causal** — the same Flash recipe on 2.5: block-causal masks, sink+FIFO cache, few-step student.
+
+### Accel
+
+- [ ] **Sparse attention** — SageAttention and similar sparse / low-bit kernels on video, audio, and UCPE branches.
+- [ ] **FlashAttention / FlashInfer** — fused attention for long causal windows without blowing up HBM.
+- [ ] **Paged KV-cache** — variable-length cache so rollouts stay bounded; rebase RoPE and UCPE when tokens evict.
+- [ ] **FP8 / TensorRT** — compile the DiT forward at lower precision for decode-time throughput.
 
 ## Citation
 
