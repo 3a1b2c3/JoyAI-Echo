@@ -31,7 +31,7 @@ echo "  Gemma: $GEMMA_PATH"
 echo "  Config: $CONFIG"
 echo "  Port: $PORT"
 echo ""
-echo "Opening http://0.0.0.0:$PORT"
+echo "The server is ready once the '[server] Serving on ...' line appears below."
 echo ""
 
 python gradio_echo_wm.py \

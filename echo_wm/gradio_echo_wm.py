@@ -390,8 +390,9 @@ def build_ui(engine: EchoWMEngine) -> gr.Blocks:
 
                 with gr.Accordion("Video Settings", open=False):
                     with gr.Row():
-                        width = gr.Number(label="Width", value=1280, precision=0)
-                        height = gr.Number(label="Height", value=704, precision=0)
+                        # Fixed: the model is trained at this resolution.
+                        width = gr.Number(label="Width", value=1280, precision=0, interactive=False)
+                        height = gr.Number(label="Height", value=704, precision=0, interactive=False)
                     with gr.Row():
                         num_frames = gr.Number(label="Frames (241=10s)", value=241, precision=0)
                         fps = gr.Number(label="FPS", value=24, precision=1)
