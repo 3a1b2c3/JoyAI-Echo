@@ -25,7 +25,7 @@ checkpoints, and entrypoint — pick the one you need and follow its README.
 | Project | What it does | Guide |
 |---|---|---|
 | **JoyAI-Echo** (long video) | Long-horizon, multi-shot audio-visual generation. Up to ~5 minutes, with a paired audio-video memory bank carrying continuity across shots. | [`echo_longvideo/`](echo_longvideo/README.md) |
-| **Echo-WM** (world model) | Omnimodal world model with camera/WASD action control. ~10 s clips from a first frame plus a prompt, video and audio together. | [`echo_wm/`](echo_wm/README.md) |
+| **Echo-WM** (world model) | Omnimodal world model for generative media that responds to continuous navigation while video, environmental sound, music, and speech evolve together. | [`echo_wm/`](echo_wm/README.md) |
 
 ```text
 JoyAI-Echo/
@@ -70,6 +70,17 @@ If JoyAI-Echo helps your research or products, please cite:
   institution  = {Joy Future Academy, JD},
   year         = {2026},
   month        = {May}
+}
+
+@article{zhang2026echowm,
+  title         = {EchoWM: Open and Enterable Omnimodal World Models},
+  author        = {Zhang, Songchun and Li, Yaowei and Zhuang, Junhao and Jin, Weiyang and Wang, Haoyu and Lu, Xin and Sun, Yilang and Zhang, Shiyi and Li, Haoran and Ma, Xiaoxiao and Li, Yuming and Liu, Yijun and Su, Yaofeng and Ma, Yanwen and Wu, Haoyu and Su, Zihan and Ma, Yue and Zhang, Lvmin and Huang, Haoyang and Xue, Zeyue and Rao, Anyi and Duan, Nan},
+  journal       = {arXiv preprint arXiv:2608.23189},
+  year          = {2026},
+  eprint        = {2608.23189},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV},
+  url           = {https://arxiv.org/abs/2608.23189}
 }
 ```
 
