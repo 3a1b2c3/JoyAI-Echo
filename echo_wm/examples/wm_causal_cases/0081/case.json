@@ -1,0 +1,6 @@
+{
+  "prompt": "A sunlit artist's studio with exposed brick walls and wooden shelves holding art supplies. A canvas sits on a wooden easel showing a half-finished landscape painting. Paint tubes, brushes, and palettes are scattered on a worktable. A tall arched window lets in bright natural light, with potted plants and ferns on the sill. Framed sketches hang on the walls. Above, exposed wooden ceiling beams support a hanging pendant lamp and a dried flower wreath. Below the worktable, paint-stained rags, a jar of turpentine, and stacked canvases lean against the wall. Behind the viewer, a cluttered bookshelf holds art reference books, a ceramic coffee mug, and a small plaster bust. First-person viewer. First-person view with the right hand holding a wooden paintbrush tipped with blue paint, extending toward the canvas.",
+  "action": "k-96,i-96,s-96,w-96",
+  "fov_deg": 70.0,
+  "seed": 42
+}

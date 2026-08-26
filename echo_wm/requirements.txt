@@ -23,7 +23,7 @@ av
 # Optional acceleration.
 # xformers builds track a specific torch release: 0.0.35 targets torch 2.11 and
 # fails to import against the pinned 2.9.1. Keep this aligned with torch above.
-xformers==0.0.33
+xformers==0.0.33.post2
 
 # UI and visualization
 # gradio is capped below 6.0: 6.x requires huggingface-hub>=1.16, which conflicts

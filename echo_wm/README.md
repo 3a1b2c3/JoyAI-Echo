@@ -13,11 +13,16 @@
 
 **Echo-WM** is an omnimodal world model for generative media that responds to continuous navigation while video, environmental sound, music, and speech evolve together.
 
-### Public Base Inference
+### Public Inference
 
 | Model | Horizon | Input | Control | Output |
 |---|---:|---|---|---|
 | **Echo-WM Base** | ~10 s | First-frame image + prompt | Action DSL / pure camera control | Video + audio |
+| **Echo-WM Flash** | autoregressive | First-frame image + prompt | Action DSL / pure camera control | Video + audio |
+
+Base-model instructions continue below. For the 4-step Flash model,
+DMD-distilled guidance, and bounded cache options, see
+**[README_CAUSAL.md](README_CAUSAL.md)**.
 
 ## 🚀 Environment Setup
 
@@ -47,7 +52,7 @@ python -c "import torch; print('PyTorch:', torch.__version__); print('CUDA avail
 
 ## 📥 Download Checkpoints
 
-Download the base model and the Gemma 3 text encoder:
+Download the Echo-WM checkpoints and the Gemma 3 text encoder:
 
 ```bash
 cd /path/to/JoyAI-Echo/echo_wm
@@ -207,4 +212,3 @@ when device memory is fine.
   year    = {2026}
 }
 ```
-

@@ -39,7 +39,7 @@ def _normalize_trajectory(c2ws: torch.Tensor) -> torch.Tensor:
     return result
 
 
-def build_action_condition(
+def _build_action_condition(
     action: str,
     *,
     num_frames: int,
@@ -51,6 +51,7 @@ def build_action_condition(
     fov_deg: float,
     device: torch.device,
     fps: float,
+    output_dtype: torch.dtype,
 ) -> dict[str, torch.Tensor]:
     pt_data = build_action_pt_from_string(
         action,
@@ -72,9 +73,66 @@ def build_action_condition(
     viewmats = c2ws[:, ::_TEMPORAL_COMPRESSION][:, :latent_frames]
     Ks = K.unsqueeze(1).expand(-1, latent_frames, -1, -1).contiguous()
     return {
-        "ucpe_viewmats": viewmats.to(dtype=torch.bfloat16),
-        "ucpe_Ks": Ks.to(dtype=torch.bfloat16),
+        "ucpe_viewmats": viewmats.to(dtype=output_dtype),
+        "ucpe_Ks": Ks.to(dtype=output_dtype),
     }
+
+
+def build_action_condition(
+    action: str,
+    *,
+    num_frames: int,
+    width: int,
+    height: int,
+    translation_speed: float,
+    rotation_speed_deg: float,
+    pitch_limit_deg: float,
+    fov_deg: float,
+    device: torch.device,
+    fps: float,
+) -> dict[str, torch.Tensor]:
+    return _build_action_condition(
+        action,
+        num_frames=num_frames,
+        width=width,
+        height=height,
+        translation_speed=translation_speed,
+        rotation_speed_deg=rotation_speed_deg,
+        pitch_limit_deg=pitch_limit_deg,
+        fov_deg=fov_deg,
+        device=device,
+        fps=fps,
+        output_dtype=torch.bfloat16,
+    )
+
+
+def build_causal_action_condition(
+    action: str,
+    *,
+    num_frames: int,
+    width: int,
+    height: int,
+    translation_speed: float,
+    rotation_speed_deg: float,
+    pitch_limit_deg: float,
+    fov_deg: float,
+    device: torch.device,
+    fps: float,
+) -> dict[str, torch.Tensor]:
+    """Build the FP32 camera path used by bounded anchor translation."""
+    return _build_action_condition(
+        action,
+        num_frames=num_frames,
+        width=width,
+        height=height,
+        translation_speed=translation_speed,
+        rotation_speed_deg=rotation_speed_deg,
+        pitch_limit_deg=pitch_limit_deg,
+        fov_deg=fov_deg,
+        device=device,
+        fps=fps,
+        output_dtype=torch.float32,
+    )
 
 
 def build_action_trajectory(

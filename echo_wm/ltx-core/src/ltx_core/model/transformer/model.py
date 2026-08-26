@@ -360,12 +360,16 @@ class LTXModel(torch.nn.Module):
         audio: TransformerArgs | None,
         perturbations: BatchedPerturbationConfig,
         action_cond: dict | None = None,
+        kv_caches: list[dict] | None = None,
+        current_video_token_start: int = 0,
+        current_audio_token_start: int = 0,
     ) -> tuple[TransformerArgs, TransformerArgs]:
         """Process transformer blocks for LTXAV."""
 
         ucpe_viewmats = action_cond.get("ucpe_viewmats") if action_cond else None
         ucpe_Ks = action_cond.get("ucpe_Ks") if action_cond else None
-        for block in self.transformer_blocks:
+        for layer_index, block in enumerate(self.transformer_blocks):
+            layer_cache = kv_caches[layer_index] if kv_caches is not None else None
             if self._enable_gradient_checkpointing and self.training:
                 # Use gradient checkpointing to save memory during training.
                 # With use_reentrant=False, we can pass dataclasses directly -
@@ -377,6 +381,9 @@ class LTXModel(torch.nn.Module):
                     perturbations,
                     ucpe_viewmats,
                     ucpe_Ks,
+                    layer_cache,
+                    current_video_token_start,
+                    current_audio_token_start,
                     use_reentrant=False,
                 )
             else:
@@ -386,6 +393,9 @@ class LTXModel(torch.nn.Module):
                     perturbations=perturbations,
                     ucpe_viewmats=ucpe_viewmats,
                     ucpe_Ks=ucpe_Ks,
+                    kv_cache=layer_cache,
+                    current_video_token_start=current_video_token_start,
+                    current_audio_token_start=current_audio_token_start,
                 )
 
         return video, audio
@@ -413,6 +423,9 @@ class LTXModel(torch.nn.Module):
     def forward(
         self, video: Modality | None, audio: Modality | None, perturbations: BatchedPerturbationConfig,
         action_cond: dict | None = None,
+        kv_caches: list[dict] | None = None,
+        current_video_token_start: int = 0,
+        current_audio_token_start: int = 0,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Forward pass for LTX models.
@@ -432,6 +445,9 @@ class LTXModel(torch.nn.Module):
             audio=audio_args,
             perturbations=perturbations,
             action_cond=action_cond,
+            kv_caches=kv_caches,
+            current_video_token_start=current_video_token_start,
+            current_audio_token_start=current_audio_token_start,
         )
 
         # Process output
@@ -454,6 +470,68 @@ class LTXModel(torch.nn.Module):
             else None
         )
         return vx, ax
+
+    def init_av_kv_caches(  # noqa: PLR0913
+        self,
+        batch_size: int,
+        max_video_tokens: int,
+        max_audio_tokens: int,
+        text_seq_len: int,
+        device: torch.device,
+        dtype: torch.dtype,
+        video_local_attn_tokens: int = -1,
+        video_sink_tokens: int = 0,
+        video_ucpe_local_attn_tokens: int | None = None,
+        video_ucpe_sink_tokens: int | None = None,
+        audio_local_attn_tokens: int = -1,
+        audio_sink_tokens: int = 0,
+    ) -> list[dict]:
+        """Allocate inference-only per-layer AV caches."""
+
+        def allocate(max_tokens: int, dim: int, local: int, sink: int) -> dict:
+            capacity = max_tokens if local < 0 else min(max_tokens, local)
+            if capacity <= 0:
+                raise ValueError("KV cache capacity must be positive")
+            return {
+                "k": torch.zeros(batch_size, capacity, dim, device=device, dtype=dtype),
+                "v": torch.zeros(batch_size, capacity, dim, device=device, dtype=dtype),
+                "positions": torch.full((capacity,), -1, device=device, dtype=torch.long),
+                "length": 0,
+                "local_attn_size": local,
+                "sink_tokens": sink,
+            }
+
+        def allocate_text(dim: int) -> dict:
+            return {
+                "k": torch.zeros(batch_size, text_seq_len, dim, device=device, dtype=dtype),
+                "v": torch.zeros(batch_size, text_seq_len, dim, device=device, dtype=dtype),
+                "length": 0,
+                "is_init": False,
+            }
+
+        ucpe_local = video_local_attn_tokens if video_ucpe_local_attn_tokens is None else video_ucpe_local_attn_tokens
+        ucpe_sink = video_sink_tokens if video_ucpe_sink_tokens is None else video_ucpe_sink_tokens
+        caches: list[dict] = []
+        for block in self.transformer_blocks:
+            layer: dict = {}
+            if self.model_type.is_video_enabled():
+                layer["video_self"] = allocate(max_video_tokens, self.inner_dim, video_local_attn_tokens, video_sink_tokens)
+                layer["video_text"] = allocate_text(self.inner_dim)
+                if block.action_ucpe_enabled:
+                    layer["video_ucpe"] = allocate(
+                        max_video_tokens,
+                        block.ucpe_num_heads * block.ucpe_head_dim,
+                        ucpe_local,
+                        ucpe_sink,
+                    )
+            if self.model_type.is_audio_enabled() and max_audio_tokens > 0:
+                layer["audio_self"] = allocate(max_audio_tokens, self.audio_inner_dim, audio_local_attn_tokens, audio_sink_tokens)
+                layer["audio_text"] = allocate_text(self.audio_inner_dim)
+            if self.model_type.is_video_enabled() and self.model_type.is_audio_enabled() and max_audio_tokens > 0:
+                layer["a2v"] = allocate(max_audio_tokens, self.audio_inner_dim, audio_local_attn_tokens, audio_sink_tokens)
+                layer["v2a"] = allocate(max_video_tokens, self.audio_inner_dim, video_local_attn_tokens, video_sink_tokens)
+            caches.append(layer)
+        return caches
 
 
 class LegacyX0Model(torch.nn.Module):
