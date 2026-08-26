@@ -1,4 +1,11 @@
-# Echo-WM Flash: 4-Step Autoregressive Inference
+<div align="center">
+
+<h1>Echo-WM Flash: 4-Step Autoregressive Inference</h1>
+
+[🤗 Model Weights](https://huggingface.co/Echo-Team/Echo-WM) ·
+[🌐 Project Page](https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/wm/)
+
+</div>
 
 ## 🌍 Overview
 
@@ -20,22 +27,32 @@ streaming online demo in a future update. Stay tuned.
 
 ## 📥 Download Checkpoints
 
-Download the complete public bundle from the `echo_wm` directory:
+Download the Echo-WM checkpoints from the `echo_wm` directory:
 
 ```bash
 hf download Echo-Team/Echo-WM --local-dir checkpoints
 ```
 
-The command creates:
+This creates:
 
 ```text
 checkpoints/echo-wm-base.safetensors
 checkpoints/echo-wm-flash.safetensors
-checkpoints/gemma-3/
 ```
 
 Echo-WM Flash loads the single merged `echo-wm-flash.safetensors` checkpoint;
 no separate action adapter or training checkpoint is required.
+
+Download the Gemma 3 text encoder separately:
+
+```bash
+hf download google/gemma-3-12b-it-qat-q4_0-unquantized \
+  --local-dir checkpoints/gemma-3
+```
+
+Gemma 3 is a gated repository. Accept its license and run `hf auth login`
+before downloading. Use the unquantized weights above rather than the quantized
+Q4_0 files; the text encoder runs in bfloat16.
 
 ## 🧪 Validate the Installation
 
@@ -192,11 +209,19 @@ action:
   fov_deg: 70.0
 ```
 
-The three cache settings are measured in video latent frames. Echo-WM Flash
-uses a fixed `video_chunk_size` of 3. Audio cache sizes are derived automatically
-from the video settings so video and audio blocks remain aligned.
-`--num-frames` is measured in decoded frames and must satisfy the VAE/block
-layout: `1 + 8n` decoded frames and `1 + 3m` latent frames.
+The three causal window parameters are measured in video latent frames.
+Echo-WM Flash uses a fixed `video_chunk_size` of 3. Each transformer layer
+maintains five bounded temporal caches: video self-attention, audio
+self-attention, audio-to-video cross-attention, video-to-audio cross-attention,
+and UCPE camera attention. The video settings directly configure the
+video-side caches; the aligned audio window and sink are derived automatically
+(the defaults map `19/7` video frames to `152/52` audio frames). Video and audio
+text K/V are static prompt caches initialized once and are not part of these
+five rolling caches.
+
+`--num-frames` is measured in decoded frames. Valid output lengths follow
+`1 + 24m` (for example, 241 or 385 frames), corresponding to `1 + 3m` video
+latent frames after the VAE temporal compression.
 
 ## 📄 Citation
 
