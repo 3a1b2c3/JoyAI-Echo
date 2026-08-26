@@ -1,0 +1,6 @@
+{
+  "prompt": "Ancient Roman stone ruins on a sunny afternoon. A pale stone road runs between rows of broken Corinthian columns of varying heights. Arched stone doorways and remnants of walls stand among the columns. Scattered stone fragments and rubble lie on the ground. Strong afternoon sunlight from the upper right casts dramatic long shadows of the columns onto the stone floor. Dry scrubland and a deep blue sky form the background. To the right, beyond the nearest row of columns, the base of a partially collapsed temple platform with worn steps leads up to a pair of standing columns still supporting a fragment of entablature. Further along the road ahead, a large fallen capital block lies on its side in the path. Behind the viewpoint, the stone road extends back toward a reconstructed archway with carved Latin inscriptions above the opening. A few scattered wild poppies grow between the rubble to the left. A tourist in a straw hat, light khaki shirt, and brown cargo pants with a camera hanging on a neck strap. Initially stationary. Adjusts camera strap slightly, glances around softly. Third-person view from directly behind the tourist at a mid-height angle, following the figure as the central subject between the ancient columns.",
+  "action": "l-96,w-96,l-96,w-96",
+  "fov_deg": 70.0,
+  "seed": 42
+}

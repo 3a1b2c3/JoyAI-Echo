@@ -14,7 +14,7 @@ From the `echo_wm` directory, run one case with:
 
 ```bash
 python scripts/run_wm_case_causal.py \
-  --case examples/wm_causal_cases/0104 \
+  --case examples/wm_causal_cases/0079 \
   --checkpoint checkpoints/echo-wm-flash.safetensors \
   --gemma-path checkpoints/gemma-3
 ```
@@ -27,8 +27,11 @@ or 385 output frames including the first frame.
 
 | Case | Motion | Input |
 | --- | --- | --- |
+| `0024` | yaw right/forward alternating | `input.jpg` |
+| `0075` | forward four times | `input.jpg` |
+| `0079` | yaw right four times | `input.jpg` |
 | `0081` | pitch down/up, then backward/forward | `input.jpg` |
-| `0104` | left/right yaw round trip | `input.jpg` |
+| `0122` | strafe left/right alternating | `input.jpg` |
 | `0170` | forward/backward, strafe left, yaw right | `input.jpg` |
 
 The shared WBench camera and bounded-cache defaults live in
@@ -38,7 +41,7 @@ To run a fast validation instead of the default 16-second case:
 
 ```bash
 python scripts/run_wm_case_causal.py \
-  --case examples/wm_causal_cases/0104 \
+  --case examples/wm_causal_cases/0079 \
   --checkpoint checkpoints/echo-wm-flash.safetensors \
   --gemma-path checkpoints/gemma-3 \
   --num-frames 25 --width 256 --height 128

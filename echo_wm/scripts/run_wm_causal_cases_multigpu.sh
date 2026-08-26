@@ -8,7 +8,7 @@
 #   GPU_LIST        comma-separated GPU indices (default: 0,1,2)
 #   CASES           space/comma-separated case names (default: every case dir)
 #   PYTHON_BIN      interpreter to use (default: python from the active environment)
-#   ACTION_OVERLAY  set to any value to also write the HUD copies
+#   ACTION_OVERLAY  write the HUD copies (default: 1; set to 0 to skip them)
 #
 # Positional: [checkpoint] [gemma_path] [output_root]
 set -euo pipefail
@@ -19,7 +19,10 @@ gemma_path="${2:-$wm_root/checkpoints/gemma-3}"
 output_root="${3:-$wm_root/outputs/wm_causal_cases_multigpu}"
 gpu_list="${GPU_LIST:-0,1,2}"
 python_bin="${PYTHON_BIN:-python}"
-overlay_flag="${ACTION_OVERLAY:+--action-overlay}"
+case "${ACTION_OVERLAY-1}" in
+  0|false|no|off|"") overlay_flag="--no-action-overlay" ;;
+  *)                 overlay_flag="--action-overlay" ;;
+esac
 
 IFS=',' read -r -a gpus <<< "$gpu_list"
 

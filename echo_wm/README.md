@@ -15,13 +15,13 @@
 
 ### Public Inference
 
-| Model | Horizon | Input | Control | Output |
-|---|---:|---|---|---|
-| **Echo-WM Base** | ~10 s | First-frame image + prompt | Action DSL / pure camera control | Video + audio |
-| **Echo-WM Flash** | autoregressive | First-frame image + prompt | Action DSL / pure camera control | Video + audio |
+| Model | Horizon | Input | Control | Output | Status |
+|---|---:|---|---|---|---|
+| **Echo-WM Base** | ~10 s | First-frame image + prompt | Action DSL / pure camera control | Video + audio | Available |
+| **Echo-WM Flash Preview** | autoregressive preview | First-frame image + prompt | Action DSL / pure camera control | Video + audio | Available |
 
-Base-model instructions continue below. For the 4-step Flash model,
-DMD-distilled guidance, and bounded cache options, see
+Base-model instructions continue below. For the 4-step **Echo-WM Flash
+Preview**, DMD-distilled guidance, and bounded cache options, see
 **[README_CAUSAL.md](README_CAUSAL.md)**.
 
 ## 🚀 Environment Setup

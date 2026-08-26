@@ -125,7 +125,7 @@ def test_causal_cli_has_no_cfg_and_accepts_both_cache_flag_spellings():
 def test_causal_case_runner_dry_run_uses_causal_entrypoint():
     result = subprocess.run(
         [sys.executable, str(WM_ROOT / "scripts" / "run_wm_case_causal.py"),
-         "--case", "examples/wm_causal_cases/0104", "--dry-run"],
+         "--case", "examples/wm_causal_cases/0079", "--dry-run"],
         cwd=WM_ROOT, check=True, capture_output=True, text=True,
     )
     assert "inference_wm_causal.py" in result.stdout
@@ -136,22 +136,37 @@ def test_causal_case_runner_dry_run_uses_causal_entrypoint():
     assert "--rotation-speed-deg" not in result.stdout
     assert "--pitch-limit-deg" not in result.stdout
     assert "--video-local-attn-size" not in result.stdout
+    assert "--action-overlay" in result.stdout
+
+    no_overlay = subprocess.run(
+        [sys.executable, str(WM_ROOT / "scripts" / "run_wm_case_causal.py"),
+         "--case", "examples/wm_causal_cases/0079", "--dry-run", "--no-action-overlay"],
+        cwd=WM_ROOT, check=True, capture_output=True, text=True,
+    )
+    assert "--no-action-overlay" in no_overlay.stdout
 
 
 def test_causal_multigpu_runner_uses_active_python_environment():
     source = (WM_ROOT / "scripts" / "run_wm_causal_cases_multigpu.sh").read_text()
     assert 'python_bin="${PYTHON_BIN:-python}"' in source
+    assert 'case "${ACTION_OVERLAY-1}" in' in source
 
 
 def test_checked_in_wbench_causal_cases_have_four_4_second_actions():
     expected_actions = {
+        "0024": "l-96,w-96,l-96,w-96",
+        "0075": "w-96,w-96,w-96,w-96",
+        "0079": "l-96,l-96,l-96,l-96",
         "0081": "k-96,i-96,s-96,w-96",
-        "0104": "j-96,j-96,l-96,l-96",
+        "0122": "a-96,d-96,a-96,d-96",
         "0170": "w-96,s-96,a-96,l-96",
     }
     expected_prompts = {
+        "0024": "Ancient Roman stone ruins on a sunny afternoon. A pale stone road runs between rows of broken Corinthian columns of varying heights. Arched stone doorways and remnants of walls stand among the columns. Scattered stone fragments and rubble lie on the ground. Strong afternoon sunlight from the upper right casts dramatic long shadows of the columns onto the stone floor. Dry scrubland and a deep blue sky form the background. To the right, beyond the nearest row of columns, the base of a partially collapsed temple platform with worn steps leads up to a pair of standing columns still supporting a fragment of entablature. Further along the road ahead, a large fallen capital block lies on its side in the path. Behind the viewpoint, the stone road extends back toward a reconstructed archway with carved Latin inscriptions above the opening. A few scattered wild poppies grow between the rubble to the left. A tourist in a straw hat, light khaki shirt, and brown cargo pants with a camera hanging on a neck strap. Initially stationary. Adjusts camera strap slightly, glances around softly. Third-person view from directly behind the tourist at a mid-height angle, following the figure as the central subject between the ancient columns.",
+        "0075": "A cherry blossom garden in full spring bloom. A stone path winds between rows of sakura trees with dense pink blossoms. Pink petals drift through the air. A large red torii gate stands ahead framing the path. A stone lantern sits on the left edge. People stroll in the background. Warm afternoon sunlight filters through the canopy. Beyond the torii gate, a small wooden shrine with a sloped roof and offering box is nestled among the cherry trees. A second stone lantern stands on the right side further along the path, and a wooden bench sits beneath a particularly large sakura tree past the gate. First-person viewer. First-person view with both hands holding a digital camera with a large rear LCD screen showing the live viewfinder image of the scene ahead.",
+        "0079": "An enchanted crystal cave with massive prismatic crystal formations in purple, teal, and pink. Bioluminescent fungi glow on the cave floor and walls. Floating light motes drift through the air. The crystals refract light into rainbow spectra. To the right, a large crystalline cave monster with glowing purple eyes lurks behind tall crystal clusters. Deep cavern atmosphere with ethereal luminescence. Further to the right beyond the monster, a subterranean crystal pool glows with turquoise light, fed by a thin waterfall dripping from a stalactite cluster. The cave opens into a wider chamber with an ancient stone altar covered in glowing runes. First-person viewer. First-person view with the right hand holding a twisted wooden magic wand topped with a bright blue-white crystal orb that radiates light. The wand rotates together with the viewer's perspective when turning.",
         "0081": "A sunlit artist's studio with exposed brick walls and wooden shelves holding art supplies. A canvas sits on a wooden easel showing a half-finished landscape painting. Paint tubes, brushes, and palettes are scattered on a worktable. A tall arched window lets in bright natural light, with potted plants and ferns on the sill. Framed sketches hang on the walls. Above, exposed wooden ceiling beams support a hanging pendant lamp and a dried flower wreath. Below the worktable, paint-stained rags, a jar of turpentine, and stacked canvases lean against the wall. Behind the viewer, a cluttered bookshelf holds art reference books, a ceramic coffee mug, and a small plaster bust. First-person viewer. First-person view with the right hand holding a wooden paintbrush tipped with blue paint, extending toward the canvas.",
-        "0104": "A floating sky island with lush green grass and colorful wildflowers on the clifftop. Waterfalls cascade off the island edges into clouds far below. Other floating islands visible in the distance. A crystal tree with glowing fruit stands on the right. Blue sky with fluffy clouds. Anime fantasy style with vibrant colors and ethereal lighting. Off-screen to the left: a stone fairy ring arch covered in glowing vines, leading to a hidden garden with luminous mushrooms. Off-screen to the right (behind the crystal tree): a cliff edge where a wooden rope bridge extends toward a neighboring floating island with a ruined tower. A fairy girl in a white dress with a silver tiara and translucent dragonfly wings that shimmer in the light. Blonde hair, seen from behind. Wings flutter gently, hair sways softly in the breeze. Third-person perspective, rear view, medium shot following the fairy girl who is at horizontal center of the frame.",
+        "0122": "A volcanic crater rim in CG rendered style with dramatic fire lighting. Dark volcanic rock with glowing orange cracks in the foreground, a volcanic crater filled with bright molten lava below, ash clouds and volcanic steam vents hissing above. The atmosphere is intense with fire and heat. To the left along the rim, jagged obsidian spires jut upward and a collapsed lava tube opening is visible. To the right, the rim widens into a rocky plateau with scattered volcanic boulders and a secondary steam vent column rising from a fissure. A small dragon hatchling with red-orange scales and tiny wings, on the volcanic rim. Lifts off with wings flapping, moving through the air. Third-person perspective. The camera is positioned behind and slightly above the dragon hatchling, following it along the crater rim.",
         "0170": "A grand mythological hall rendered in oil-painting style with visible brushstroke textures. Tall marble pillars with ornate Corinthian capitals line both sides of a wide corridor. Voluminous golden clouds billow between and beyond the pillars, filling the background with ethereal light. A large luminous archway glows at the far end of the hall. The floor is polished marble, and the overall palette is warm gold, cream, and blue, evoking a classical Renaissance or Baroque painting of Mount Olympus. Behind the viewer, additional marble pillars recede into a second chamber with a vaulted ceiling painted with celestial figures. To the left, the spaces between pillars open onto a cloud-filled void with distant mountain peaks below. To the right, a stone balustrade overlooks a vast golden cloudscape lit by an unseen divine light source. The luminous archway ahead leads deeper into the divine realm. A god-like male figure seen from behind, wearing flowing robes in deep blue and gold that trail behind him with heavy fabric dynamics. He has bare feet and walks forward with a purposeful stride. A faint halo or nimbus of light encircles his head. The brushstroke texture of the oil-painting style is visible on his robes and skin. Third-person rear-follow camera positioned directly behind the figure at mid-torso height. The figure is centered in the lower portion of the frame, walking forward through the hall of pillars toward the glowing archway. The camera tracks at a stable distance, maintaining the painterly composition.",
     }
     root = WM_ROOT / "examples" / "wm_causal_cases"

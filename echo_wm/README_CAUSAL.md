@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1>Echo-WM Flash: 4-Step Autoregressive Inference</h1>
+<h1>Echo-WM Flash Preview: 4-Step Autoregressive Inference</h1>
 
 [🤗 Model Weights](https://huggingface.co/Echo-Team/Echo-WM) ·
 [🌐 Project Page](https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/wm/)
@@ -9,20 +9,20 @@
 
 ## 🌍 Overview
 
-**Echo-WM Flash** is the 4-step autoregressive variant of Echo-WM. It takes a
-first-frame image, a text prompt, and an Action DSL string, then generates video
-and audio jointly. Classifier-free guidance is distilled into the model through
-DMD, so inference does not require a separate CFG scale.
+**Echo-WM Flash Preview** is a 4-step autoregressive variant of Echo-WM. It
+takes a first-frame image, a text prompt, and an Action DSL string, then
+generates video and audio jointly. Classifier-free guidance is distilled into
+the model through DMD, so inference does not require a separate CFG scale.
 
-| Model                   |         Denoising | Context cache          |
-| ----------------------- | ----------------: | ---------------------- |
-| **Echo-WM Flash** | 4 steps per block | Bounded sink-plus-FIFO |
+| Model | Denoising | Context cache | Status |
+| --- | ---: | --- | --- |
+| **Echo-WM Flash Preview** | 4 steps per block | Bounded sink-plus-FIFO | Available |
 
 The default cache combines a persistent attention sink with recent FIFO
 history. Camera conditioning uses bounded anchor translation to preserve
 relative geometry as the active window moves.
 
-A longer-horizon distilled causal checkpoint will be released alongside a
+The longer-horizon Echo-WM Flash checkpoint will be released alongside a
 streaming online demo in a future update. Stay tuned.
 
 ## 📥 Download Checkpoints
@@ -40,8 +40,8 @@ checkpoints/echo-wm-base.safetensors
 checkpoints/echo-wm-flash.safetensors
 ```
 
-Echo-WM Flash loads the single merged `echo-wm-flash.safetensors` checkpoint;
-no separate action adapter or training checkpoint is required.
+Echo-WM Flash Preview loads the single merged `echo-wm-flash.safetensors`
+checkpoint; no separate action adapter or training checkpoint is required.
 
 Download the Gemma 3 text encoder separately:
 
@@ -80,7 +80,7 @@ durations:
 ```bash
 cd /path/to/JoyAI-Echo/echo_wm
 python scripts/run_wm_case_causal.py \
-  --case examples/wm_causal_cases/0104 \
+  --case examples/wm_causal_cases/0079 \
   --checkpoint checkpoints/echo-wm-flash.safetensors \
   --gemma-path checkpoints/gemma-3 \
   --video_local_attn_size 19 \
@@ -89,17 +89,19 @@ python scripts/run_wm_case_causal.py \
   --output-dir outputs/wm_cases_causal
 ```
 
-For case `0104`, the four 96-frame actions produce 385 output frames, including
+For case `0079`, the four 96-frame actions produce 385 output frames, including
 the first frame. Use `--dry-run` to print the resolved command without loading
-the model.
+the model. By default, each run writes both the raw video and a second video
+with the action HUD overlay, named `<output_stem>_action.mp4`. Pass
+`--no-action-overlay` to skip the overlay copy.
 
 ### Example: image + prompt + action string
 
 ```bash
 python inference_wm_causal.py \
-  --image examples/wm_causal_cases/0104/input.jpg \
-  --prompt "A floating sky island with lush green grass and colorful wildflowers on the clifftop. Waterfalls cascade off the island edges into clouds far below. Other floating islands visible in the distance. A crystal tree with glowing fruit stands on the right. Blue sky with fluffy clouds. Anime fantasy style with vibrant colors and ethereal lighting. Off-screen to the left: a stone fairy ring arch covered in glowing vines, leading to a hidden garden with luminous mushrooms. Off-screen to the right (behind the crystal tree): a cliff edge where a wooden rope bridge extends toward a neighboring floating island with a ruined tower. A fairy girl in a white dress with a silver tiara and translucent dragonfly wings that shimmer in the light. Blonde hair, seen from behind. Wings flutter gently, hair sways softly in the breeze. Third-person perspective, rear view, medium shot following the fairy girl who is at horizontal center of the frame." \
-  --action-str "j-96,j-96,l-96,l-96" \
+  --image examples/wm_causal_cases/0079/input.jpg \
+  --prompt "An enchanted crystal cave with massive prismatic crystal formations in purple, teal, and pink. Bioluminescent fungi glow on the cave floor and walls. Floating light motes drift through the air. The crystals refract light into rainbow spectra. To the right, a large crystalline cave monster with glowing purple eyes lurks behind tall crystal clusters. Deep cavern atmosphere with ethereal luminescence. Further to the right beyond the monster, a subterranean crystal pool glows with turquoise light, fed by a thin waterfall dripping from a stalactite cluster. The cave opens into a wider chamber with an ancient stone altar covered in glowing runes. First-person viewer. First-person view with the right hand holding a twisted wooden magic wand topped with a bright blue-white crystal orb that radiates light. The wand rotates together with the viewer's perspective when turning." \
+  --action-str "l-96,l-96,l-96,l-96" \
   --checkpoint checkpoints/echo-wm-flash.safetensors \
   --gemma-path checkpoints/gemma-3 \
   --video_local_attn_size 19 \
@@ -119,10 +121,11 @@ does not invoke a prompt enhancer or rewrite them into six fields.
 ```text
 --video_local_attn_size INT   Total video cache window (default: 19)
 --video_sink_size INT         Persistent video sink frames (default: 7)
---video_chunk_size INT        Generated video frames per latent block (Flash: 3)
+--video_chunk_size INT        Generated video frames per latent block (Flash Preview: 3)
 --num-frames INT        Decoded output length (default: 241)
 --no-audio              Write a video-only MP4
---action-overlay        Also write a separate action HUD copy
+--action-overlay        Write a separate action HUD copy (default: enabled)
+--no-action-overlay     Skip the action HUD copy
 --seed INT              Set the random seed
 ```
 
@@ -149,8 +152,11 @@ Keys can be combined, for example `w-96,wj-96,w-96,d-96`.
 
 |     Case | Scene                    | Four 4-second actions                    | Action DSL                  |
 | -------: | ------------------------ | ---------------------------------------- | --------------------------- |
+| `0024` | Ancient Roman ruins | Yaw right/forward alternating | `l-96,w-96,l-96,w-96` |
+| `0075` | Cherry blossom garden | Forward four times | `w-96,w-96,w-96,w-96` |
+| `0079` | Enchanted crystal cave | Yaw right four times | `l-96,l-96,l-96,l-96` |
 | `0081` | Sunlit artist studio     | Pitch down/up, backward/forward          | `k-96,i-96,s-96,w-96`     |
-| `0104` | Floating fantasy island | Left/right yaw round trip | `j-96,j-96,l-96,l-96` |
+| `0122` | Volcanic crater | Strafe left/right alternating | `a-96,d-96,a-96,d-96` |
 | `0170` | Mythological marble hall | Forward/backward, strafe left, yaw right | `w-96,s-96,a-96,l-96`     |
 
 The images and original WBench captions are under
@@ -178,11 +184,12 @@ Supported environment variables:
 GPU_LIST        Comma-separated GPU indices (default: 0,1,2)
 CASES           Subset of cases (default: every checked-in case)
 PYTHON_BIN      Interpreter to use (default: python from the active environment)
-ACTION_OVERLAY  Set to any value to also write action HUD copies
+ACTION_OVERLAY  Write action HUD copies (default: 1; set to 0 to skip them)
 ```
 
-Outputs are written under `outputs/wm_causal_cases_multigpu/<case>/`, with a
-per-case `run_gpu<N>.log`.
+Outputs are written under `outputs/wm_causal_cases_multigpu/<case>/`. Each
+successful case contains `result.mp4`, `result_action.mp4`, and a per-case
+`run_gpu<N>.log`. Set `ACTION_OVERLAY=0` to omit `result_action.mp4`.
 
 ## ⚙️ 4-Step Configuration
 
@@ -210,7 +217,7 @@ action:
 ```
 
 The three causal window parameters are measured in video latent frames.
-Echo-WM Flash uses a fixed `video_chunk_size` of 3. Each transformer layer
+Echo-WM Flash Preview uses a fixed `video_chunk_size` of 3. Each transformer layer
 maintains five bounded temporal caches: video self-attention, audio
 self-attention, audio-to-video cross-attention, video-to-audio cross-attention,
 and UCPE camera attention. The video settings directly configure the

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="echo_longvideo/assets/image.png" alt="JoyAI-Echo generated video gallery" width="100%">
+  <img src="assets/teaser.png" alt="JoyAI-Echo generated video gallery" width="100%">
 </p>
 
 <div align="center">
@@ -71,7 +71,7 @@ stack.
 ### Backbone
 
 - [x] **LTX-2.3 · Base** — bidirectional audio-visual DiT used by Echo-WM Base (~10 s).
-- [x] **LTX-2.3 · Flash / Causal** — chunk-causal attention, KV-cache rollout, 4-step Flash. See [`echo_wm/README_CAUSAL.md`](echo_wm/README_CAUSAL.md).
+- [x] **LTX-2.3 · Flash Preview / Causal** — current public preview with chunk-causal attention, KV-cache rollout, and 4-step inference. See [`echo_wm/README_CAUSAL.md`](echo_wm/README_CAUSAL.md).
 - [ ] **LTX-2.5 · Base** — load official LTX-2.5 weights (Gemma 4 TE, 2.5 VAE / DiT) into the existing bidirectional path.
 - [ ] **LTX-2.5 · Causal** — the same Flash recipe on 2.5: block-causal masks, sink+FIFO cache, few-step student.
 

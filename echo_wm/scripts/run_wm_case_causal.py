@@ -68,8 +68,7 @@ def build_command(args: argparse.Namespace) -> list[str]:
     ):
         if value is not None:
             command += [flag, str(value)]
-    if args.action_overlay:
-        command += ["--action-overlay"]
+    command += ["--action-overlay" if args.action_overlay else "--no-action-overlay"]
     if "seed" in data:
         command += ["--seed", str(data["seed"])]
     return command
@@ -96,7 +95,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--video-chunk-size", "--video_chunk_size", dest="video_chunk_size", type=int,
     )
-    parser.add_argument("--action-overlay", action="store_true")
+    parser.add_argument(
+        "--action-overlay", action=argparse.BooleanOptionalAction, default=True,
+        help="Also write the HUD copy (default: enabled).",
+    )
     return parser.parse_args(argv)
 
 

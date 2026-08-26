@@ -68,7 +68,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--seed", type=int)
     parser.add_argument("--no-audio", action="store_true")
-    parser.add_argument("--action-overlay", action="store_true")
+    parser.add_argument(
+        "--action-overlay", action=argparse.BooleanOptionalAction, default=True,
+        help="Write a second MP4 with a Genie-style action HUD overlay "
+             "(default: enabled; disable with --no-action-overlay).",
+    )
     return parser.parse_args(argv)
 
 
@@ -167,10 +171,13 @@ def main() -> None:
         "audio_local_attn_size": cache.audio_local_attn_size,
         "audio_sink_size": cache.audio_sink_size, "cfg": False,
         "cache_policy": "bounded sink-plus-FIFO", "camera_policy": "bounded anchor translation",
+        "action_overlay": bool(args.action_overlay),
         "overlay_output": overlay_output.name if overlay_output else None,
     }
     args.output.with_suffix(".json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     print(f"Saved {args.output}")
+    if overlay_output:
+        print(f"Saved {overlay_output}")
 
 
 if __name__ == "__main__":
