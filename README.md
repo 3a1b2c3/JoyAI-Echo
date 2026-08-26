@@ -24,7 +24,7 @@ checkpoints, and entrypoint — pick the one you need and follow its README.
 
 | Project | What it does | Guide |
 |---|---|---|
-| **JoyAI-Echo** (long video) | Long-horizon, multi-shot audio-visual generation. Up to ~5 minutes, with a paired audio-video memory bank carrying continuity across shots. | [`echo_longvideo/`](echo_longvideo/README.md) |
+| **Echo-LongVideo** (long video) | Long-horizon, multi-shot audio-visual generation. Up to ~5 minutes, with a paired audio-video memory bank carrying continuity across shots. | [`echo_longvideo/`](echo_longvideo/README.md) |
 | **Echo-WM** (world model) | Omnimodal world model for generative media that responds to continuous navigation while video, environmental sound, music, and speech evolve together. | [`echo_wm/`](echo_wm/README.md) |
 
 ```text
