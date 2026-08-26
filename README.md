@@ -64,32 +64,23 @@ exact files and paths.
 
 ## Echo-WM Roadmap
 
-On **LTX-2.3** now. Next: **LTX-2.5** Base / Causal, then the accel stack.
+Echo-WM is on **LTX-2.3** today. Next we move Base and Causal onto **LTX-2.5**,
+then cut long-rollout cost with sparse attention and a tighter cache / runtime
+stack.
 
-<table>
-<tr>
-<th align="left" width="50%">Backbone</th>
-<th align="left" width="50%">Accel</th>
-</tr>
-<tr>
-<td valign="top">
+### Backbone
 
-- [x] LTX-2.3 · Base
-- [x] LTX-2.3 · Flash / Causal
-- [ ] LTX-2.5 · Base
-- [ ] LTX-2.5 · Causal
+- [x] **LTX-2.3 · Base** — bidirectional audio-visual DiT used by Echo-WM Base (~10 s).
+- [x] **LTX-2.3 · Flash / Causal** — chunk-causal attention, KV-cache rollout, 4-step Flash. See [`echo_wm/README_CAUSAL.md`](echo_wm/README_CAUSAL.md).
+- [ ] **LTX-2.5 · Base** — load official LTX-2.5 weights (Gemma 4 TE, 2.5 VAE / DiT) into the existing bidirectional path.
+- [ ] **LTX-2.5 · Causal** — the same Flash recipe on 2.5: block-causal masks, sink+FIFO cache, few-step student.
 
-</td>
-<td valign="top">
+### Accel
 
-- [ ] FlashAttention / FlashInfer
-- [ ] Paged KV-cache
-- [ ] FP8 / TensorRT
-- [ ] Multi-GPU serving
-
-</td>
-</tr>
-</table>
+- [ ] **Sparse attention** — SageAttention and similar sparse / low-bit kernels on video, audio, and UCPE branches.
+- [ ] **FlashAttention / FlashInfer** — fused attention for long causal windows without blowing up HBM.
+- [ ] **Paged KV-cache** — variable-length cache so rollouts stay bounded; rebase RoPE and UCPE when tokens evict.
+- [ ] **FP8 / TensorRT** — compile the DiT forward at lower precision for decode-time throughput.
 
 ## Citation
 
