@@ -64,30 +64,19 @@ exact files and paths.
 
 ## Roadmap
 
-The current release is built on **LTX-2.3**. Next we are bringing up **LTX-2.5**
-as the backbone, then the serving stack around it.
+Current release is **LTX-2.3**. **LTX-2.5** and the accel stack are next.
 
-| | Item | Status | Notes |
-|---|---|---|---|
-| **Backbone** | LTX-2.3 Base | ✅ shipped | Bidirectional audio-visual DiT used by Echo-LongVideo and Echo-WM Base |
-| | LTX-2.3 Causal / Flash | ✅ shipped | Chunk-causal attention, KV-cache rollout, 4-step student — see [`echo_wm/README_CAUSAL.md`](echo_wm/README_CAUSAL.md) |
-| | LTX-2.5 Base | 🗓️ planned | Load official LTX-2.5 weights (Gemma 4 TE, 2.5 VAE / DiT) into the existing bidirectional path |
-| | LTX-2.5 Causal | 🗓️ planned | Same causal / Flash recipe on the 2.5 backbone: block-causal masks, sink+FIFO cache, few-step distillation |
-| **Accel** | Few-step distillation | 🗓️ planned | Push 2.5 Base and Causal onto a shared consistency / DMD student |
-| | Attention kernels | 🗓️ planned | FlashAttention / FlashInfer for video, audio, and UCPE branches |
-| | KV-cache infra | 🗓️ planned | Paged / variable-length cache, RoPE + UCPE rebase on eviction |
-| | Runtime compile | 🗓️ planned | FP8 + `torch.compile` / TensorRT execution for the DiT forward |
-| | Serving | 🗓️ planned | Multi-GPU data-parallel inference and host-side prep overlap |
-
-```text
-LTX-2.3  ── Base ✅ ── Causal / Flash ✅
-                │
-                ▼
-LTX-2.5  ── Base 🗓️ ── Causal 🗓️ ── Accel infra 🗓️
-```
-
-Nothing in the planned rows is available in this repo yet. Tracking only —
-APIs and configs will land with the corresponding drop.
+| | Item | Status |
+|---|---|:---:|
+| **Backbone** | LTX-2.3 Base | ✅ |
+| | LTX-2.3 Causal / Flash | ✅ |
+| | LTX-2.5 Base | |
+| | LTX-2.5 Causal | |
+| **Accel** | Few-step distillation | |
+| | FlashAttention / FlashInfer | |
+| | Paged KV-cache | |
+| | FP8 / TensorRT | |
+| | Multi-GPU serving | |
 
 ## Citation
 
