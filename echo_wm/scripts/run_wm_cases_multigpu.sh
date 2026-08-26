@@ -29,7 +29,7 @@ esac
 
 IFS=',' read -r -a gpus <<< "$gpu_list"
 
-# Default to every checked-in case; override with CASES="0004 0009".
+# Default to every checked-in case; override with CASES="0004 0010".
 if [[ -n "${CASES:-}" ]]; then
   IFS=', ' read -r -a cases <<< "$CASES"
 else

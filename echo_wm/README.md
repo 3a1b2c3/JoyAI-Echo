@@ -96,12 +96,11 @@ To run the other cases, replace `0010` with any other case name. Use
 The repository examples are:
 
 ```text
-examples/wm_cases/0004/input.png   whimsical interior
-examples/wm_cases/0009/input.png   autumn torii grove
-examples/wm_cases/0010/input.png   green fantasy canyon
+examples/wm_cases/0004/input.png   magic workshop interior
+examples/wm_cases/0010/input.png   limestone canyon pool
 examples/wm_cases/0011/input.png   alpine wingsuit flight
-examples/wm_cases/0012/input.png   jungle river, first-person bird
 examples/wm_cases/0013/input.png   meadow cabin, dog from behind
+examples/wm_cases/0014/input.png   giant piano ridge above clouds
 ```
 
 For example:
@@ -161,8 +160,6 @@ Keys can be combined. Example:
 w-60,wj-60,w-60,d-60
 ```
 
-For the default 241-frame clip, use approximately 240 action frames. The action
-condition passed to the model contains only `ucpe_viewmats` and `ucpe_Ks`.
 
 ## 🖥️ Web Demo
 
@@ -190,7 +187,7 @@ case count:
 ```bash
 cd /path/to/JoyAI-Echo/echo_wm
 GPU_LIST=0,1,2 bash scripts/run_wm_cases_multigpu.sh
-CASES="0009 0010" GPU_LIST=0 bash scripts/run_wm_cases_multigpu.sh   # subset, serial
+CASES="0010 0014" GPU_LIST=0 bash scripts/run_wm_cases_multigpu.sh   # subset, serial
 ```
 
 ```text
