@@ -4,8 +4,8 @@
 
 **An open audio-visual world model for controllable, persistent, and interactive world generation.**
 
-[Model Weights](https://huggingface.co/Echo-Team/Echo-WM) ·
-[Project Page](https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/wm/)
+[🤗 Model Weights](https://huggingface.co/Echo-Team/Echo-WM) ·
+[🌐 Project Page](https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/wm/)
 
 </div>
 
