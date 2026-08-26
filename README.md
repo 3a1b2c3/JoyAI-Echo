@@ -73,7 +73,6 @@ Echo-WM is on **LTX-2.3** today. **LTX-2.5** Base / Causal and the accel stack a
 - [ ] Echo-WM Causal (LTX-2.5)
 
 **Accel**
-- [ ] Few-step distillation
 - [ ] FlashAttention / FlashInfer
 - [ ] Paged KV-cache
 - [ ] FP8 / TensorRT
