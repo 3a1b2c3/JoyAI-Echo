@@ -87,10 +87,15 @@ stack.
 If JoyAI-Echo helps your research or products, please cite:
 
 ```bibtex
-@article{li2026joyai,
-  title={JoyAI-Echo: Pushing the Frontier of Long Audio-Visual Generation},
-  author={Li, Haoran and Li, Fredreic and Ma, Shichen and Huang, Jie and Liu, Yijun and Shi, Jiaqi and Ma, Yanwen},
-  year={2026}
+@article{duan2026joyaiecho15,
+  title         = {Long-Horizon Audio-Visual Generation for Persistent Stories and Interactive Worlds},
+  author        = {Duan, Nan and Huang, Haoyang and Jin, Weiyang and Li, Haoran and Li, Yaowei and Li, Yuming and Liu, Yijun and Lu, Xin and Ma, Xiaoxiao and Ma, Yanwen and Su, Yaofeng and Sun, Yilang and Wang, Haoyu and Xue, Zeyue and Zhang, Songchun and Zhuang, Junhao},
+  journal       = {arXiv preprint arXiv:2608.23383},
+  year          = {2026},
+  eprint        = {2608.23383},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV},
+  url           = {https://arxiv.org/abs/2608.23383}
 }
 
 @article{zhang2026echowm,
@@ -102,6 +107,12 @@ If JoyAI-Echo helps your research or products, please cite:
   archivePrefix = {arXiv},
   primaryClass  = {cs.CV},
   url           = {https://arxiv.org/abs/2608.23189}
+}
+
+@article{li2026joyai,
+  title  = {JoyAI-Echo: Pushing the Frontier of Long Audio-Visual Generation},
+  author = {Li, Haoran and Li, Fredreic and Ma, Shichen and Huang, Jie and Liu, Yijun and Shi, Jiaqi and Ma, Yanwen},
+  year   = {2026}
 }
 ```
 
