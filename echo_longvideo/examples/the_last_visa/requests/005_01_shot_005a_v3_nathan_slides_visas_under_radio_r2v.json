@@ -1,0 +1,23 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_005a_v3_nathan_slides_visas_under_radio_r2v",
+  "prompt": "This video has exactly 2 shots.\n\nshot1: Late at night in Nathan's office, ID_A has the same face and white dinner jacket shown in the ID_A memory. He sits beside an old tabletop radio while holding exactly two transit visa papers. A firm military knock sounds outside. ID_A keeps both papers in his hands and turns his face toward the door.\n\nshot2: Cut to a close side view of the radio resting on the desk. Both visa papers lie flat on the tabletop directly in front of the radio. ID_A uses both hands to slide the two flat papers straight underneath the bottom edge of the radio until they are completely hidden. The radio remains closed and does not move. The yellow-brown envelope remains untouched beside it.\n\nMoody nighttime 1940s wartime thriller cinematography, black windows, warm desk lamp, stable ID_A face, exactly two papers, no dialogue, no narration or subtitles.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_a_current_shot4_v11_7p5.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "current_shot4_character_image_encoded_zero_audio",
+        "source_shot_id": 4,
+        "timestamp_sec": 7.5
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 787,
+  "duration_sec": 9.6
+}

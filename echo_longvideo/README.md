@@ -4,265 +4,234 @@
 
 <div align="center">
 
-<h1>JoyAI-Echo</h1>
+<h1>JoyAI-Echo 1.5</h1>
 
-<p><strong>🎬  Long-Horizon Audio-Visual Generation for Persistent Stories and Interactive Worlds</strong></p>
+<p><strong>🎬 Long-form audio-video generation with reference-driven multi-shot memory</strong></p>
 
 <p>
-  <a href="https://www.researchgate.net/publication/405770309_JoyAI-Echo_Pushing_the_Frontier_of_Long_Audio-Visual_Generation"><b>📄 Paper 1.0</b></a> |
-  <a href="https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-1.5-Page/blob/main/Doc/joyai-echo-15.pdf"><b>📄 Paper 1.5</b></a> |
-  <a href="https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-1.5-Page/blob/main/Doc/Echo_WM.pdf"><b>📄 Echo-WM Paper</b></a> |
+  <a href="https://arxiv.org/abs/2608.23383"><b>📄 Paper 1.5</b></a> |
   <a href="https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/"><b>🌐 Project Page</b></a> |
   <a href="#quickstart"><b>🚀 Quickstart</b></a> |
-  <a href="https://huggingface.co/jdopensource/JoyAI-Echo"><b>🤗 Hugging Face</b></a> |
-  <a href="https://github.com/zhuang2002/ComfyUI_JoyAI_Echo"><b>🖥️ ComfyUI</b></a> |
-  <a href="#citation"><b>📝 Citation</b></a>
+  <a href="https://huggingface.co/jdopensource/JoyAI-Echo"><b>🤗 Model Weights</b></a> |
+  <a href="Director_Agent/README.md"><b>🎬 Director Agent</b></a>
 </p>
 
 <p>
   <img src="https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11">
   <img src="https://img.shields.io/badge/PyTorch-2.8-EE4C2C?style=flat-square&logo=pytorch&logoColor=white" alt="PyTorch 2.8">
   <img src="https://img.shields.io/badge/CUDA-12.8-76B900?style=flat-square&logo=nvidia&logoColor=white" alt="CUDA 12.8">
-  <img src="https://img.shields.io/badge/Release-Inference--Only-black?style=flat-square" alt="Inference">
-  <img src="https://img.shields.io/badge/Long%20Video-5%20min-d61f2c?style=flat-square" alt="5 minute long video">
+  <img src="https://img.shields.io/badge/Release-Inference--Only-black?style=flat-square" alt="Inference only">
 </p>
 
 </div>
 
-## 📢 Updates
+## 📢 Whats New
 
-- 🎉 **JoyAI-Echo 1.5 is now available!** Explore the [JoyAI-Echo 1.5 project page](https://echo-team-joy-future-academy-jd.github.io/Echo-1.5-Page/). 🚀 Code will be released soon.
+- 🎉 **JoyAI-Echo 1.5 is now available!** Code, model weights, and R2V inference are released.
+- 🎬 **We also introduce Echo Director Agent This Time !**, an agentic workflow for planning and creating multi-shot videos. See [`Director_Agent/`](Director_Agent/README.md).
+- 🎮 **JoyAI-Echo 1.5 brings high-quality video generation to consumer GPUs. Fire up your RTX GPU and start creating!**
+- 📦 JoyAI-Echo 1.0 remains available on the [`echo1.0` archive branch](https://github.com/jd-opensource/JoyAI-Echo/tree/echo1.0/echo_longvideo).
+
+## JoyAI-Echo 1.5
+
+JoyAI-Echo 1.5 is an inference-only release for coherent, long-form
+audio-visual generation. It combines few-step generation with a paired
+cross-modal memory bank, carrying character appearance, voice, and scene
+continuity across independently editable shots.
 
 
-## Highlights
 
-- 🎬 **Long-form audio-visual stories**: turn one brief into a coherent multi-shot film, demonstrated at 10 minutes.
-- ⚡ **Few-step generation**: 8-step long-video and 4-step causal world models.
-- 🧠 **Composable cross-shot memory**: preserve character appearance, voice, and continuity across shots.
-- 🕹️ **Persistent interactive worlds**: metric 6-DoF control with stable 60-second rollouts.
+## Reference-to-video generation
 
+Echo 1.5 supports reference-to-video (R2V) generation. Each request may
+include a text prompt, an optional first-frame condition, and up to seven
+ordered memory slots containing reference images and audio. This makes visual
+identity, voice, and story context directly reusable from shot to shot.
 
-## ComfyUI Integration
+A complete request schema and portable example are available in
+[`schemas/r2v_request.schema.json`](schemas/r2v_request.schema.json) and
+[`examples/the_last_visa/`](examples/the_last_visa/). 🕶️🍿
 
-Recommended ComfyUI node package: **[ComfyUI_JoyAI_Echo](https://github.com/zhuang2002/ComfyUI_JoyAI_Echo)** — faithful to the official inference pipeline with full bf16 precision (no GGUF quantization), per-shot editable prompts with instant video preview, 3-phase GPU memory hot-swap (48GB VRAM), built-in LLM prompt enhancement, and cross-shot memory chaining for story-level consistency.
+## Echo Director Agent
 
-## Current Release Scope
+We also introduce **Echo Director Agent**, a local-first agent for planning,
+generating, reviewing and assembling multi-shot videos. It turns a story idea
+into an editable production workflow and submits generation jobs to an Echo 1.5
+service.
 
-JoyAI-Echo currently focuses on **text-to-video (T2V)** and **multi-shot long-video generation with paired audio-video memory**. The memory used in our official pipeline is built from generated T2V shots.
-
-Please note that **image-to-video (I2V)** is **not supported in the current release**.
-
-We are actively working on I2V support and plan to release it in a future version.
-
-## Demo Gallery
-
-Explore long-form and short-form JoyAI-Echo cases on the [Project Page](https://echo-team-joy-future-academy-jd.github.io/Echo-LongVideo-Page/). 🍿
-
-## Repository Layout
-
-```text
-echo_longvideo/
-+-- configs/
-|   `-- inference.yaml                # all inference parameters (YAML)
-+-- checkpoints/                      # model weights (download separately)
-|   +-- echo-longvideo-release.safetensors
-|   `-- gemma-3-12b/
-+-- prompts/                          # multi-shot prompt JSON files
-|   +-- example_single_shot.json
-|   `-- example_multi_shot.json
-+-- ltx-core/src/ltx_core/            # transformer, VAE, text-encoder building blocks
-+-- ltx-pipelines/src/ltx_pipelines/  # sampler and pipeline utilities
-+-- ltx-distillation/
-|   +-- src/ltx_distillation/         # DMD wrappers, AV pipelines, memory bank, utils
-|   `-- scripts/multishot_inference_dmd.py
-+-- inference.py                      # main entrypoint (load once, infer all)
-+-- requirements.txt
-`-- environment.yml
-```
-
-The repository root also holds [`../echo_wm/`](../echo_wm/README.md) (Echo-WM,
-the world model), which bundles its own copy of `ltx-core` and `ltx-pipelines`
-and does not share this project's environment.
+See [`Director_Agent/`](Director_Agent/README.md) for installation and usage.
 
 ## Quickstart
 
 ### 1. Clone
 
 ```bash
-
 git clone https://github.com/jd-opensource/JoyAI-Echo.git
 cd JoyAI-Echo/echo_longvideo
 ```
 
-All commands in this guide are run from `echo_longvideo/`. The world model,
-Echo-WM, is a separate self-contained project under
-[`../echo_wm/`](../echo_wm/README.md) with its own environment and checkpoints.
+All commands below are run from `echo_longvideo/`.
 
-### 2. Create the environment
+### 2. Install
 
-The reference environment is **Python 3.11 + PyTorch 2.8 + CUDA 12.8**.
-
-With conda:
-
-```bash
-conda env create -f environment.yml
-conda activate echo-long
-```
-
-With `uv`:
+The reference environment is Python 3.11, PyTorch 2.8 and CUDA 12.8. We
+recommend using [`uv`](https://docs.astral.sh/uv/):
 
 ```bash
 uv venv --python 3.11 .venv
 source .venv/bin/activate
-uv pip install --extra-index-url https://download.pytorch.org/whl/cu128 -r requirements.txt
+uv pip install --extra-index-url https://download.pytorch.org/whl/cu128 \
+  -r requirements.txt
+python scripts/setup_msst.py
 ```
 
-[`ffmpeg`](https://ffmpeg.org/download.html) must be available on `PATH` for shot concatenation. The conda recipe includes it. If you use `uv`, install it with your system package manager:
+[`ffmpeg`](https://ffmpeg.org/download.html) must also be available on `PATH`.
+For FP4 inference, install the optional NVIDIA ModelOpt dependency:
 
 ```bash
-sudo apt install ffmpeg
-# macOS:
-brew install ffmpeg
+uv pip install -r requirements-fp4.txt
 ```
 
-### 3. Download checkpoint
+Conda users can instead run:
 
-Download the JoyAI-Echo release checkpoint and Gemma text encoder:
+```bash
+conda env create -f environment.yml
+conda activate joyai-echo15
+python scripts/setup_msst.py
+```
 
-| File | Description | Size | Link |
-| --- | --- | --- | --- |
-| `echo-longvideo-release.safetensors` | Full model (transformer + VAE + vocoder) | ~46 GB |[`JoyAI-Echo`](https://huggingface.co/jdopensource/JoyAI-Echo)  |
-| `gemma-3-12b/` | Instruction-tuned model (text encoder) | ~24 GB | [`gemma-3-12b-it`](https://huggingface.co/google/gemma-3-12b-it) |
+### 3. Download model weights
 
-Place them under `checkpoints/`:
+Download the release weights from
+[Hugging Face](https://huggingface.co/jdopensource/JoyAI-Echo) and arrange them
+as follows:
+
+| Checkpoint | Precision | Download |
+| --- | --- | --- |
+| `echo15_full_dmd` | BF16 | [Hugging Face](https://huggingface.co/jdopensource/JoyAI-Echo/tree/main/echo15_full_dmd) |
+| `echo15_fp8` | FP8 | [Hugging Face](https://huggingface.co/jdopensource/JoyAI-Echo/tree/main/echo15_fp8) |
+| `echo15_fp4` | FP4 | [Hugging Face](https://huggingface.co/jdopensource/JoyAI-Echo/tree/main/echo15_fp4) |
+| `gemma-3-12b` | Text encoder | [Hugging Face](https://huggingface.co/google/gemma-3-12b-it) |
 
 ```text
 checkpoints/
-+-- echo-longvideo-release.safetensors
-`-- gemma-3-12b/
+├── echo15_full_dmd/          # BF16 reference checkpoint
+├── echo15_fp8/               # FP8 scaled-matmul checkpoint
+├── echo15_fp4/               # packed ModelOpt FP4 checkpoint
+├── gemma-3-12b/              # Gemma text encoder
+└── msst/                     # installed by scripts/setup_msst.py
 ```
 
-### 4. Write a story prompt
+Each Echo checkpoint directory includes its own `checkpoint.json` manifest.
+See [`checkpoints/README.md`](checkpoints/README.md) for the exact layout.
 
-**Enhance your prompt first.** We provide prompt enhancers — system prompts that expand a short story or idea into well-formed shot prompts: **`prompts/long_story_writer_system_prompt.md`** for long, multi-shot video, and **`prompts/short_story_writer_system_prompt.md`** for single-shot short video. We **strongly recommend** running your input through the matching enhancer before inference; un-enhanced prompts tend to produce noticeably weaker results.
+### 4. Run batch inference
 
-Create a JSON file under `prompts/`. Each file is a single object with a `prompts` list, where **every string is one complete shot**. A single string produces one shot; multiple strings produce a multi-shot story, with each new shot conditioned on the previous ones through the paired audio-video memory bank.
-
-Inside each string, write these parts in order:
-
-| Part | What to describe |
-| --- | --- |
-| **Roles & Subjects** | Describe the appearance of all visible people, including age, build, hair, face, wardrobe, and speaking voice timbre when applicable. |
-| **Action & Dialogue** | What the subject does and speaks. |
-| **Style** | The overall visual and emotional aesthetic — e.g. realistic motorsport film language, cool daylight, restrained cinematic tension. |
-| **Camera Movement** | The shot type and framing or movement — e.g. a stable close-up on the face, or a medium shot from the waist up. |
-| **Background** | The setting and scene details behind the subject. |
-| **Sound Effects & BGM** | The sounds in the scene and the background music — e.g. room tone, wind, footsteps and fabric, with a soft low music bed under the dialogue or nobackground music |
-
-A more convenient prompt-writing workflow will be released as a **director agent** for everyone to use.
-
-### 5. Run inference
+The default command loads the model once and processes all R2V JSON requests
+under `examples/the_last_visa/requests/`:
 
 ```bash
-python inference.py
+python inference.py --config configs/inference.bf16.yaml
 ```
 
-This loads the model once and processes all prompt files under `prompts/`.
-
-> 💡 **Note**: The inference pipeline is optimized to run on lower-VRAM
-> GPUs. Peak GPU usage is around **46–50 GB**, at the cost of slightly
-> longer per-shot inference time.
-
-Outputs are written to:
-
-```text
-inference_result/outputs/<prompt-name>/inference_<timestamp>/
-```
-
-## Configuration
-
-All inference parameters are managed in `configs/inference.yaml`. The file is organized into sections:
-
-| Section | Contents |
-| --- | --- |
-| `paths` | Checkpoint path, prompts directory, output root |
-| `video` | Resolution, frame count, FPS, seed |
-| `denoising` | Step list and sigma schedule |
-| `memory` | Memory bank size, save mode, LoRA settings |
-| `audio_memory` | Audio window, mel-spectrogram params |
-| `inference` | Device, dtype, grad scale |
-
-### Override via CLI
-
-Any YAML parameter can be overridden from the command line:
+Use FP8 or FP4 by selecting the corresponding configuration:
 
 ```bash
-python inference.py --seed 42 --num-frames 121
+python inference.py --config configs/inference.fp8.yaml
+python inference.py --config configs/inference.fp4.yaml
 ```
 
-Use a custom config file:
+Outputs are written to `inference_result/<work-id>/<shot-id>/`.
+
+## Consumer GPU support
+
+Echo 1.5 includes low-memory profiles for consumer GPUs. They combine
+layer-wise DiT weight streaming with tiled Video VAE decoding, trading some
+latency for substantially lower peak VRAM usage.
 
 ```bash
-python inference.py --config configs/my_experiment.yaml
+# BF16 (requires substantial system RAM)
+python inference.py --config configs/inference.consumer.bf16.yaml
+
+# FP8
+python inference.py --config configs/inference.consumer.fp8.yaml
+
+# FP4 standalone (recommended)
+python inference.py --config configs/inference.consumer.fp4.yaml
 ```
 
-The Python entrypoint exposes the full configuration surface:
+For a 24 GiB VRAM target, precompute conditioning before online generation.
+Actual headroom depends on the GPU, driver and request shape.
+
+## Local inference server
+
+The repository includes a small local server for Echo Director Agent and other
+R2V clients. The root `server.py` is its command-line entry point; the service
+implementation lives in the `server/` package. It provides an in-memory queue
+and dynamically keeps model weights on the GPU when memory permits.
 
 ```bash
-python inference.py --help
+uv pip install -r requirements-server.txt
+uv run python server.py --config configs/server.consumer.yaml
 ```
 
-## Hardware
-
-Peak GPU usage is around **46–50 GB** for the default **25 fps x 241 frames x 1280 x 736** setting, so a single H100/A100-class (80 GB) or 48 GB GPU is sufficient.
-
-For smaller GPUs, reduce frames:
+On Linux or macOS, after setup, start it with one command:
 
 ```bash
-python inference.py --num-frames 121
+./scripts/start_server.sh
 ```
 
-## TODO List
+On Windows, start it from Command Prompt with:
 
-- [x] Release inference code
-- [x] Release model checkpoints
-- [x] Add prompt examples
-- [ ] Release Echo-SR (Super-resolution)
-- [ ] Release Director Agent 
+```bat
+scripts\start_server.cmd
+```
 
-## Links
+Extra server arguments may be appended, for example
+`./scripts/start_server.sh --port 8222` or
+`scripts\start_server.cmd --port 8222`.
 
-- Project page: [`https://echo-team-joy-future-academy-jd.github.io/Echo-LongVideo-Page/`](https://echo-team-joy-future-academy-jd.github.io/Echo-LongVideo-Page/)
-- Repository: [`https://github.com/jd-opensource/JoyAI-Echo`](https://github.com/jd-opensource/JoyAI-Echo)
-- Huggingface: [`https://huggingface.co/jdopensource/JoyAI-Echo`](https://huggingface.co/jdopensource/JoyAI-Echo)
-- Research Group & Research Paper: [`https://github.com/Echo-Team-Joy-Future-Academy-JD`](https://github.com/Echo-Team-Joy-Future-Academy-JD), [Echo-Memory](https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-Memory), [Echo-Infinity](https://github.com/Echo-Team-Joy-Future-Academy-JD/Echo-Infinity)
+The server YAML owns deployment settings and references a separate inference
+YAML, which owns the checkpoint and pipeline settings.
+
+See [`docs/LOCAL_SERVER.md`](docs/LOCAL_SERVER.md) for deployment options.
 
 ## Acknowledgements
 
-We gratefully acknowledge the open-source projects this work builds upon — in particular [LTX2.3](https://huggingface.co/Lightricks/LTX-2.3) for the base video generator and [Gemma](https://huggingface.co/google/gemma-3-12b-it) for the text encoder. Thanks to the broader research community whose contributions made this release possible.
-
-**For academic research and non-commercial use only.**
+We gratefully acknowledge the open-source projects that make this release
+possible, especially [LTX-2.3](https://huggingface.co/Lightricks/LTX-2.3),
+[Gemma](https://huggingface.co/google/gemma-3-12b-it) and
+[MSST-WebUI](https://github.com/SUC-DriverOld/MSST-WebUI). See
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for details.
 
 ## Citation
 
-If JoyAI-Echo helps your research or products, please cite:
+If JoyAI-Echo helps your research, please cite:
 
 ```bibtex
-@techreport{echo2026joyai,
-  title        = {JoyAI-Echo: Pushing the Frontier of Long Video Generation},
-  author       = {{Echo Team @ Joy Future Academy, JD}},
-  institution  = {Joy Future Academy, JD},
-  year         = {2026},
-  month        = {May}
+@article{duan2026joyaiecho15,
+  title         = {Long-Horizon Audio-Visual Generation for Persistent Stories and Interactive Worlds},
+  author        = {Duan, Nan and Huang, Haoyang and Jin, Weiyang and Li, Haoran and Li, Yaowei and Li, Yuming and Liu, Yijun and Lu, Xin and Ma, Xiaoxiao and Ma, Yanwen and Su, Yaofeng and Sun, Yilang and Wang, Haoyu and Xue, Zeyue and Zhang, Songchun and Zhuang, Junhao},
+  journal       = {arXiv preprint arXiv:2608.23383},
+  year          = {2026},
+  eprint        = {2608.23383},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV},
+  url           = {https://arxiv.org/abs/2608.23383}
 }
 ```
+
+**For academic research and non-commercial use only.**
 
 ## License
 
 This project is based on LTX-2 by Lightricks Ltd.
 
-Portions of the original LTX-2 codebase have been modified by JD.com for academic and research purposes only. 
-This project is not intended for commercial use. For commercial use of LTX-2 or its derivatives, please contact Lightricks Ltd.
+Portions of the original LTX-2 codebase have been modified by JD.com for
+academic and research purposes only. This project is not intended for
+commercial use. For commercial use of LTX-2 or its derivatives, please contact
+Lightricks Ltd.
 
-All original copyright, license, patent, trademark, and attribution notices from LTX-2 are retained. 
-This project remains subject to the LTX-2 Community License Agreement.
+All original copyright, license, patent, trademark, and attribution notices
+from LTX-2 are retained. This project remains subject to the LTX-2 Community
+License Agreement.

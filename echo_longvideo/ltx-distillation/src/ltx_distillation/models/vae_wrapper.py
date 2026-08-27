@@ -2,12 +2,14 @@
 VAE Wrappers for visualization and validation during DMD distillation.
 """
 
+from collections.abc import Iterator
 from typing import Optional
 import torch
 import torch.nn as nn
 
 from ltx_core.loader.registry import Registry
 from ltx_core.model.audio_vae import encode_audio
+from ltx_core.model.video_vae.tiling import TilingConfig
 from ltx_core.types import Audio
 
 
@@ -68,16 +70,7 @@ class VideoVAEWrapper(nn.Module):
         return self.encoder(video)
 
     @torch.no_grad()
-    def decode(self, latent: torch.Tensor) -> torch.Tensor:
-        """
-        Decode latent to pixel space.
-
-        Args:
-            latent: Latent [B, F, C, H, W]
-
-        Returns:
-            Video [B, C, F_out, H_out, W_out] in range [-1, 1]
-        """
+    def _prepare_decode_latent(self, latent: torch.Tensor) -> torch.Tensor:
         if self.decoder is None:
             raise ValueError("Decoder not initialized")
 
@@ -90,9 +83,41 @@ class VideoVAEWrapper(nn.Module):
 
         # Keep latent dtype/device consistent with decoder weights.
         dec_device, dec_dtype = _module_device_dtype(self.decoder)
-        latent = latent.to(device=dec_device, dtype=dec_dtype)
+        return latent.to(device=dec_device, dtype=dec_dtype)
+
+    @torch.no_grad()
+    def decode(self, latent: torch.Tensor) -> torch.Tensor:
+        """
+        Decode latent to pixel space.
+
+        Args:
+            latent: Latent [B, F, C, H, W]
+
+        Returns:
+            Video [B, C, F_out, H_out, W_out] in range [-1, 1]
+        """
+        latent = self._prepare_decode_latent(latent)
 
         return self.decoder(latent)
+
+    @torch.no_grad()
+    def decode_to_uint8_chunks(
+        self,
+        latent: torch.Tensor,
+        tiling_config: TilingConfig,
+    ) -> Iterator[torch.Tensor]:
+        """Yield decoded ``[F, H, W, C]`` chunks in CPU uint8 memory.
+
+        Each tiled result is quantized and transferred immediately. This is
+        important on Windows/WDDM: collecting full-resolution floating-point
+        chunks on the GPU would recreate the memory pressure that tiling is
+        intended to avoid.
+        """
+        latent = self._prepare_decode_latent(latent)
+        for video in self.decoder.tiled_decode(latent, tiling_config):
+            video_uint8 = (((video + 1) / 2).clamp(0, 1) * 255).to(torch.uint8)
+            video_uint8 = video_uint8[0].permute(1, 2, 3, 0)
+            yield video_uint8.cpu().contiguous()
 
     @torch.no_grad()
     def decode_to_pixel(self, latent: torch.Tensor) -> torch.Tensor:
@@ -257,6 +282,7 @@ def create_vae_wrappers(
     dtype: torch.dtype = torch.bfloat16,
     with_video_encoder: bool = False,
     with_audio_encoder: bool = False,
+    with_decoders: bool = True,
     decoder_device: torch.device | None = None,
     registry: Registry | None = None,
 ) -> tuple[VideoVAEWrapper, AudioVAEWrapper]:
@@ -267,6 +293,8 @@ def create_vae_wrappers(
         checkpoint_path: Path to LTX-2 checkpoint
         device: Target device
         dtype: Model dtype
+        with_decoders: Load the video/audio decoders and vocoder. Conditioning-only
+            jobs can disable them to avoid loading unused weights.
         decoder_device: Device for video/audio decoders and vocoder. Defaults to
             ``device``; pass ``cpu`` during training init to avoid holding decode
             modules on every rank when only encoders are needed.
@@ -288,19 +316,22 @@ def create_vae_wrappers(
     )
 
     video_encoder = ledger.video_encoder() if with_video_encoder else None
-    video_decoder = ledger.video_decoder()
+    video_decoder = ledger.video_decoder() if with_decoders else None
     audio_encoder = ledger.audio_encoder() if with_audio_encoder else None
-    audio_decoder = ledger.audio_decoder()
-    vocoder = ledger.vocoder()
+    audio_decoder = ledger.audio_decoder() if with_decoders else None
+    vocoder = ledger.vocoder() if with_decoders else None
 
     # Move to target device
     if video_encoder is not None:
         video_encoder = video_encoder.to(device=device, dtype=dtype)
-    video_decoder = video_decoder.to(device=decoder_device, dtype=dtype)
+    if video_decoder is not None:
+        video_decoder = video_decoder.to(device=decoder_device, dtype=dtype)
     if audio_encoder is not None:
         audio_encoder = audio_encoder.to(device=device, dtype=torch.float32)
-    audio_decoder = audio_decoder.to(device=decoder_device, dtype=dtype)
-    vocoder = vocoder.to(device=decoder_device, dtype=dtype)
+    if audio_decoder is not None:
+        audio_decoder = audio_decoder.to(device=decoder_device, dtype=dtype)
+    if vocoder is not None:
+        vocoder = vocoder.to(device=decoder_device, dtype=dtype)
 
     video_vae = VideoVAEWrapper(
         encoder=video_encoder,

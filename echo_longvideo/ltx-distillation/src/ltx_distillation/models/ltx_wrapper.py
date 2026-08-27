@@ -11,7 +11,6 @@ Model Architecture:
 - Model input projection: Linear(128, 4096)
 """
 
-from dataclasses import replace
 from typing import Any, Dict, Optional, Tuple
 
 import torch
@@ -30,10 +29,10 @@ from ltx_core.guidance.perturbations import (
 )
 from ltx_core.loader import LoraPathStrengthAndSDOps
 from ltx_core.loader.registry import Registry
-from ltx_core.model.transformer import LTXModel, X0Model
+from ltx_core.model.transformer import LTXModel
+from ltx_core.quantization import QuantizationPolicy
 from ltx_core.model.transformer.modality import Modality
 from ltx_core.types import (
-    AudioLatentShape,
     SpatioTemporalScaleFactors,
     VideoLatentShape,
 )
@@ -242,6 +241,62 @@ class LTX2DiffusionWrapper(nn.Module):
 
         return pixel_coords
 
+    def _compute_slot_zero_video_positions(
+        self,
+        video_latent: torch.Tensor,
+        downscale_factor: int = 1,
+    ) -> torch.Tensor:
+        """Place every memory slot at the same local temporal position."""
+        _, num_frames, _, _, _ = video_latent.shape
+        if num_frames <= 0:
+            return self._compute_video_positions(
+                video_latent, downscale_factor=downscale_factor
+            )
+        single_frame_positions = self._compute_video_positions(
+            video_latent[:, :1], downscale_factor=downscale_factor
+        )
+        return single_frame_positions.repeat(1, 1, num_frames, 1)
+
+    def _compute_slot_center_video_positions(
+        self,
+        video_latent: torch.Tensor,
+        *,
+        downscale_factor: int = 1,
+        position_offset: float = 0.0,
+        slot_stride: float = 50.0,
+        negative: bool = False,
+    ) -> torch.Tensor:
+        """Center each memory slot on a fixed virtual timestamp."""
+        batch_size, num_frames, _, height, width = video_latent.shape
+        if num_frames <= 0:
+            return self._compute_video_positions(
+                video_latent, downscale_factor=downscale_factor
+            )
+
+        single_frame_positions = self._compute_video_positions(
+            video_latent[:, :1], downscale_factor=downscale_factor
+        )
+        positions = single_frame_positions.repeat(1, 1, num_frames, 1)
+        tokens_per_frame = int(height) * int(width)
+        slot_indices = torch.arange(
+            num_frames, device=video_latent.device, dtype=positions.dtype
+        )
+        if negative:
+            centers = float(position_offset) - (
+                float(num_frames - 1) - slot_indices
+            ) * float(slot_stride)
+        else:
+            centers = float(position_offset) + slot_indices * float(slot_stride)
+        midpoint = (
+            single_frame_positions[:, 0, :1, 0]
+            + single_frame_positions[:, 0, :1, 1]
+        ) * 0.5
+        shifts = centers.repeat_interleave(tokens_per_frame).view(1, 1, -1, 1)
+        shifts = shifts - midpoint.view(batch_size, 1, 1, 1)
+        positions = positions.clone()
+        positions[:, 0, ...] = positions[:, 0, ...] + shifts[:, 0, ...]
+        return positions
+
     # Audio timing constants (from AudioPatchifier defaults)
     AUDIO_SAMPLE_RATE = 16000
     AUDIO_HOP_LENGTH = 160
@@ -306,6 +361,62 @@ class LTX2DiffusionWrapper(nn.Module):
 
         return positions
 
+    @staticmethod
+    def _normalize_memory_segment_lengths(
+        segment_lengths: tuple[tuple[int, ...], ...] | tuple[int, ...] | None,
+        total_seq_len: int,
+    ) -> list[int]:
+        if total_seq_len <= 0:
+            return []
+        lengths_obj: Any = segment_lengths
+        if (
+            lengths_obj
+            and len(lengths_obj) > 0
+            and isinstance(lengths_obj[0], (tuple, list))
+        ):
+            lengths_obj = lengths_obj[0]
+        if lengths_obj:
+            lengths = [max(0, int(length)) for length in lengths_obj]
+            if sum(lengths) == total_seq_len and all(length > 0 for length in lengths):
+                return lengths
+        return [int(total_seq_len)]
+
+    def _compute_slot_center_audio_positions(
+        self,
+        audio_latent: torch.Tensor,
+        *,
+        segment_lengths: tuple[tuple[int, ...], ...] | tuple[int, ...] | None = None,
+        position_offset: float = 0.0,
+        slot_stride: float = 50.0,
+        negative: bool = False,
+    ) -> torch.Tensor:
+        batch_size, total_seq_len, _ = audio_latent.shape
+        if total_seq_len <= 0:
+            return self._compute_audio_positions(audio_latent)
+
+        lengths = self._normalize_memory_segment_lengths(
+            segment_lengths, total_seq_len
+        )
+        pieces: list[torch.Tensor] = []
+        start = 0
+        for slot_idx, length in enumerate(lengths):
+            segment = audio_latent[:, start : start + length]
+            piece = self._compute_audio_positions(segment)
+            if negative:
+                center = float(position_offset) - float(
+                    len(lengths) - 1 - slot_idx
+                ) * float(slot_stride)
+            else:
+                center = float(position_offset) + float(slot_idx) * float(slot_stride)
+            midpoint = (piece[:, 0, :1, 0] + piece[:, 0, -1:, 1]) * 0.5
+            piece = piece.clone()
+            piece[:, 0, ...] = piece[:, 0, ...] + (
+                center - midpoint
+            ).view(batch_size, 1, 1)
+            pieces.append(piece)
+            start += length
+        return torch.cat(pieces, dim=2)
+
     def _compute_timesteps_for_tokens(
         self,
         sigma: torch.Tensor,
@@ -339,118 +450,6 @@ class LTX2DiffusionWrapper(nn.Module):
             expanded = sigma.unsqueeze(2).expand(B, F, tokens_per_frame).reshape(B, -1)
             return expanded.unsqueeze(-1)  # [B, T, 1]
 
-    @staticmethod
-    def _memory_slot_ranges(total_seq_len: int, num_slots: int) -> list[tuple[int, int]]:
-        if total_seq_len <= 0 or num_slots <= 0:
-            return []
-
-        ranges: list[tuple[int, int]] = []
-        start = 0
-        for slot_idx in range(num_slots):
-            end = round((slot_idx + 1) * total_seq_len / num_slots)
-            if end > start:
-                ranges.append((start, end))
-            start = end
-        return ranges
-
-    @staticmethod
-    def _memory_slot_ranges_from_lengths(
-        lengths: tuple[int, ...] | None,
-        *,
-        total_seq_len: int,
-        num_slots: int,
-    ) -> list[tuple[int, int]]:
-        if not lengths or len(lengths) != num_slots:
-            return LTX2DiffusionWrapper._memory_slot_ranges(total_seq_len, num_slots)
-
-        ranges: list[tuple[int, int]] = []
-        start = 0
-        for raw_length in lengths:
-            length = max(0, int(raw_length))
-            end = min(start + length, total_seq_len)
-            if end > start:
-                ranges.append((start, end))
-            start = end
-        if start != total_seq_len:
-            return LTX2DiffusionWrapper._memory_slot_ranges(total_seq_len, num_slots)
-        return ranges
-
-    @classmethod
-    def _build_paired_memory_cross_mask(
-        cls,
-        *,
-        batch_size: int,
-        query_memory_seq_len: int,
-        query_target_seq_len: int,
-        kv_memory_seq_len: int,
-        kv_target_seq_len: int,
-        num_memory_slots: int,
-        device: torch.device,
-        query_segment_lengths: tuple[tuple[int, ...], ...] | None = None,
-        kv_segment_lengths: tuple[tuple[int, ...], ...] | None = None,
-    ) -> torch.Tensor:
-        query_total_seq_len = query_memory_seq_len + query_target_seq_len
-        kv_total_seq_len = kv_memory_seq_len + kv_target_seq_len
-        mask = torch.zeros(
-            batch_size,
-            query_total_seq_len,
-            kv_total_seq_len,
-            dtype=torch.bool,
-            device=device,
-        )
-
-        for batch_idx in range(batch_size):
-            query_lengths = (
-                query_segment_lengths[batch_idx]
-                if query_segment_lengths is not None and batch_idx < len(query_segment_lengths)
-                else None
-            )
-            kv_lengths = (
-                kv_segment_lengths[batch_idx]
-                if kv_segment_lengths is not None and batch_idx < len(kv_segment_lengths)
-                else None
-            )
-            query_ranges = cls._memory_slot_ranges_from_lengths(
-                query_lengths,
-                total_seq_len=query_memory_seq_len,
-                num_slots=num_memory_slots,
-            )
-            kv_ranges = cls._memory_slot_ranges_from_lengths(
-                kv_lengths,
-                total_seq_len=kv_memory_seq_len,
-                num_slots=num_memory_slots,
-            )
-            for (q_start, q_end), (k_start, k_end) in zip(query_ranges, kv_ranges, strict=False):
-                mask[batch_idx, q_start:q_end, k_start:k_end] = True
-
-        if query_target_seq_len > 0 and kv_target_seq_len > 0:
-            mask[:, query_memory_seq_len:, kv_memory_seq_len:] = True
-        return mask
-
-    @staticmethod
-    def _build_memory_self_attention_block_mask(
-        *,
-        batch_size: int,
-        memory_seq_len: int,
-        target_seq_len: int,
-        device: torch.device,
-    ) -> torch.Tensor | None:
-        if memory_seq_len <= 0:
-            return None
-
-        total_seq_len = memory_seq_len + target_seq_len
-        attention_mask = torch.ones(
-            batch_size,
-            total_seq_len,
-            total_seq_len,
-            dtype=torch.bool,
-            device=device,
-        )
-        attention_mask[:, :, :memory_seq_len] = False
-        attention_mask[:, :memory_seq_len, :] = False
-        attention_mask[:, :memory_seq_len, :memory_seq_len] = True
-        return attention_mask
-
     def forward(
         self,
         noisy_image_or_video: torch.Tensor,
@@ -462,9 +461,9 @@ class LTX2DiffusionWrapper(nn.Module):
         memory_audio: Optional[torch.Tensor] = None,
         memory_audio_timestep: Optional[torch.Tensor] = None,
         memory_audio_segment_lengths: tuple[tuple[int, ...], ...] | None = None,
-        paired_audio_memory: bool = False,
-        v2a_grad_scale: float = 1.0,
         memory_position_mode: str = "reference",
+        memory_position_offset: float = 0.0,
+        memory_position_slot_stride: float = 50.0,
         memory_downscale_factor: int = 1,
         skip_a2v_cross_attn: bool = False,
         skip_v2a_cross_attn: bool = False,
@@ -500,9 +499,19 @@ class LTX2DiffusionWrapper(nn.Module):
         memory_position_mode = str(memory_position_mode).lower()
         if memory_position_mode == "reference":
             memory_position_mode = "legacy"
-        if memory_position_mode not in {"legacy", "prefix_continuous"}:
+        allowed_memory_position_modes = {
+            "legacy",
+            "prefix_continuous",
+            "slot_zero",
+            "slot_center",
+            "negative_slot_center",
+            "reference_offset",
+        }
+        if memory_position_mode not in allowed_memory_position_modes:
             raise ValueError(
-                "memory_position_mode must be one of {'reference', 'legacy', 'prefix_continuous'}, "
+                "memory_position_mode must be one of {'reference', 'legacy', "
+                "'prefix_continuous', 'slot_zero', 'slot_center', "
+                "'negative_slot_center', 'reference_offset'}, "
                 f"got {memory_position_mode}"
             )
         if memory_video is not None and int(memory_video.shape[1]) == 0:
@@ -530,9 +539,28 @@ class LTX2DiffusionWrapper(nn.Module):
         memory_seq_len = 0
         if memory_video is not None:
             memory_video_flat = self._flatten_video_latent(memory_video)
-            memory_video_positions = self._compute_video_positions(
-                memory_video, downscale_factor=memory_downscale_factor
-            )
+            if memory_position_mode == "slot_zero":
+                memory_video_positions = self._compute_slot_zero_video_positions(
+                    memory_video,
+                    downscale_factor=memory_downscale_factor,
+                )
+            elif memory_position_mode in {"slot_center", "negative_slot_center"}:
+                memory_video_positions = self._compute_slot_center_video_positions(
+                    memory_video,
+                    downscale_factor=memory_downscale_factor,
+                    position_offset=float(memory_position_offset),
+                    slot_stride=float(memory_position_slot_stride),
+                    negative=memory_position_mode == "negative_slot_center",
+                )
+            else:
+                memory_video_positions = self._compute_video_positions(
+                    memory_video, downscale_factor=memory_downscale_factor
+                )
+                if memory_position_mode == "reference_offset":
+                    memory_video_positions = memory_video_positions.clone()
+                    memory_video_positions[:, 0, ...] += float(
+                        memory_position_offset
+                    )
             memory_video_timesteps = torch.zeros(
                 B,
                 memory_video_flat.shape[1],
@@ -625,7 +653,21 @@ class LTX2DiffusionWrapper(nn.Module):
             num_audio_tokens = noisy_audio.shape[1]
             audio_timesteps = self._compute_timesteps_for_tokens(combined_audio_timestep, num_audio_tokens, 1)
             if memory_audio_seq_len > 0:
-                memory_audio_positions = self._compute_audio_positions(memory_audio)
+                if memory_position_mode in {"slot_center", "negative_slot_center"}:
+                    memory_audio_positions = self._compute_slot_center_audio_positions(
+                        memory_audio,
+                        segment_lengths=memory_audio_segment_lengths,
+                        position_offset=float(memory_position_offset),
+                        slot_stride=float(memory_position_slot_stride),
+                        negative=memory_position_mode == "negative_slot_center",
+                    )
+                else:
+                    memory_audio_positions = self._compute_audio_positions(memory_audio)
+                    if memory_position_mode == "reference_offset":
+                        memory_audio_positions = memory_audio_positions.clone()
+                        memory_audio_positions[:, 0, ...] += float(
+                            memory_position_offset
+                        )
                 target_audio_position_start = memory_audio_seq_len if memory_position_mode == "prefix_continuous" else 0
                 target_audio_positions = self._compute_audio_positions(
                     target_audio,
@@ -643,66 +685,7 @@ class LTX2DiffusionWrapper(nn.Module):
                 context=conditional_dict.get("audio_context", conditional_dict["video_context"]),
                 context_mask=conditional_dict.get("attention_mask"),
                 enabled=True,
-                v2a_grad_scale=float(v2a_grad_scale),
             )
-
-        if bool(paired_audio_memory) and memory_seq_len > 0 and audio_modality is not None and memory_audio_seq_len > 0:
-            num_memory_slots = int(memory_video.shape[1]) if memory_video is not None else 0
-            if num_memory_slots > 0:
-                target_audio_seq_len = int(audio_modality.latent.shape[1] - memory_audio_seq_len)
-                a2v_pairwise_mask = self._build_paired_memory_cross_mask(
-                    batch_size=B,
-                    query_memory_seq_len=memory_seq_len,
-                    query_target_seq_len=num_target_video_tokens,
-                    kv_memory_seq_len=memory_audio_seq_len,
-                    kv_target_seq_len=target_audio_seq_len,
-                    num_memory_slots=num_memory_slots,
-                    device=device,
-                    kv_segment_lengths=memory_audio_segment_lengths,
-                )
-                v2a_pairwise_mask = self._build_paired_memory_cross_mask(
-                    batch_size=B,
-                    query_memory_seq_len=memory_audio_seq_len,
-                    query_target_seq_len=target_audio_seq_len,
-                    kv_memory_seq_len=memory_seq_len,
-                    kv_target_seq_len=num_target_video_tokens,
-                    num_memory_slots=num_memory_slots,
-                    device=device,
-                    query_segment_lengths=memory_audio_segment_lengths,
-                )
-                video_cross_query_mask = torch.ones(
-                    B,
-                    video_modality.latent.shape[1],
-                    device=device,
-                    dtype=torch.bool,
-                )
-                audio_cross_query_mask = torch.ones(
-                    B,
-                    audio_modality.latent.shape[1],
-                    device=device,
-                    dtype=torch.bool,
-                )
-                audio_attention_mask = self._build_memory_self_attention_block_mask(
-                    batch_size=B,
-                    memory_seq_len=memory_audio_seq_len,
-                    target_seq_len=target_audio_seq_len,
-                    device=device,
-                )
-                video_modality = replace(
-                    video_modality,
-                    cross_kv_mask=v2a_pairwise_mask,
-                    cross_query_mask=video_cross_query_mask,
-                    late_cross_kv_mask=v2a_pairwise_mask,
-                    late_cross_query_mask=video_cross_query_mask,
-                )
-                audio_modality = replace(
-                    audio_modality,
-                    attention_mask=audio_attention_mask,
-                    cross_kv_mask=a2v_pairwise_mask,
-                    cross_query_mask=audio_cross_query_mask,
-                    late_cross_kv_mask=a2v_pairwise_mask,
-                    late_cross_query_mask=audio_cross_query_mask,
-                )
 
         # Forward through model. The optional perturbation flags let inference
         # freeze one direction of cross-modal interaction without modifying the
@@ -762,7 +745,7 @@ class LTX2DiffusionWrapper(nn.Module):
 
         return video_x0, audio_x0
 
-    def load_state_dict(self, state_dict: Dict[str, Any], strict: bool = True) -> None:
+    def load_state_dict(self, state_dict: Dict[str, Any], strict: bool = True):
         """Load state dict, handling potential key mismatches."""
         # Remove 'model.' prefix if present
         new_state_dict = {}
@@ -772,7 +755,7 @@ class LTX2DiffusionWrapper(nn.Module):
             else:
                 new_state_dict[f"model.{k}"] = v
 
-        super().load_state_dict(new_state_dict, strict=strict)
+        return super().load_state_dict(new_state_dict, strict=strict)
 
 
 def create_ltx2_wrapper(
@@ -784,6 +767,7 @@ def create_ltx2_wrapper(
     video_width: int = 768,
     loras: tuple[LoraPathStrengthAndSDOps, ...] = (),
     registry: Registry | None = None,
+    quantization: QuantizationPolicy | None = None,
 ) -> LTX2DiffusionWrapper:
     """
     Factory function to create LTX2DiffusionWrapper from checkpoint.
@@ -811,13 +795,18 @@ def create_ltx2_wrapper(
         gemma_root_path=gemma_path,
         loras=loras,
         registry=registry,
+        quantization=quantization,
     )
 
     # Get X0Model (wraps velocity model)
     x0_model = ledger.transformer()
 
     # Move to target device
-    x0_model = x0_model.to(device=device, dtype=dtype)
+    if quantization is None:
+        x0_model = x0_model.to(device=device, dtype=dtype)
+    else:
+        # Quantized modules deliberately mix FP8 weights and FP32 scales.
+        x0_model = x0_model.to(device=device)
 
     wrapper = LTX2DiffusionWrapper(
         model=x0_model,

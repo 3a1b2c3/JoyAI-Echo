@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_022_nathan_gives_visas_r2v",
+  "prompt": "This video has exactly 2 shots. shot1: Inside the small Blue Signal Cafe office shortly before dawn, two official transit visas lie flat side by side on a dark wooden desk beside a fountain pen, a radio key, and a folded aircraft schedule. No writing is readable. ID_B is Elena Maris, the same dark-haired woman with an intelligent oval face, wearing her dark green coat over a cream blouse. ID_A is Nathan Vale, the same lean dark-haired man with a tired angular face, wearing his white dinner jacket over a black shirt. Elena stands on one side of the desk and Nathan stands opposite her. At the very beginning of shot1, before touching any object, ID_B immediately says quickly and clearly in her warm adult female voice, \"You let me think there was still a choice between us.\" Elena speaks the complete sentence briskly and fluently in one continuous flow with no pause, hesitation, repeated word, or restart. Her face and mouth remain clearly visible from the first word through the final word \"us.\" Nathan remains completely silent with his lips closed. After Elena finishes, she briefly looks down at the two visas and then back at Nathan. Use a stable medium two-shot with a restrained slow push toward Elena. Only Elena's exact quoted sentence is voiced in shot1. shot2: Make one clean cut to a stable medium close-up of Nathan at the same desk. At the very beginning of shot2, ID_A immediately replies quickly and clearly in his dry controlled mid-low voice, \"There was. I chose the version of you that can help people leave. Now go.\" Nathan delivers the entire written dialogue continuously in one brisk fluent flow. The essential dialogue is the first two sentences ending with the word \"leave.\" It must be spoken completely before the short buffer sentence \"Now go.\" begins. Nathan's face and mouth remain clearly visible and synchronized throughout. Elena remains silent off camera. After speaking, Nathan slides the two flat visas a short distance across the desk toward Elena and then closes his mouth. Only Nathan's written quoted dialogue is voiced in shot2, with no repeated word, invented phrase, narrator, radio voice, or additional human vocalization. Realistic live-action wartime romantic suspense cinematography with restrained 1940s noir-inspired composition, soft 35mm texture, practical amber desk light, cool dawn window light, deep shadows, and natural shallow depth of field. Preserve Nathan's and Elena's exact faces, clothing, body scale, desk position, two visas, fountain pen, radio key, and aircraft schedule across the cut. Natural sounds include paper sliding softly on wood, quiet office room tone, distant radio static, and a muted harbor horn. No music, readable writing, OCR, subtitle, on-screen text, graphic, extra character, duplicated hand, duplicated visa, floating paper, changing object, sudden camera jump, or third shot appears.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_B_voice_shot7_v2_full.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 7
+      }
+    },
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 1
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 195,
+  "duration_sec": 9.6
+}

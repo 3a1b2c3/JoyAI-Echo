@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_027b_v2_tomas_forces_rusk_to_lower_weapon_r2v",
+  "prompt": "At the wet airport checkpoint before dawn, use one stable medium two-shot beside a stopped black 1940s staff car and a lowered red-and-white barrier. ID_C is Tomas Arendt, a 41-year-old Czech bridge engineer. ID_C has light brown hair, a narrow scholarly face, blue eyes, and a tall slightly stooped build. ID_C has a thoughtful, principled screen presence, physically exhausted but morally steady. ID_C's voice is a soft mid-low adult male voice with formal diction, brisk controlled pacing, and restrained urgency. ID_C wears a brown travel coat over a worn suit and holds one waterproof engineering tube under his left arm. ID_D is Captain Rusk, a 48-year-old security officer. ID_D has close-cropped gray hair, a broad clean-shaven face, pale green eyes, and a disciplined military build. ID_D has a courteous but calculating screen presence. ID_D wears a rain-darkened sand-colored military uniform and holds one service pistol low beside his right thigh. Tomas stands beside the rear passenger door facing Rusk in three-quarter profile. Rusk faces Tomas rather than the camera. Frame Tomas's unobstructed face and mouth clearly while keeping Rusk visible as the listener. At the very beginning of the shot, ID_C immediately says quickly and clearly, \"Delay us, and every name in that ledger reaches the foreign press before sunrise. Captain.\" Tomas delivers the essential first sentence completely in one brisk continuous flow before the short buffer word \"Captain.\" His mouth remains clearly visible and synchronized through every word. Captain Rusk does not speak in this shot. Rusk keeps his lips closed throughout Tomas's entire line and produces no voice, word, or vocal sound. After Tomas finishes, the checkpoint guard appears in the shelter doorway behind Rusk and holds a field telephone handset toward him. Rusk looks from Tomas to the waiting guard, then deliberately lowers the pistol until its muzzle points at the wet ground. Tomas remains still with the engineering tube secured under his arm. Only Tomas's exact quoted dialogue is spoken in this shot, with no invented phrase before or after it. Realistic live-action wartime airport thriller cinematography, restrained 1940s noir composition, soft 35mm texture, hard floodlight beams, wet black pavement, stable faces, correct eyelines, correct hands, one pistol, one engineering tube, and one continuous camera view.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/id_c_tomas_4p3.jpg",
+      "audio_url": "../assets/audio/id_c_tomas_full.wav",
+      "metadata": {
+        "id": "ID_C",
+        "source": "character_memory_full_audio",
+        "source_shot_id": 9
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_ID_D_shot5_6p5.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "character_memory_encoded_zero_audio",
+        "source_shot_id": 5
+      }
+    }
+  ],
+  "num_frames": 169,
+  "width": 1280,
+  "height": 736,
+  "seed": 328,
+  "duration_sec": 6.72
+}

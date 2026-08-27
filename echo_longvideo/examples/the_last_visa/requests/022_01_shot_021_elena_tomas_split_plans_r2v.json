@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_021_elena_tomas_split_plans_r2v",
+  "prompt": "This video has exactly 2 shots. shot1: Inside a small hidden wartime clinic before dawn, one practical lamp illuminates a plain wooden worktable. Clean bandages, a closed medical case, one waterproof metal document tube, one open medical notebook lying flat on the table, and two packed travel bags are arranged clearly and remain physically stable. ID_C is Tomas Arendt, the same tall, slightly stooped man with light brown hair and a narrow scholarly face, wearing his dark overcoat over a worn suit. ID_B is Elena Maris, the same dark-haired woman with an intelligent oval face, wearing her dark green coat over a cream blouse. Tomas stands on the left with one hand resting on the closed waterproof document tube. Elena stands on the right and calmly finishes drawing a few simple route marks inside the flat notebook. No writing is readable. Tomas looks toward Elena and ID_C says quickly and clearly in his soft mid-low male voice, \"If we separate, the route must still survive.\" Tomas's face and mouth remain clearly visible as he delivers the entire sentence briskly and fluently in one continuous flow, with no pause, hesitation, slow emphasis, repeated word, or restart. Elena remains silent with her lips closed while listening. A stable medium side two-shot slowly pushes toward them. Only Tomas's written quoted line is voiced in shot1, with no additional human vocalization. shot2: Make one clean cut to a medium close-up of Elena at the same table. Elena stops writing, places the pencil beside the notebook, closes the notebook normally with both covers aligned, and places the closed notebook inside the open medical case. She then looks toward Tomas and ID_B says in her clear warm adult female voice, \"Then we carry the same destination in different forms. We leave now.\" Elena speaks both written sentences continuously in one natural fluent delivery. The first sentence, ending with the word \"forms,\" is the essential dialogue and must be spoken completely before the short second sentence begins. Elena's face and mouth remain clearly visible and synchronized throughout. Tomas remains silent off camera. Only Elena's written quoted dialogue is voiced in shot2, with no repeated word, invented phrase, narrator, radio voice, or additional human vocalization. Realistic live-action wartime suspense cinematography with restrained 1940s noir-inspired composition, soft 35mm texture, practical amber highlights, deep shadows, and natural shallow depth of field. Preserve Elena's and Tomas's exact faces, clothing, body scale, table position, notebook, medical case, tube, and travel bags across the cut. Natural sounds include pencil on paper, fabric movement, the notebook closing, the medical case hinge, distant clinic room tone, and a muted harbor horn. No music, readable writing, OCR, subtitle, on-screen text, graphic, extra character, duplicated hand, duplicated document, floating paper, changing object, sudden camera jump, or third shot appears.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_B_voice_shot7_v2_full.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 7
+      }
+    },
+    {
+      "image_url": "../assets/images/id_c_tomas_4p3.jpg",
+      "audio_url": "../assets/audio/id_c_tomas_full.wav",
+      "metadata": {
+        "id": "ID_C",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 9
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 190,
+  "duration_sec": 9.6
+}

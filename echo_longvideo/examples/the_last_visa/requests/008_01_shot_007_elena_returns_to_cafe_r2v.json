@@ -1,0 +1,22 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_007_elena_returns_to_cafe_r2v",
+  "prompt": "A new scene begins inside the crowded Blue Signal Cafe during evening service. The realistic 1940s cafe has warm practical lamps, smoky air, dark wooden tables, period radio equipment, and patrons seated quietly in the background. ID_A is Nathan Vale, the same lean 39-year-old American man with dark wavy hair and a tired angular face, wearing his white dinner jacket over a black shirt. Nathan stands beside a period tabletop radio, silently adjusting its tuning dial. ID_B is Elena Maris, a graceful 35-year-old Spanish doctor with dark shoulder-length hair, an intelligent oval face, and deep brown eyes. She wears a dark green travel coat over a cream blouse and long skirt and carries a small brown medical case. Elena enters through the cafe doorway, immediately looks toward Nathan, and walks directly toward him at a natural pace. Nathan stops touching the radio and turns to face her in restrained surprise. Elena stops beside the radio directly in front of Nathan. Before speaking, Elena visibly turns her shoulders and face toward Nathan and looks directly into his eyes. Nathan looks back at Elena. The two characters remain facing each other in a natural profile or three-quarter two-shot. Elena keeps her gaze on Nathan, never looking toward the camera, and says in a clear calm adult female voice, \"You still repair every radio yourself.\" Only Elena speaks, and her mouth is clearly visible throughout the full line. Nathan remains silent with his lips closed while maintaining eye contact with her. One continuous stable medium shot shows Elena entering, approaching Nathan, both characters turning toward each other, and Elena speaking that single line in order. Background patrons remain unobtrusive. Quiet cafe room tone accompanies Elena's clear dialogue.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_encoded_silence",
+        "source_shot_id": 1
+      }
+    }
+  ],
+  "num_frames": 193,
+  "width": 1280,
+  "height": 736,
+  "seed": 73,
+  "duration_sec": 7.68
+}

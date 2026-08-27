@@ -121,6 +121,15 @@ GEMMA_LLM_KEY_OPS = (
     )
 )
 
+# DMD inference only consumes hidden states from the language backbone. Filtering
+# here prevents unused vision/projector/lm-head tensors from being read from the
+# safetensors shards in the first place.
+GEMMA_LANGUAGE_ONLY_KEY_OPS = (
+    SDOps("GEMMA_LANGUAGE_ONLY_KEY_OPS")
+    .with_matching(prefix="language_model.model.")
+    .with_replacement("language_model.model.", "model.model.language_model.")
+)
+
 EMBEDDINGS_PROCESSOR_KEY_OPS = (
     SDOps("EMBEDDINGS_PROCESSOR_KEY_OPS")
     # 1. Map the feature extractor (V1: aggregate_embed inside feature_extractor)
@@ -152,9 +161,7 @@ VIDEO_ONLY_EMBEDDINGS_PROCESSOR_KEY_OPS = (
 )
 
 
-def create_and_populate(module: GemmaTextEncoder) -> GemmaTextEncoder:
-    model = module.model
-    v_model = model.model.vision_tower.vision_model
+def _populate_language_buffers(model: Gemma3ForConditionalGeneration) -> None:
     l_model = model.model.language_model
 
     config = model.config.text_config
@@ -163,14 +170,35 @@ def create_and_populate(module: GemmaTextEncoder) -> GemmaTextEncoder:
     local_rope_freqs = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.int64).to(dtype=torch.float) / dim))
     inv_freqs, _ = ROPE_INIT_FUNCTIONS[config.rope_scaling["rope_type"]](config)
 
-    positions_length = len(v_model.embeddings.position_ids[0])
-    position_ids = torch.arange(positions_length, dtype=torch.long, device="cpu").unsqueeze(0)
-    v_model.embeddings.register_buffer("position_ids", position_ids)
     embed_scale = torch.tensor(model.config.text_config.hidden_size**0.5, device="cpu")
     l_model.embed_tokens.register_buffer("embed_scale", embed_scale)
     l_model.rotary_emb_local.register_buffer("inv_freq", local_rope_freqs)
     l_model.rotary_emb.register_buffer("inv_freq", inv_freqs)
 
+
+def create_and_populate(module: GemmaTextEncoder) -> GemmaTextEncoder:
+    model = module.model
+    v_model = model.model.vision_tower.vision_model
+
+    positions_length = len(v_model.embeddings.position_ids[0])
+    position_ids = torch.arange(positions_length, dtype=torch.long, device="cpu").unsqueeze(0)
+    v_model.embeddings.register_buffer("position_ids", position_ids)
+    _populate_language_buffers(model)
+
+    return module
+
+
+def create_language_only_and_populate(module: GemmaTextEncoder) -> GemmaTextEncoder:
+    model = module.model
+    _populate_language_buffers(model)
+
+    # Remove meta modules that DMD text encoding never executes. This also keeps
+    # the model builder's uninitialized-parameter check meaningful after the
+    # corresponding checkpoint keys have been filtered out.
+    model.lm_head = None
+    model.model.vision_tower = None
+    model.model.multi_modal_projector = None
+    module.processor = None
     return module
 
 
@@ -178,4 +206,10 @@ GEMMA_MODEL_OPS = ModuleOps(
     name="GemmaModel",
     matcher=lambda module: hasattr(module, "model") and isinstance(module.model, Gemma3ForConditionalGeneration),
     mutator=create_and_populate,
+)
+
+GEMMA_LANGUAGE_ONLY_MODEL_OPS = ModuleOps(
+    name="GemmaLanguageOnlyModel",
+    matcher=lambda module: hasattr(module, "model") and isinstance(module.model, Gemma3ForConditionalGeneration),
+    mutator=create_language_only_and_populate,
 )

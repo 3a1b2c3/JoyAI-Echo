@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_026b_nathan_reveals_harbor_has_ledger_r2v",
+  "prompt": "At the same wet airport checkpoint before dawn, use one stable medium two-shot beside the stopped black 1940s staff car and lowered red-and-white barrier. ID_A is Nathan Vale, a lean 39-year-old American man with dark wavy hair, a tired angular face, gray-blue eyes, and a guarded screen presence. ID_A's voice is a dry mid-low adult male voice with controlled brisk pacing, understated humor, and sudden sincerity. ID_A wears a white dinner jacket over a black shirt and stands beside the open driver's door with both empty hands visible. ID_D is Captain Rusk, a 48-year-old security officer with close-cropped gray hair, a broad clean-shaven face, pale green eyes, and a disciplined military build. ID_D has a courteous but calculating screen presence. ID_D wears a rain-darkened sand-colored military uniform and keeps one service pistol aimed toward Nathan. Nathan faces Rusk in three-quarter profile while Rusk faces Nathan rather than the camera. At the very beginning of the shot, ID_A immediately says quickly and clearly, \"The harbor command already has your ledger. Captain.\" Nathan delivers the essential first sentence completely in one brisk continuous flow before the short buffer word \"Captain.\" His mouth remains clearly visible and synchronized through every word. After Nathan finishes, he keeps both hands open. Rusk glances toward the steadily illuminated green indicator inside the car, then looks back at Nathan with his pistol still raised. Only Nathan's exact quoted dialogue is spoken in this shot. Realistic live-action wartime airport thriller cinematography, restrained 1940s noir composition, soft 35mm texture, hard floodlight beams, wet black pavement, stable faces, correct eyelines, correct hands, one pistol, one coherent car, and one continuous camera view.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_full_audio",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_ID_D_shot5_6p5.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "character_memory_encoded_zero_audio",
+        "source_shot_id": 5
+      }
+    }
+  ],
+  "num_frames": 145,
+  "width": 1280,
+  "height": 736,
+  "seed": 314,
+  "duration_sec": 5.76
+}

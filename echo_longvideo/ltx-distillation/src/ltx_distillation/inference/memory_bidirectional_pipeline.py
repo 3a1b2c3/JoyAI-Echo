@@ -77,7 +77,7 @@ class BidirectionalMemoryVideoTrajectoryPipeline:
 
 class BidirectionalMemoryVideoInferencePipeline:
     """
-    Few-step benchmark/inference pipeline for video-only memory-conditioned DMD.
+    Few-step inference pipeline for video-only memory-conditioned DMD.
     """
 
     def __init__(
@@ -216,9 +216,9 @@ class BidirectionalMemoryAVTrajectoryPipeline:
         memory_audio: Optional[torch.Tensor] = None,
         memory_audio_timestep: Optional[torch.Tensor] = None,
         memory_audio_segment_lengths: tuple[tuple[int, ...], ...] | None = None,
-        paired_audio_memory: bool = False,
-        v2a_grad_scale: float = 1.0,
         memory_position_mode: str = "reference",
+        memory_position_offset: float = 0.0,
+        memory_position_slot_stride: float = 50.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         batch_size = video_noise.shape[0]
         num_video_frames = video_noise.shape[1]
@@ -239,18 +239,9 @@ class BidirectionalMemoryAVTrajectoryPipeline:
             {
                 "memory_audio": memory_audio,
                 "memory_audio_timestep": memory_audio_timestep,
+                "memory_audio_segment_lengths": memory_audio_segment_lengths,
             }
             if memory_audio is not None or memory_audio_timestep is not None
-            else {}
-        )
-        paired_memory_kwargs = (
-            {
-                "memory_audio_segment_lengths": memory_audio_segment_lengths,
-                "paired_audio_memory": True,
-                "v2a_grad_scale": v2a_grad_scale,
-                "memory_position_mode": memory_position_mode,
-            }
-            if paired_audio_memory
             else {}
         )
 
@@ -266,8 +257,10 @@ class BidirectionalMemoryAVTrajectoryPipeline:
                 audio_timestep=audio_sigma,
                 memory_video=memory_video,
                 memory_downscale_factor=self.memory_downscale_factor,
+                memory_position_mode=memory_position_mode,
+                memory_position_offset=memory_position_offset,
+                memory_position_slot_stride=memory_position_slot_stride,
                 **memory_audio_kwargs,
-                **paired_memory_kwargs,
             )
             pred_video = pred_video.to(dtype=dtype)
             pred_audio = pred_audio.to(dtype=dtype)
@@ -302,7 +295,7 @@ class BidirectionalMemoryAVTrajectoryPipeline:
 
 class BidirectionalMemoryAVInferencePipeline:
     """
-    Few-step benchmark/inference pipeline for video-memory-conditioned AV generation.
+    Few-step inference pipeline for video-memory-conditioned AV generation.
     """
 
     def __init__(
@@ -323,14 +316,15 @@ class BidirectionalMemoryAVInferencePipeline:
         video_shape: Tuple[int, ...],
         audio_shape: Tuple[int, ...],
         conditional_dict: Dict[str, Any],
-        memory_video: torch.Tensor,
+        memory_video: Optional[torch.Tensor] = None,
         memory_audio: Optional[torch.Tensor] = None,
         memory_audio_timestep: Optional[torch.Tensor] = None,
         memory_audio_segment_lengths: tuple[tuple[int, ...], ...] | None = None,
-        paired_audio_memory: bool = False,
-        v2a_grad_scale: float = 1.0,
         memory_position_mode: str = "reference",
+        memory_position_offset: float = 0.0,
+        memory_position_slot_stride: float = 50.0,
         seed: Optional[int] = None,
+        first_frame_latent: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         batch_size = video_shape[0]
         num_video_frames = video_shape[1]
@@ -344,7 +338,21 @@ class BidirectionalMemoryAVInferencePipeline:
 
         video = torch.randn(video_shape, device=device, dtype=dtype)
         audio = torch.randn(audio_shape, device=device, dtype=dtype)
-        memory_video = memory_video.to(device=device, dtype=dtype)
+        if first_frame_latent is not None:
+            if first_frame_latent.shape[1] != 1:
+                raise ValueError(
+                    "first_frame_latent must contain one frame, got "
+                    f"{tuple(first_frame_latent.shape)}"
+                )
+            if tuple(first_frame_latent.shape[2:]) != tuple(video_shape[2:]):
+                raise ValueError(
+                    "first-frame latent shape does not match requested output: "
+                    f"{tuple(first_frame_latent.shape)} vs {tuple(video_shape)}"
+                )
+            first_frame_latent = first_frame_latent.to(device=device, dtype=dtype)
+            video[:, :1] = first_frame_latent
+        if memory_video is not None:
+            memory_video = memory_video.to(device=device, dtype=dtype)
         if memory_audio is not None:
             memory_audio = memory_audio.to(device=device, dtype=dtype)
         if memory_audio_timestep is not None:
@@ -353,38 +361,40 @@ class BidirectionalMemoryAVInferencePipeline:
             {
                 "memory_audio": memory_audio,
                 "memory_audio_timestep": memory_audio_timestep,
+                "memory_audio_segment_lengths": memory_audio_segment_lengths,
             }
             if memory_audio is not None or memory_audio_timestep is not None
-            else {}
-        )
-        paired_memory_kwargs = (
-            {
-                "memory_audio_segment_lengths": memory_audio_segment_lengths,
-                "paired_audio_memory": True,
-                "v2a_grad_scale": v2a_grad_scale,
-                "memory_position_mode": memory_position_mode,
-            }
-            if paired_audio_memory
             else {}
         )
 
         for idx, sigma in enumerate(self.denoising_sigmas[:-1]):
             video_sigma = sigma * torch.ones([batch_size, num_video_frames], device=device, dtype=dtype)
+            if first_frame_latent is not None:
+                video_sigma[:, 0] = 0
             audio_sigma = sigma * torch.ones([batch_size, num_audio_frames], device=device, dtype=dtype)
 
+            generator_kwargs: Dict[str, Any] = {}
+            if memory_video is not None:
+                generator_kwargs = {
+                    "memory_video": memory_video,
+                    "memory_downscale_factor": self.memory_downscale_factor,
+                    "memory_position_mode": memory_position_mode,
+                    "memory_position_offset": memory_position_offset,
+                    "memory_position_slot_stride": memory_position_slot_stride,
+                    **memory_audio_kwargs,
+                }
             pred_video, pred_audio = self.generator(
                 noisy_image_or_video=video,
                 conditional_dict=conditional_dict,
                 timestep=video_sigma,
                 noisy_audio=audio,
                 audio_timestep=audio_sigma,
-                memory_video=memory_video,
-                memory_downscale_factor=self.memory_downscale_factor,
-                **memory_audio_kwargs,
-                **paired_memory_kwargs,
+                **generator_kwargs,
             )
             pred_video = pred_video.to(dtype=dtype)
             pred_audio = pred_audio.to(dtype=dtype)
+            if first_frame_latent is not None:
+                pred_video[:, :1] = first_frame_latent
 
             next_sigma = self.denoising_sigmas[idx + 1]
             if next_sigma > 0:
@@ -398,8 +408,16 @@ class BidirectionalMemoryAVInferencePipeline:
                     next_video_sigma.flatten(0, 1),
                 ).unflatten(0, (batch_size, num_video_frames)).to(dtype=dtype)
                 audio = self.add_noise_fn(pred_audio, fresh_noise_audio, next_audio_sigma).to(dtype=dtype)
+                if first_frame_latent is not None:
+                    video[:, :1] = first_frame_latent
             else:
                 video = pred_video
                 audio = pred_audio
 
+        if first_frame_latent is not None:
+            video[:, :1] = first_frame_latent
         return video, audio
+
+
+class BidirectionalR2VInferencePipeline(BidirectionalMemoryAVInferencePipeline):
+    """Unified T2V, memory-R2V, first-frame I2V, and combined R2V pipeline."""

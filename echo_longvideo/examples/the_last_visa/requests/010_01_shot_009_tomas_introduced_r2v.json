@@ -1,0 +1,22 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_009_tomas_introduced_r2v",
+  "prompt": "A realistic live-action wartime romantic thriller in the same Blue Signal Cafe before dawn. This video has 3 clean shots, all inside a private cafe booth behind a beaded curtain. shot1, from 0:00 to 0:02.5: A stable medium two-shot shows Elena seated on the left and Tomas seated on the right across a small table. Elena is the same dark-haired woman with an intelligent oval face, wearing her dark green travel coat over a cream blouse. Tomas is a new 41-year-old Czech man with light brown hair, blue eyes, a narrow scholarly face, and a tall slightly stooped build. He wears a worn brown suit, white shirt, and dark tie. A folded map, Elena's medical case, and a sealed leather document tube rest on the table. Both remain silent with their lips closed. shot2, from 0:02.5 to 0:05.5: Cut cleanly to a medium close-up of Tomas's unobstructed face, oriented toward Elena just offscreen to his left. Tomas speaks urgently in a soft mid-low adult male voice at a distinctly fast, fluent natural pace of about three words per second. In one continuous breath with no pause after Lisbon, Tomas says exactly: \"If these plans reach Lisbon, thousands can cross before winter.\" He completes the entire sentence within about three seconds, finishes the final word well before this shot ends, then closes his mouth. Only Tomas speaks, with clear natural English and no invented words before or after the written sentence. shot3, from 0:05.5 to the end: Cut cleanly to a sustained medium close-up of Elena's face, oriented toward Tomas just offscreen to her right. Elena remains completely silent with her lips closed. She studies Tomas, then briefly lowers her eyes toward the bridge plan with grave understanding. Hold on Elena for the remainder of the video without cutting away. Preserve the same faces, wardrobe, dim cafe lighting, table, and documents across all three shots. Quiet interior room tone accompanies Tomas's dialogue. No rain sound, music, on-screen text, labels, signs, cards, graphics, subtitles, or overlays appear.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_memory_encoded_silence",
+        "source_shot_id": 7
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 91,
+  "duration_sec": 9.6
+}

@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_023_nathan_elena_goodbye_r2v",
+  "prompt": "This video has exactly 2 shots. shot1: At the wide entrance of the closed Blue Signal Cafe shortly before dawn, warm interior lamps glow behind Nathan and Elena while a dark period car waits outside beneath the covered colonnade. The pavement is wet but no rain is falling. ID_A is Nathan Vale, the same lean dark-haired man with a tired angular face, wearing his white dinner jacket over a black shirt. ID_B is Elena Maris, the same dark-haired woman with an intelligent oval face, wearing her dark green travel coat over a cream blouse. Nathan and Elena stand close together facing each other. Nathan holds one small worn train ticket flat between two fingers at chest height. The ticket has no readable writing. At the very beginning of shot1, ID_A immediately says quickly and clearly in his dry controlled mid-low voice, \"I spent years wishing you had chosen me.\" Nathan delivers the complete sentence briskly and fluently in one continuous flow with no pause, hesitation, repeated word, or restart. His face and mouth remain clearly visible from the first word through the final word \"me.\" Elena remains completely silent with her lips closed. After speaking, Nathan lowers his hand slightly but continues holding the ticket. Use a stable intimate medium two-shot with a restrained slow push toward Nathan. Only Nathan's exact quoted sentence is voiced in shot1. shot2: Make one clean cut to a stable medium close-up of Elena facing Nathan at the same entrance. At the very beginning of shot2, before performing any hand action, ID_B immediately says quickly and clearly in her warm adult female voice, \"Tonight you are choosing the person I was trying to become. Remember that.\" Elena speaks the written dialogue continuously in one natural fluent delivery. The essential first sentence, ending with the word \"become,\" must be spoken completely before the short buffer sentence \"Remember that\" begins. Elena's face and mouth remain clearly visible and synchronized throughout. Nathan remains silent off camera. After speaking, Elena gently folds Nathan's fingers around the small ticket, leaves it in his hand, and turns her eyes briefly toward the waiting car. Only Elena's written quoted dialogue is voiced in shot2, with no repeated word, invented phrase, narrator, radio voice, or additional human vocalization. Realistic live-action wartime romantic suspense cinematography with restrained 1940s noir-inspired composition, soft 35mm texture, warm practical highlights, cool pre-dawn exterior light, deep shadows, and natural shallow depth of field. Preserve Nathan's and Elena's exact faces, clothing, body scale, entrance architecture, waiting car, and single ticket across the cut. Natural sounds include quiet fabric movement, distant car engine idle, soft footsteps beyond the entrance, and a muted harbor horn. No rain sound, music, readable writing, OCR, subtitle, on-screen text, sign, graphic, extra character, duplicated hand, duplicated ticket, floating object, sudden camera jump, or third shot appears.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_B_voice_shot7_v2_full.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 7
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 196,
+  "duration_sec": 9.6
+}

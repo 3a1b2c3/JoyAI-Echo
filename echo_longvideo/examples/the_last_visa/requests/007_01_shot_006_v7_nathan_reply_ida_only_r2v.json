@@ -1,0 +1,23 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_006_v7_nathan_reply_ida_only_r2v",
+  "prompt": "ID_A is Nathan, a lean man with dark wavy side-parted hair, a long angular face, pronounced cheekbones, and gray-blue eyes. He wears a white dinner jacket over a black shirt. ID_A keeps this same face and wardrobe throughout the entire video.\n\nLate at night inside the same office with black windows, a green door, and warm practical lamplight, use one stable medium close-up of ID_A. Only ID_A appears. He faces Captain Rusk, who remains completely off-camera.\n\nAt the beginning, ID_A calmly meets Rusk's gaze and immediately says in a dry, controlled voice, \"Paper usually becomes important after men decide to kill for it.\" ID_A completes the full sentence clearly. After the final words, he closes his mouth and holds a restrained, defiant stare toward Rusk.\n\nMoody 1940s wartime thriller cinematography, stable ID_A identity, no other person visible, no additional speech, no narration or subtitles.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_a_current_shot4_v11_7p5.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "current_character_image_full_voice",
+        "source_shot_id": 4,
+        "timestamp_sec": 7.5
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 887,
+  "duration_sec": 9.6
+}

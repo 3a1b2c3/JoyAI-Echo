@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_059_v3_nathan_rusk_relief_center_alliance_spatial_continuity_r2v",
+  "prompt": "ID_A is Nathan, a lean man with dark wavy side-parted hair, a long pale angular face, and pronounced cheekbones. He wears a white dinner jacket over a black shirt.\n\nID_D is Captain Rusk, an older military officer with close-cropped gray hair, a broad clean-shaven face, and a disciplined build. He wears a dark rain-marked military uniform.\n\nThis video has exactly 2 shots in one continuous location.\n\nshot1: At dawn inside the Blue Signal relief radio center, Nathan stands behind his desk. A fixed radio microphone sits on the left side of the desk beside bridge maps. Rusk enters, walks to the same desk, and places a short list of safe ships on the right side of the microphone. Nobody speaks.\n\nshot2: In the same room at the same desk and in the same continuous moment, the camera cuts only to a side angle. The microphone, list, maps, desk, windows, and both men remain in exactly the same positions. Rusk faces Nathan and asks, \"Do you trust me now?\" Rusk closes his mouth. Nathan replies, \"I trust the list.\" Nathan closes his mouth. They inspect the list together in silence.\n\nRealistic live-action 1940s wartime drama, soft 35mm texture, stable Nathan and Rusk identities, strict spatial continuity, no location change, no object movement between cuts, distinct synchronized English voices, no overlapping dialogue, only the two exact spoken lines, natural paper, radio, footsteps, and morning harbor ambience, no extra speech, no narration, no subtitles, and no direct-to-camera gaze.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_a_current_shot4_v11_7p5.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_image_full_voice",
+        "source_shot_id": 4
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_id_d_rusk_shot25_3p0.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_D_voice_shot5.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "character_image_full_voice",
+        "source_shot_id": 25
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1273,
+  "duration_sec": 9.6
+}

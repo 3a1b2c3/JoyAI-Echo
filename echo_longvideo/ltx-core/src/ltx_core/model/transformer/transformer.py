@@ -261,15 +261,12 @@ class BasicAVTransformerBlock(torch.nn.Module):
                 if not all_perturbed and not none_perturbed
                 else None
             )
-            audio_self_attention_mask = audio.self_attention_mask
-            if self.idx >= int(self.num_layers * 0.7):
-                audio_self_attention_mask = audio.late_self_attention_mask
             ax = (
                 ax
                 + self.audio_attn1(
                     norm_ax,
                     pe=audio.positional_embeddings,
-                    mask=audio_self_attention_mask,
+                    mask=audio.self_attention_mask,
                     perturbation_mask=a_mask,
                     all_perturbed=all_perturbed,
                 )
@@ -314,27 +311,17 @@ class BasicAVTransformerBlock(torch.nn.Module):
                 ax_scaled = ax_norm3 * (1 + scale_ca_audio_a2v) + shift_ca_audio_a2v
                 del scale_ca_audio_a2v, shift_ca_audio_a2v
                 a2v_mask = perturbations.mask_like(PerturbationType.SKIP_A2V_CROSS_ATTN, self.idx, vx)
-                cross_attention_mask = video.cross_attention_mask
-                cross_output_mask = video.cross_output_mask
-                if self.idx >= int(self.num_layers * 0.7):
-                    if video.late_cross_attention_mask is not None:
-                        cross_attention_mask = video.late_cross_attention_mask
-                    if video.late_cross_output_mask is not None:
-                        cross_output_mask = video.late_cross_output_mask
-                cross_output_mask = cross_output_mask if cross_output_mask is not None else 1.0
                 vx = vx + (
                     self.audio_to_video_attn(
                         vx_scaled,
                         context=ax_scaled,
-                        mask=cross_attention_mask,
                         pe=video.cross_positional_embeddings,
                         k_pe=audio.cross_positional_embeddings,
                     )
                     * gate_out_a2v
                     * a2v_mask
-                    * cross_output_mask
                 )
-                del gate_out_a2v, a2v_mask, vx_scaled, ax_scaled, cross_output_mask
+                del gate_out_a2v, a2v_mask, vx_scaled, ax_scaled
 
             if run_v2a and not perturbations.all_in_batch(PerturbationType.SKIP_V2A_CROSS_ATTN, self.idx):
                 scale_ca_audio_v2a, shift_ca_audio_v2a, gate_out_v2a = self.get_av_ca_ada_values(
@@ -356,31 +343,18 @@ class BasicAVTransformerBlock(torch.nn.Module):
                 vx_scaled = vx_norm3 * (1 + scale_ca_video_v2a) + shift_ca_video_v2a
                 del scale_ca_video_v2a, shift_ca_video_v2a
                 v2a_mask = perturbations.mask_like(PerturbationType.SKIP_V2A_CROSS_ATTN, self.idx, ax)
-                cross_attention_mask = audio.cross_attention_mask
-                cross_output_mask = audio.cross_output_mask
-                if self.idx >= int(self.num_layers * 0.7):
-                    if audio.late_cross_attention_mask is not None:
-                        cross_attention_mask = audio.late_cross_attention_mask
-                    if audio.late_cross_output_mask is not None:
-                        cross_output_mask = audio.late_cross_output_mask
-                cross_output_mask = cross_output_mask if cross_output_mask is not None else 1.0
                 v2a_update = (
                     self.video_to_audio_attn(
                         ax_scaled,
                         context=vx_scaled,
-                        mask=cross_attention_mask,
                         pe=audio.cross_positional_embeddings,
                         k_pe=video.cross_positional_embeddings,
                     )
                     * gate_out_v2a
                     * v2a_mask
-                    * cross_output_mask
                 )
-                v2a_grad_scale = float(getattr(audio, "v2a_grad_scale", 1.0))
-                if v2a_grad_scale != 1.0 and torch.is_grad_enabled():
-                    v2a_update = v2a_update.detach() + v2a_grad_scale * (v2a_update - v2a_update.detach())
                 ax = ax + v2a_update
-                del gate_out_v2a, v2a_mask, ax_scaled, vx_scaled, cross_output_mask, v2a_update
+                del gate_out_v2a, v2a_mask, ax_scaled, vx_scaled, v2a_update
 
             del vx_norm3, ax_norm3
 

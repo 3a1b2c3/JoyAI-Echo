@@ -24,17 +24,6 @@ class Modality:
             attention. ``None`` means unrestricted (full) attention between
             all tokens. Built incrementally by conditioning items; see
             :class:`~ltx_core.conditioning.types.attention_strength_wrapper.ConditioningItemAttentionStrengthWrapper`.
-        late_attention_mask: Optional alternate self-attention mask used in
-            later transformer layers.
-        cross_kv_mask: Optional cross-attention key/value mask. Can be
-            ``(B, T)`` or pairwise ``(B, Q, K)``.
-        cross_query_mask: Optional cross-attention query/output mask,
-            shape ``(B, T)``.
-        late_cross_kv_mask: Optional alternate cross KV mask for later layers.
-        late_cross_query_mask: Optional alternate cross query/output mask for
-            later layers.
-        v2a_grad_scale: Backward-only scale applied to the video-to-audio
-            cross-attention update.
     """
 
     latent: (
@@ -49,9 +38,3 @@ class Modality:
     enabled: bool = True
     context_mask: torch.Tensor | None = None
     attention_mask: torch.Tensor | None = None
-    late_attention_mask: torch.Tensor | None = None
-    cross_kv_mask: torch.Tensor | None = None
-    cross_query_mask: torch.Tensor | None = None
-    late_cross_kv_mask: torch.Tensor | None = None
-    late_cross_query_mask: torch.Tensor | None = None
-    v2a_grad_scale: float = 1.0

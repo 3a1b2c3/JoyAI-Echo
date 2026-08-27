@@ -1,0 +1,33 @@
+# Echo 1.5 local server deployment profile for a consumer GPU.
+# Model and pipeline behavior remain in the referenced inference configuration.
+
+inference:
+  config: configs/inference.consumer.fp4.yaml
+  # This workstation stores the standalone FP4 release outside the repository.
+  checkpoint: ../checkpoints/echo15_fp4_standalone_20260827_v2
+  conditioning_cache_dir: data/conditioning_cache
+
+runtime:
+  gpu_ids: [0]
+  # Consumer GPUs must use explicit DiT layerwise offload. Auto/resident can
+  # trigger WDDM paging when model weights and activations approach VRAM size.
+  dit_residency: swap
+  gpu_headroom_fraction: 0.05
+  ram_headroom_fraction: 0.10
+  model_idle_seconds: 0
+  disable_inference_workers: false
+
+server:
+  host: 0.0.0.0
+  port: 8221
+  workers: 1
+  public_base_url: http://127.0.0.1:8221
+  request_timeout_seconds: 30
+  poll_seconds: 5
+  queue_capacity: 1000
+  callback_max_attempts: 0
+  artifact_db_path: data/artifacts.sqlite3
+  media_root: data/media
+  ffmpeg_path: ffmpeg
+  merge_timeout_seconds: 3600
+  merge_max_input_bytes: 2147483648

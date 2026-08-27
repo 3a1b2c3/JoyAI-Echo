@@ -1,0 +1,40 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_024a_v5_three_reach_waiting_car_r2v",
+  "prompt": "Continue outside the same wide entrance of the closed Blue Signal Cafe shortly before dawn. The same black 1940s staff car waits beneath the covered colonnade on wet pavement. ID_A is Nathan Vale, a lean 39-year-old American man with dark wavy hair, a tired angular face, gray-blue eyes, and a guarded screen presence. ID_A wears a white dinner jacket over a black shirt and dark trousers. ID_B is Elena Maris, a 35-year-old Spanish woman with dark shoulder-length hair, an intelligent oval face, deep brown eyes, and a graceful practical build. ID_B wears a dark green travel coat over a cream blouse and carries one small dark medical case. ID_C is Tomas Arendt, a 41-year-old Czech man with light brown hair, a narrow scholarly face, blue eyes, and a tall slightly stooped build. ID_C wears a brown travel coat over a worn suit and carries one waterproof engineering tube. Use one stable medium-wide three-quarter side composition. The waiting car fills the right half of the frame, and Nathan, Elena, and Tomas approach it naturally from the left. Nathan walks slightly ahead with his body angled toward the driver's side and keeps his eyes on the car. Elena follows beside him, glancing briefly toward Nathan before directing her eyes toward the front passenger side. Tomas follows one step behind, checks the road behind them once, then turns his head toward the rear passenger side while holding the engineering tube under one arm. They slow and stop beside their respective sides of the car with varied natural body angles and purposeful eyelines toward the vehicle. The camera observes them from the side as they prepare to leave. Realistic live-action wartime romantic suspense cinematography, restrained 1940s noir-inspired composition, soft 35mm texture, warm entrance lamps, cool pre-dawn exterior light, wet pavement reflections, stable faces, natural restrained movement, one coherent period car, one medical case, one engineering tube, plain architecture, and no readable signage.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_encoded_zero_audio",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_memory_encoded_zero_audio",
+        "source_shot_id": 7
+      }
+    },
+    {
+      "image_url": "../assets/images/id_c_tomas_4p3.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_C",
+        "source": "character_memory_encoded_zero_audio",
+        "source_shot_id": 9
+      }
+    }
+  ],
+  "num_frames": 97,
+  "width": 1280,
+  "height": 736,
+  "seed": 299,
+  "duration_sec": 3.84
+}

@@ -23,19 +23,11 @@ class TransformerArgs:
     cross_positional_embeddings: torch.Tensor | None
     cross_scale_shift_timestep: torch.Tensor | None
     cross_gate_timestep: torch.Tensor | None
-    cross_attention_mask: torch.Tensor | None
-    cross_output_mask: torch.Tensor | None
-    late_cross_attention_mask: torch.Tensor | None
-    late_cross_output_mask: torch.Tensor | None
     enabled: bool
     prompt_timestep: torch.Tensor | None = None
     self_attention_mask: torch.Tensor | None = (
         None  # Additive log-space self-attention bias (B, 1, T, T), None = full attention
     )
-    late_self_attention_mask: torch.Tensor | None = (
-        None  # Optional alternate self-attention bias used in later transformer layers
-    )
-    v2a_grad_scale: float = 1.0
 
 
 class TransformerArgsPreprocessor:
@@ -130,29 +122,6 @@ class TransformerArgsPreprocessor:
 
         return bias.unsqueeze(1)  # (B, 1, T, T) for head broadcast
 
-    def _prepare_cross_attention_mask(self, cross_kv_mask: torch.Tensor | None, x_dtype: torch.dtype) -> torch.Tensor | None:
-        """Prepare a key/value mask for audio-video cross-attention."""
-        if cross_kv_mask is None:
-            return None
-
-        mask = cross_kv_mask.to(x_dtype)
-        if mask.ndim == 2:
-            return (mask - 1).reshape((mask.shape[0], 1, 1, mask.shape[-1])) * torch.finfo(x_dtype).max
-        if mask.ndim == 3:
-            return (mask - 1).unsqueeze(1) * torch.finfo(x_dtype).max
-        raise ValueError(f"Expected cross_kv_mask shape (B, K) or (B, Q, K), got {tuple(mask.shape)}")
-
-    @staticmethod
-    def _prepare_cross_output_mask(cross_query_mask: torch.Tensor | None, x_dtype: torch.dtype) -> torch.Tensor | None:
-        """Prepare a query/output mask for audio-video cross-attention."""
-        if cross_query_mask is None:
-            return None
-
-        mask = cross_query_mask
-        if mask.ndim == 2:
-            mask = mask.unsqueeze(-1)
-        return mask.to(x_dtype)
-
     def _prepare_positional_embeddings(
         self,
         positions: torch.Tensor,
@@ -203,7 +172,6 @@ class TransformerArgsPreprocessor:
             x_dtype=modality.latent.dtype,
         )
         self_attention_mask = self._prepare_self_attention_mask(modality.attention_mask, modality.latent.dtype)
-        late_self_attention_mask = self._prepare_self_attention_mask(modality.late_attention_mask, modality.latent.dtype)
         return TransformerArgs(
             x=x,
             context=context,
@@ -214,15 +182,9 @@ class TransformerArgsPreprocessor:
             cross_positional_embeddings=None,
             cross_scale_shift_timestep=None,
             cross_gate_timestep=None,
-            cross_attention_mask=None,
-            cross_output_mask=None,
-            late_cross_attention_mask=None,
-            late_cross_output_mask=None,
             enabled=modality.enabled,
             prompt_timestep=prompt_timestep,
             self_attention_mask=self_attention_mask,
-            late_self_attention_mask=late_self_attention_mask,
-            v2a_grad_scale=float(modality.v2a_grad_scale),
         )
 
 
@@ -301,32 +263,11 @@ class MultiModalTransformerArgsPreprocessor:
             batch_size=transformer_args.x.shape[0],
             hidden_dtype=modality.latent.dtype,
         )
-        cross_attention_mask = self.simple_preprocessor._prepare_cross_attention_mask(
-            cross_modality.cross_kv_mask,
-            modality.latent.dtype,
-        )
-        cross_output_mask = self.simple_preprocessor._prepare_cross_output_mask(
-            modality.cross_query_mask,
-            modality.latent.dtype,
-        )
-        late_cross_attention_mask = self.simple_preprocessor._prepare_cross_attention_mask(
-            cross_modality.late_cross_kv_mask,
-            modality.latent.dtype,
-        )
-        late_cross_output_mask = self.simple_preprocessor._prepare_cross_output_mask(
-            modality.late_cross_query_mask,
-            modality.latent.dtype,
-        )
-
         return replace(
             transformer_args,
             cross_positional_embeddings=cross_pe,
             cross_scale_shift_timestep=cross_scale_shift_timestep,
             cross_gate_timestep=cross_gate_timestep,
-            cross_attention_mask=cross_attention_mask,
-            cross_output_mask=cross_output_mask,
-            late_cross_attention_mask=late_cross_attention_mask,
-            late_cross_output_mask=late_cross_output_mask,
         )
 
     def _prepare_cross_attention_timestep(

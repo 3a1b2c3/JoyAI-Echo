@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_017_elena_walks_out_with_nathan_r2v",
+  "prompt": "ID_B says exactly once, very urgently and rapidly: \"I kept the reason but lost the right to tell you. Every year I waited for a safer moment, and every year the truth became harder to carry.\" ID_B is Elena, the dark-haired woman wearing her dark green travel coat over a cream blouse. She rushes through this single complete utterance in one nearly breathless flow. She says the quoted dialogue one time only, in its written order, with no repeated words, clauses, or sentences and no restart. Her natural English delivery is very fast, pressing forward continuously with no pauses, no hesitation, no slow emphasis, and no dramatic silence between clauses. Immediately after the final word \"carry,\" Elena closes her mouth, releases one short unsteady breath, and remains completely silent for the rest of the video. ID_A is Nathan, the dark-haired man wearing his white dinner jacket over a black shirt. ID_A remains silent with his lips closed throughout. A realistic live-action wartime romantic thriller shortly before dawn at the Blue Signal Cafe's wide open entrance and the covered harbor colonnade beyond it, photographed with restrained 1940s noir-inspired composition, soft 35mm texture, practical highlights, deep shadows, and natural shallow depth of field. Use exactly two cinematic shots separated by one clean cut. In the first shot, Nathan and Elena walk side by side toward the camera from the dim cafe interior, through the wide entrance that is already fully open, and out beneath the covered harbor colonnade. A smooth steadicam moves backward at their exact walking speed in a medium two-shot with both faces clearly visible. Elena delivers the entire quoted dialogue during this first shot while Nathan listens silently. Only after Elena has spoken the final word \"carry,\" make one clean cut to the second shot: a moving close-up of Nathan's face as he continues walking, absorbs what she has said, and briefly turns his troubled eyes toward Elena just outside the frame. Elena does not speak in the second shot. Warm cafe lamps recede behind them while cool pre-dawn harbor light gradually takes over; columns, hanging lamps, and distant ship masts create natural parallax. Preserve the exact same Nathan and Elena faces and wardrobe across the cut. Keep their walking direction, spacing, body scale, and camera motion physically coherent with no sudden jump, no teleportation, and no exaggerated movement. Natural footsteps, quiet cafe ambience fading into distant harbor ambience, and a soft ship horn accompany the scene. No additional speech, repeated dialogue, rain sound, music, on-screen text, labels, signs, cards, graphics, subtitles, or overlays appear.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_encoded_silence",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_B_voice_shot7_v2_full.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 7
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 179,
+  "duration_sec": 9.6
+}

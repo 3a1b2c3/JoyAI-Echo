@@ -1,0 +1,12 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_044_v1_medical_convoy_field_clinic_r2v",
+  "prompt": "This video has exactly 3 distinct shots. No named character appears and nobody speaks.\n\nshot1: In warm late-morning light, exactly two 1940s medical vehicles enter the courtyard of a small rural field clinic after safely crossing the northern bridge. They slow, stop side by side, and remain physically stable. Several medics approach from the clinic entrance without looking toward the camera.\n\nshot2: Make one clean cut inside a canvas treatment tent. Two medics open one wooden supply crate already resting on a table and arrange clean bandages, glass medicine bottles, and simple surgical cloths. Their hands move carefully and all objects remain coherent. No readable labels appear.\n\nshot3: Make one clean cut to a stable medium side view inside the same clinic. A nurse gently finishes wrapping a clean bandage around an injured elderly refugee's forearm while another patient rests safely on a cot in the background. The elderly patient looks toward the nurse with quiet relief. Nobody looks toward the camera, and no graphic injury is visible.\n\nRealistic live-action 1940s wartime drama cinematography, restrained soft 35mm texture, clear cause-and-effect continuity across all three shots, warm natural light, coherent hands and medical objects, vehicle engines, footsteps, canvas movement, bottles, and quiet clinic ambience only. No speech, no narration, no singing, no subtitles, no modern equipment, no blood, no combat, and no direct-to-camera gaze.",
+  "condition_img": null,
+  "memory_slots": [],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1111,
+  "duration_sec": 9.6
+}

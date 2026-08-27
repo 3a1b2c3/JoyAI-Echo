@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_031_v1_nathan_offers_rusk_an_honest_way_forward_r2v",
+  "prompt": "This video has exactly 2 shots. shot1: At the same wet 1940s airport checkpoint in pale gray-blue morning light, the silver propeller aircraft is already airborne and climbing away beyond the open barrier. The black staff car stands empty near the checkpoint road. ID_A is Nathan Vale, a lean 39-year-old man with dark wavy hair swept to one side, a long pale angular face, pronounced cheekbones, a narrow straight nose, gray-blue eyes, and a tired controlled expression. ID_A wears a white dinner jacket over a black shirt. ID_D is Captain Rusk in a rain-darkened sand-colored military uniform, holding his lowered service pistol beside his right thigh. Use a stable medium two-shot from the side as Nathan and Rusk watch the departing aircraft grow smaller. Rusk turns from the aircraft toward Nathan and ID_D immediately says with controlled anger, \"You cost me every safe exit.\" Rusk completes the entire sentence clearly in one continuous delivery. Nathan listens with his lips closed and keeps both empty hands visible. Only Rusk speaks in shot1. shot2: Make one clean cut to a tighter reverse angle on Nathan, with Rusk remaining visible in three-quarter profile and the departing aircraft small in the distant background. Nathan holds Rusk's gaze and ID_A immediately answers in a firm calm voice, \"Then help open one honest way.\" Nathan completes the entire sentence clearly without pausing. Rusk keeps his lips closed while Nathan speaks. After Nathan finishes, Rusk looks down at his pistol, deliberately holsters it, and accepts the waiting field-radio handset from a silent checkpoint guard. Nathan turns with him toward the checkpoint office, and both men begin walking in the same direction. Only Nathan speaks in shot2. Realistic live-action wartime airport suspense cinematography with restrained 1940s composition, soft 35mm texture, pale overcast morning light, wet pavement reflections, stable faces, correct eyelines, synchronized lips, natural hand motion, one service pistol, one field-radio handset, one coherent aircraft, and identical weather, checkpoint geometry, wardrobe, and character identity across both shots. No gunshot occurs, nobody boards or leaves the aircraft, and no other person speaks.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_a_canonical_shot1_5p5.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_full_audio",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_id_d_rusk_shot25_3p0.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_D_voice_shot5.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "character_memory_full_audio",
+        "source_shot_id": 5
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 401,
+  "duration_sec": 9.6
+}

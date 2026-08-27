@@ -1,0 +1,40 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_008_nathan_replies_to_elena_r2v",
+  "prompt": "The video begins exactly on the provided starting frame. This video has 3 shots. shot1, from 0:00 to 0:01.2: A stable silent medium two-shot shows Nathan on the left and Elena on the right facing each other beside the tabletop radio in the Blue Signal Cafe. Both characters remain silent with their lips closed. shot2, from 0:01.2 to 0:05.2: Cut cleanly to a medium close-up of Nathan's face, oriented toward Elena just offscreen to his right. Nathan is the dark-haired man wearing the white dinner jacket over a black shirt. Nathan now begins speaking in his dry controlled mid-low male voice at a brisk, fluent, natural pace and says exactly one complete sentence: \"Radios remember longer than people, especially what we are afraid to say.\" Nathan delivers the sentence continuously without pauses and finishes the final word well before this shot ends, then closes his mouth. Only Nathan speaks, with clear natural English and no invented words before or after the written sentence. shot3, from 0:05.2 to the end: Cut cleanly to a sustained medium close-up of Elena's face, oriented toward Nathan just offscreen to her left. Hold this reaction shot for the entire remainder of the video without cutting away. Elena is the dark-haired woman wearing the dark green travel coat over a cream blouse. Elena remains completely silent with her lips closed and reacts with restrained sadness while looking toward Nathan. No speech occurs during this shot. Preserve the same cafe lighting, background, facial appearance, and wardrobe across all three shots. Quiet cafe room tone accompanies Nathan's dialogue. No on-screen text, labels, signs, cards, graphics, subtitles, or overlays appear.",
+  "condition_img": "../assets/images/shot_008_nathan_speaking_4p8.jpg",
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_memory_encoded_silence",
+        "source_shot_id": 7
+      }
+    },
+    {
+      "image_url": "../assets/images/shot_008_nathan_speaking_4p8.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "PREVIOUS_SHOT",
+        "source": "shot_008_nathan_speaking_4p8_encoded_silence",
+        "source_shot_id": 7
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 84,
+  "duration_sec": 9.6
+}

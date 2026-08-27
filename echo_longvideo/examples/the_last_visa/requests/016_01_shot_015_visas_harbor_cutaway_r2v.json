@@ -1,0 +1,12 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_015_visas_harbor_cutaway_r2v",
+  "prompt": "A realistic live-action wartime romantic thriller before dawn in the neutral port city of San Cordoba. This video has exactly 2 clean shots and no third shot. No visible person speaks at any time. shot1, from 0:00 to 0:04: Inside the locked radio room of the Blue Signal Cafe, a locked top-down detail shot shows exactly two official transit visas lying fully open, flat, and motionless side by side on a dark wooden desk beneath one warm desk lamp. A small silver radio key rests beside them. No person, hand, arm, face, or moving object is visible. shot2, from 0:04 to the end: Cut once to a wide exterior establishing shot of the harbor departure checkpoint before dawn. A short line of tired civilian travelers waits quietly behind a closed wooden barrier beneath practical lamps and pale sea mist. Uniformed guards remain distant silhouettes. The barrier stays closed while a docked passenger ship waits beyond it. No close-up face or named character appears, and the camera holds this one composition until the end. A neutral offscreen adult narrator, never visible on screen, says exactly one complete sentence at a calm, brisk pace: \"In San Cordoba, two visas could decide who saw another shore.\" The narrator finishes the sentence before the video ends. This is voice-over narration only; no visible mouth moves and no character voice is used. Quiet radio-room ambience transitions into distant harbor ambience and one low ship horn. No character dialogue, rain, music, on-screen text, labels, signs, cards, graphics, subtitles, or overlays appear.",
+  "condition_img": null,
+  "memory_slots": [],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 151,
+  "duration_sec": 9.6
+}

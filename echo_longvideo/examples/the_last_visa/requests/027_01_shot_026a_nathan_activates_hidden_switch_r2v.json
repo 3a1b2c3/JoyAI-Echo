@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_026a_nathan_activates_hidden_switch_r2v",
+  "prompt": "Inside the stopped black 1940s staff car at the wet airport checkpoint before dawn, use one stable medium close-up from the front passenger side. ID_A is Nathan Vale, a lean 39-year-old American man with dark wavy hair, a tired angular face, gray-blue eyes, and a guarded screen presence. ID_A wears a white dinner jacket over a black shirt and sits behind the steering wheel. ID_D is Captain Rusk, a 48-year-old security officer with close-cropped gray hair, a broad clean-shaven face, pale green eyes, and a disciplined military build. ID_D wears a rain-darkened sand-colored military uniform and stands outside the driver's window holding one service pistol toward Nathan. Nathan initially holds both open hands above the steering wheel where Rusk can see them. Keeping his eyes calmly on Rusk, Nathan slowly lowers only his right hand beneath the dashboard, finds one small concealed metal toggle, and flips it once. A single green indicator lamp on a compact black box beneath the dashboard turns on and remains steadily illuminated. Nathan then returns his open right hand above the steering wheel. Rusk watches from outside the window while the red-and-white checkpoint barrier and distant propeller aircraft remain visible behind him. Realistic live-action wartime airport thriller cinematography, restrained 1940s noir composition, soft 35mm texture, dim dashboard light, cool floodlights through wet windows, stable faces, correct hands, one pistol, one small toggle, one green indicator lamp, and one continuous camera view.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_encoded_zero_audio",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_ID_D_shot5_6p5.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "character_memory_encoded_zero_audio",
+        "source_shot_id": 5
+      }
+    }
+  ],
+  "num_frames": 97,
+  "width": 1280,
+  "height": 736,
+  "seed": 313,
+  "duration_sec": 3.84
+}

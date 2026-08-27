@@ -1,0 +1,12 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_039_v1_refugees_on_departing_ship_r2v",
+  "prompt": "This video has exactly 1 shot. No named character appears.\n\nOn the open deck of the first civilian transport ship at dawn, a small group of wartime refugees watches the occupied harbor slowly recede behind them. In one smooth lateral tracking shot, a tired mother in a dark wool coat gently wraps the same coat more tightly around her young child, an elderly man steadies himself against the railing, and several passengers quietly turn toward the pale open sea. Their movement is natural and restrained. Nobody speaks, celebrates, waves at the camera, displays papers, or looks into the lens. The ship continues moving steadily away from the city throughout the shot.\n\nRealistic live-action 1940s wartime drama cinematography, restrained soft 35mm texture, cold dawn light gradually warming, coherent faces and bodies, smooth restrained camera movement, natural sea wind, water, ship engine, and distant gulls only. No speech, no narration, no singing, no subtitles, no passport, no visa, no modern clothing, and no direct-to-camera gaze.",
+  "condition_img": null,
+  "memory_slots": [],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1051,
+  "duration_sec": 9.6
+}

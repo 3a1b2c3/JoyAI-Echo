@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_036_v2_relief_broadcast_simple_r2v",
+  "prompt": "ID_A is Nathan, a lean man with dark wavy side-parted hair, a long angular face, pronounced cheekbones, and gray-blue eyes. He wears a white dinner jacket over a black shirt.\n\nID_D is Major Rusk, a stern middle-aged military officer with a broad weathered face and short dark hair. He wears a dark green wartime military uniform.\n\nThis video has exactly 1 shot.\n\nInside the reopened Blue Signal Cafe in pale morning light, ID_A stands alone behind the radio desk beside one microphone. ID_D enters from the side carrying one thin handwritten list. The frame contains exactly these two men and no one else. ID_D walks to the desk, places the list beside the microphone, looks toward ID_A, and immediately says in a restrained voice, \"Three ships are clear. Broadcast the names.\" He completes the full sentence and closes his mouth. ID_A remains silent, looks down at the list, gives one restrained nod, and switches on the transmitter. Both men remain distinct; there is exactly one ID_A and exactly one ID_D.\n\nRealistic live-action 1940s wartime thriller cinematography, restrained soft 35mm texture, stable identities, clear synchronized speech, no narration, no subtitles, no duplicate person, no volunteer, no additional dialogue, no visa, no passport, and nobody looks into the camera.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_a_current_shot4_v11_7p5.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_image_encoded_zero_audio",
+        "source_shot_id": 4
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_id_d_rusk_shot25_3p0.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_D_voice_shot5.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "character_image_full_voice",
+        "source_shot_id": 25
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1013,
+  "duration_sec": 9.6
+}

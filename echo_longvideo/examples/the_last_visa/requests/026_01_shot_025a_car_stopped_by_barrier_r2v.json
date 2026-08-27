@@ -1,0 +1,12 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_025a_car_stopped_by_barrier_r2v",
+  "prompt": "A black 1940s staff car travels quickly along a wet airport service road before dawn. A period propeller aircraft waits in the distance beneath white floodlights, and a bright searchlight sweeps across the road. Use one continuous low three-quarter tracking view beside the moving car. At the checkpoint ahead, a heavy red-and-white striped barrier drops across the road. The car brakes firmly, makes one short controlled skid on the wet pavement, and stops completely several feet before the lowered barrier without striking it. A single fan of water leaves the tires and immediately settles. The final composition clearly shows the stationary car on the left, the intact lowered barrier across the center, the checkpoint shelter on the right, and the waiting aircraft beyond. Realistic live-action wartime airport thriller cinematography, restrained 1940s noir composition, soft 35mm texture, hard floodlight beams, cool pre-dawn blue light, practical amber runway lamps, wet black pavement, one physically coherent period car, one intact barrier, natural vehicle motion, and stable spatial continuity.",
+  "condition_img": null,
+  "memory_slots": [],
+  "num_frames": 97,
+  "width": 1280,
+  "height": 736,
+  "seed": 305,
+  "duration_sec": 3.84
+}

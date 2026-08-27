@@ -1,0 +1,23 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_043b_v2_bridge_crossing_i2v_seed1103_r2v",
+  "prompt": "Use the provided condition image as the exact first frame and continue the same checkpoint action naturally. This video has exactly 2 shots. No named character appears and nobody speaks.\n\nshot1: Continue directly from the first frame with the same guard, the same striped barrier, the same road, and the same two waiting 1940s medical vehicles. The guard operates the manual control and the striped barrier rises smoothly from its current low position until it is fully vertical. The barrier rises only once and remains raised. The first vehicle then drives forward through the open checkpoint, and the second vehicle follows at the same safe spacing. No vehicle duplicates, collides, reverses, or changes shape.\n\nshot2: Make one clean cut to a wide side view of the same old steel bridge above the river. The same two vehicles cross the bridge in order from the near bank toward the far bank. The camera pans smoothly with them as they pass the center span and continue toward the distant road. Morning mist moves above the river, and the bridge remains structurally stable.\n\nRealistic live-action 1940s wartime drama cinematography, restrained soft 35mm texture, exact continuity from the provided first frame, coherent checkpoint geography and vehicle motion, natural barrier mechanism, engines, tires, river, and wind only. No speech, no narration, no singing, no subtitles, no modern vehicle, no vehicle duplication, and no direct-to-camera gaze.",
+  "condition_img": "../assets/images/last_visa_shot43a_tail_9p2.jpg",
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_shot43a_tail_9p2.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "PREVIOUS_SHOT",
+        "source": "previous_shot_encoded_zero_audio",
+        "source_shot_id": "43A",
+        "timestamp_sec": 9.2
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1103,
+  "duration_sec": 9.6
+}

@@ -1,0 +1,55 @@
+# PE base strings for the director workflow (byte-exact snapshot of the
+# hardcoded prompts extracted from nanobot/agent/tools/director.py).
+# This is the base layer: experimental PE sets overlay individual keys.
+# `{name}` placeholders are filled via str.format at call time.
+
+director:
+  shot_caption:
+    description: 'The complete, ready-to-render shot caption for the JoyAI-Echo joint audio-video model — one single continuous paragraph in the user-requested caption language, otherwise the primary language of the user conversation, produced in full on the agent side and passed to the backend verbatim as its sole text input. Chinese means the full caption is Chinese, including descriptions and dialogue. The complete caption across all internal shotN segments should target 1500–1800 Unicode characters and must contain fewer than 2000 characters total (maximum 1999). Follow the active shot-prompt-writer guidance (call get_guidance(topic="shot-prompt-writer")): give an ID its detailed character anchors only at its first outer-shot appearance and compact continuity anchors later. In a speaking action/dialogue passage, place "ID_X says" after the pre-speech action and before the post-speech action, not at the end of the completed action and not in any fixed shotN segment. Keep expression/action/style/camera/background/sound/music in order, and use the internal-cut "This video has N shots." / "shotN:" syntax only when the shot contains internal cuts. Output the caption text only — no field names, no JSON, no markdown.'
+  tool:
+    confirm_fact:
+      description: Re-check the active work, refresh fact.md, and return structured progress information.
+    create_shot_prompt:
+      description: 'Create or update one shot by storing its complete, ready-to-render caption, and sync the active work progress. Use this instead of editing shot JSON manually. The caption is a single continuous paragraph in the user-requested caption language, otherwise the primary language of the user conversation; a Chinese caption uses Chinese throughout. Across all internal shotN segments combined, target 1500–1800 Unicode characters and use fewer than 2000 characters total (maximum 1999). Follow the active shot-prompt-writer guidance: an ID receives detailed character anchors only at its first outer-shot appearance and compact continuity anchors later. In a speaking action/dialogue passage, place "ID_X says" between the pre-speech and post-speech actions, never after the whole completed action and never in a fixed shotN segment. Then continue with style, camera, background, sound, and music; use the internal-cut "This video has N shots." / "shotN:" syntax only when the shot has internal cuts.'
+    generate_echo_shot:
+      description: Queue one shot plus the selected logical reference shot IDs with the Echo generator. The tool reads the current shot prompt from the director workspace; the completed result arrives through the configured callback. reference_shot_ids must include at least one earlier shot unless the shot is the very first shot or introduces a completely new scene with entirely new characters having no visual overlap with any prior shot.
+    get_director_job:
+      description: Inspect a previously created director job by ID.
+    get_fact:
+      description: Read fact.md for the active director work.
+    get_guidance:
+      description: Load a reference guidance document for story/shot writing quality. Call this instead of reading files by path. Topics include 'shot-sequence-patterns' (structural/continuity guidance for planning) and 'shot-prompt-writer' (the single-shot caption-writer contract for create_shot_prompt).
+    get_shot:
+      description: Read the full JSON payload for a specific shot.
+    get_story:
+      description: Read the current story markdown and the structured story profile for the active work.
+    get_workplace_status:
+      description: Get the current work status, progress, stage, goal, shot summaries, and recent jobs.
+    merge_shot:
+      description: Submit an asynchronous HTTP merge request for generated shots. The completed result arrives through the configured callback.
+    review_shot:
+      description: Record a human or VLM review result for one generated shot. Use verdict='accept' to approve a shot, or verdict='revise' with feedback to reopen it for prompt updates.
+    set_director_goal:
+      description: Set or update the shot-count, duration, and generation mode for the active director work.
+    set_shot_references:
+      description: Plan Echo reference shot IDs for one shot before user-triggered generation. This stores references on the shot without starting video generation.
+    start_director:
+      description: Start or resume a director work. Creates the workspace state files and remembers the active work for the current session.
+    write_story:
+      description: Write the current story and structured story profile for the active director work. When story_profile is provided it must include summary and a non-empty beats array.
+  workflow_gate_error: 'Error: This workflow step ({operation}) is blocked in chat turns and must be triggered from the right workplace panel. After screenplay and shot_count are confirmed in chat, tell the user to click the 「下一步」 button there — do not mention a separate confirm-screenplay button.'
+  guidance:
+    not_found: 'Error: no guidance document found for topic ''{topic}''. Available topics: {available}.'
+  next_action:
+    storyboard_ready: Screenplay and shot_count are confirmed. Tell the user to click the 「下一步」 button in the right workplace panel to preview the storyboard script.
+    start_generation: Tell the user to click the 「下一步」 button in the right workplace panel to start video generation, or review generated shots in the workplace panel.
+    review_complete: Review is complete. Tell the user to continue via the 「下一步」 button in the right workplace panel.
+    merge_ready: Tell the user to click the 「下一步」 button in the right workplace panel to merge the generated shots.
+    work_complete: The current work is complete.
+  callback:
+    generate_echo_shot:
+      completed: 'Director remote result: generate_echo_shot completed for work `{work_id}` on `{shot_key}`. Result URL: {result_url}. Tell the user the shot is ready in the workplace panel for review or acceptance.'
+      failed: 'Director remote result: generate_echo_shot failed for work `{work_id}` on `{shot_key}`. Error: {error}. Tell the user generation failed and they can revise the shot from the workplace panel.'
+    merge_shot:
+      completed: 'Director remote result: merge_shot completed for work `{work_id}`. Final video: {final_output}. Return this final result to the user.'
+      failed: 'Director remote result: merge_shot failed for work `{work_id}` on job `{job_id}`. Error: {error}. Investigate the merge inputs and tell the user what happened.'

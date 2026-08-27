@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_032_v1_rusk_places_his_pistol_down_and_agrees_to_testify_r2v",
+  "prompt": "This video has exactly 2 shots. shot1: Inside a compact 1940s harbor radio room in cool early-morning light, a large broadcast microphone, a spinning recording-disc machine, paper arrest orders, a wall map, and one ringing field telephone occupy a long wooden desk. Rain-speckled windows overlook the pale harbor. ID_A is Nathan Vale, a lean 39-year-old man with dark wavy hair swept to one side, a long pale angular face, pronounced cheekbones, a narrow straight nose, gray-blue eyes, and a tired controlled expression. ID_A wears a white dinner jacket over a black shirt and stands behind the recording controls. ID_D is Captain Rusk in a rain-darkened sand-colored military uniform, standing on the opposite side of the desk with one service pistol. Use a stable medium close-up over Nathan's shoulder. Nathan is visible only as a still white-jacketed back and shoulder with no visible face or mouth. Rusk's face and mouth are the only clearly visible speaking face. Rusk deliberately places the pistol flat on the far edge of the desk. Nathan's hand presses one switch and the recording disc begins turning. Rusk looks directly toward Nathan and ID_D immediately says, \"I have spent years surviving every side.\" Rusk completes the sentence clearly in one continuous delivery. Only Rusk speaks in shot1. shot2: Make one clean cut to a stable reverse medium close-up over Rusk's shoulder. Rusk is visible only as the back of his head and uniformed shoulder with no visible face or mouth. Nathan's face and mouth are centered, unobstructed, and the only clearly visible speaking face beside the moving recording disc. Nathan meets Rusk's gaze and ID_A immediately says in a firm quiet voice, \"Then tell the truth. All of it.\" Nathan completes both short sentences clearly in one continuous delivery. After Nathan finishes, he remains silent and slides a typed list beside the microphone. Rusk's hand takes the list from the edge of frame, but Rusk's face remains hidden and he does not speak. Only Nathan speaks in shot2. Realistic live-action wartime radio-room suspense cinematography with restrained 1940s composition, soft 35mm texture, cool natural morning window light, warm practical desk lamps, stable faces, correct eyelines, synchronized lips, correct hands, one service pistol, one typed list, one microphone, one visibly turning recording disc, and identical room geometry, wardrobe, props, and character identity across both shots. No gunshot occurs and no telephone, radio, guard, or unseen person produces speech.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_a_canonical_shot1_5p5.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_full_audio",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_id_d_rusk_shot25_3p0.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_D_voice_shot5.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "character_memory_full_audio",
+        "source_shot_id": 25
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 419,
+  "duration_sec": 9.6
+}

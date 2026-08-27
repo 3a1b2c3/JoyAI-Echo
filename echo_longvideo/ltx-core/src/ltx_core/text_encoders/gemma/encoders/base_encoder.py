@@ -11,8 +11,8 @@ from ltx_core.utils import find_matching_file
 
 class GemmaTextEncoder(torch.nn.Module):
     """Pure Gemma text encoder — runs the LLM and returns raw hidden states.
-    Prompt enhancement (generate) is also supported since the full
-    Gemma3ForConditionalGeneration model (including lm_head) is loaded.
+    The full loader also supports prompt enhancement; the DMD loader retains
+    only the language backbone used by :meth:`encode`.
     """
 
     def __init__(
@@ -31,17 +31,41 @@ class GemmaTextEncoder(torch.nn.Module):
     def encode(
         self,
         text: str,
-        padding_side: str = "left",  # noqa: ARG002
+        padding_side: str = "left",
     ) -> tuple[tuple[torch.Tensor, ...], torch.Tensor]:
         """Run Gemma LLM and return raw hidden states + attention mask.
         Calls the inner model (self.model.model) to skip lm_head logits computation (~500 MiB saving).
         Returns:
             (hidden_states, attention_mask) where hidden_states is a tuple of per-layer tensors.
         """
-        token_pairs = self.tokenizer.tokenize_with_weights(text)["gemma"]
-        input_ids = torch.tensor([[t[0] for t in token_pairs]], device=self.model.device)
-        attention_mask = torch.tensor([[w[1] for w in token_pairs]], device=self.model.device)
-        outputs = self.model.model(input_ids=input_ids, attention_mask=attention_mask, output_hidden_states=True)
+        return self.encode_batch([text], padding_side=padding_side)
+
+    def encode_batch(
+        self,
+        texts: list[str],
+        padding_side: str = "left",
+    ) -> tuple[tuple[torch.Tensor, ...], torch.Tensor]:
+        """Run one padded Gemma forward for a non-empty batch of prompts."""
+        if not texts:
+            raise ValueError("texts must contain at least one prompt")
+        if padding_side != "left":
+            raise ValueError("Gemma text encoding requires left padding")
+
+        encoded = self.tokenizer.tokenizer(
+            [text.strip() for text in texts],
+            padding="max_length",
+            max_length=self.tokenizer.max_length,
+            truncation=True,
+            return_tensors="pt",
+        )
+        input_ids = encoded.input_ids.to(self.model.device)
+        attention_mask = encoded.attention_mask.to(self.model.device)
+        outputs = self.model.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            output_hidden_states=True,
+            use_cache=False,
+        )
         hidden_states = outputs.hidden_states
         del outputs
         return hidden_states, attention_mask
@@ -174,13 +198,23 @@ def _pad_inputs_for_attention_alignment(
     return model_inputs
 
 
-def module_ops_from_gemma_root(gemma_root: str) -> tuple[ModuleOps, ...]:
+def tokenizer_module_ops_from_gemma_root(gemma_root: str) -> tuple[ModuleOps, ...]:
     tokenizer_root = str(find_matching_file(gemma_root, "tokenizer.model").parent)
-    processor_root = str(find_matching_file(gemma_root, "preprocessor_config.json").parent)
 
     def load_tokenizer(module: GemmaTextEncoder) -> GemmaTextEncoder:
         module.tokenizer = LTXVGemmaTokenizer(tokenizer_root, 1024)
         return module
+
+    tokenizer_load_ops = ModuleOps(
+        "TokenizerLoad",
+        matcher=lambda module: isinstance(module, GemmaTextEncoder) and module.tokenizer is None,
+        mutator=load_tokenizer,
+    )
+    return (tokenizer_load_ops,)
+
+
+def module_ops_from_gemma_root(gemma_root: str) -> tuple[ModuleOps, ...]:
+    processor_root = str(find_matching_file(gemma_root, "preprocessor_config.json").parent)
 
     def load_processor(module: GemmaTextEncoder) -> GemmaTextEncoder:
         image_processor = AutoImageProcessor.from_pretrained(processor_root, local_files_only=True)
@@ -189,14 +223,9 @@ def module_ops_from_gemma_root(gemma_root: str) -> tuple[ModuleOps, ...]:
         module.processor = Gemma3Processor(image_processor=image_processor, tokenizer=module.tokenizer.tokenizer)
         return module
 
-    tokenizer_load_ops = ModuleOps(
-        "TokenizerLoad",
-        matcher=lambda module: isinstance(module, GemmaTextEncoder) and module.tokenizer is None,
-        mutator=load_tokenizer,
-    )
     processor_load_ops = ModuleOps(
         "ProcessorLoad",
         matcher=lambda module: isinstance(module, GemmaTextEncoder) and module.processor is None,
         mutator=load_processor,
     )
-    return (tokenizer_load_ops, processor_load_ops)
+    return (*tokenizer_module_ops_from_gemma_root(gemma_root), processor_load_ops)

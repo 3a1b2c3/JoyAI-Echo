@@ -1,0 +1,136 @@
+{
+  "promptStacker": {
+    "enabled": true
+  },
+  "agents": {
+    "defaults": {
+      "workspace": ".local-workspace",
+      "model": "your-model-name",
+      "provider": "custom",
+      "maxTokens": 8192,
+      "contextWindowTokens": 65536,
+      "contextBlockLimit": null,
+      "temperature": 0.1,
+      "maxToolIterations": 200,
+      "maxToolResultChars": 16000,
+      "maxConcurrentRequests": 3,
+      "providerRetryMode": "standard",
+      "reasoningEffort": null,
+      "timezone": "UTC",
+      "unifiedSession": false,
+      "disabledSkills": [],
+      "idleCompactAfterMinutes": 0,
+      "dream": {
+        "intervalH": 2,
+        "modelOverride": null,
+        "maxBatchSize": 20,
+        "maxIterations": 15,
+        "annotateLineAges": true
+      }
+    }
+  },
+  "channels": {
+    "sendProgress": true,
+    "sendToolHints": false,
+    "sendMaxRetries": 3,
+    "websocket": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 8765,
+      "path": "/",
+      "websocketRequiresToken": false,
+      "allowFrom": [
+        "*"
+      ],
+      "streaming": true,
+      "maxMessageBytes": 37748736,
+      "pingIntervalS": 20.0,
+      "pingTimeoutS": 20.0,
+      "downloadAllowedDomainSuffixes": [],
+      "downloadTrustedInternalDomains": []
+    },
+    "director_callback": {
+      "enabled": true,
+      "host": "127.0.0.1",
+      "port": 18791,
+      "path_prefix": "/api/director",
+      "secret": ""
+    }
+  },
+  "providers": {
+    "custom": {
+      "apiKey": "${NANOBOT_MODEL_API_KEY}",
+      "apiBase": "https://llm.example.com/v1/",
+      "extraHeaders": null
+    }
+  },
+  "gateway": {
+    "host": "127.0.0.1",
+    "port": 18790,
+    "heartbeat": {
+      "enabled": true,
+      "intervalS": 1800,
+      "keepRecentMessages": 16
+    }
+  },
+  "tools": {
+    "web": {
+      "enable": true,
+      "proxy": null,
+      "search": {
+        "provider": "duckduckgo",
+        "apiKey": "",
+        "baseUrl": "",
+        "maxResults": 5,
+        "timeout": 30
+      }
+    },
+    "exec": {
+      "enable": false,
+      "timeout": 60,
+      "pathAppend": "",
+      "sandbox": "",
+      "allowedEnvKeys": []
+    },
+    "my": {
+      "enable": false,
+      "allowSet": false
+    },
+    "echoGenerator": {
+      "baseUrl": "http://127.0.0.1:8221",
+      "callbackBaseUrl": "http://127.0.0.1:18791",
+      "httpTimeoutSec": 30
+    },
+    "restrictToWorkspace": false,
+    "mcpServers": {},
+    "ssrfWhitelist": [],
+    "fileStorage": {
+      "local": {
+        "directory": "director/assets",
+        "baseUrl": "http://127.0.0.1:8765",
+        "routePrefix": "/api/assets"
+      },
+      "outbound": {
+        "backend": "inline",
+        "s3": {
+          "endpointUrl": "",
+          "publicBaseUrl": "",
+          "bucket": "",
+          "region": "",
+          "keyPrefix": "agent-assets",
+          "addressingStyle": "auto",
+          "accessKeyId": "",
+          "secretAccessKey": "",
+          "sessionToken": ""
+        }
+      }
+    },
+    "memoryReview": {
+      "enabled": true,
+      "autoApprove": false,
+      "candidateCount": 24,
+      "provider": "custom",
+      "model": "your-multimodal-model-name"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_053_v1_southern_bridge_route_r2v",
+  "prompt": "This video has exactly 3 shots. No named character appears and nobody speaks.\n\nshot1: A bicycle courier arrives at a small riverside maintenance shed beside an old stone bridge. The courier stops and gives one rolled route copy to a bridge foreman. Both look at the route and the bridge, never at the camera.\n\nshot2: Cut beneath the same bridge. Several workers secure simple timber braces under the stone arch while two others cover the roadside approach with a camouflage net. The structure and tools remain stable.\n\nshot3: Cut to a wide elevated view. A small group of civilians with handcarts quietly crosses the reinforced bridge while the main military road remains empty in the distance. The camera pans slowly with them toward the far bank.\n\nRealistic live-action 1940s wartime drama, soft 35mm texture, coherent bridge geography and restrained human movement, natural bicycle, paper, timber, tools, footsteps, carts, river, and wind sounds only. No speech, no narration, no subtitles, no modern objects, and nobody looks at the camera.",
+  "condition_img": null,
+  "memory_slots": [],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1221,
+  "duration_sec": 9.6
+}

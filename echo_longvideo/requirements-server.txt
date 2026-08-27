@@ -1,0 +1,3 @@
+# Local R2V server: inference runtime plus scheduling/resource telemetry.
+-r requirements.txt
+psutil>=6,<8

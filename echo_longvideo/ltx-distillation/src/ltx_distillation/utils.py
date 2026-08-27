@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -9,13 +10,19 @@ from typing import Any, Optional
 
 import torch
 import torchaudio
-from torchvision.io import write_video
-from torchvision.transforms import functional as TVF
 
 from ltx_distillation.inference.memory_multishot import (
     audio_waveform_stats,
     normalize_audio_waveform_for_media,
 )
+
+
+def _write_video(*args, **kwargs) -> None:
+    """Import the pinned torchvision video backend only when media is written."""
+
+    from torchvision.io import write_video
+
+    write_video(*args, **kwargs)
 
 
 def compute_latent_shapes(
@@ -40,7 +47,11 @@ def compute_latent_shapes(
     latent_w = video_width // vae_spatial_compression
 
     video_duration = float(num_frames) / float(video_fps)
-    audio_latent_fps = float(audio_sample_rate) / float(audio_hop_length) / float(audio_latent_downsample)
+    audio_latent_fps = (
+        float(audio_sample_rate)
+        / float(audio_hop_length)
+        / float(audio_latent_downsample)
+    )
     audio_frames = round(video_duration * audio_latent_fps)
 
     return (
@@ -49,7 +60,9 @@ def compute_latent_shapes(
     )
 
 
-def add_noise(original: torch.Tensor, noise: torch.Tensor, sigma: torch.Tensor) -> torch.Tensor:
+def add_noise(
+    original: torch.Tensor, noise: torch.Tensor, sigma: torch.Tensor
+) -> torch.Tensor:
     sigma = sigma.to(device=original.device, dtype=original.dtype)
     if sigma.dim() == 1:
         sigma = sigma.reshape(-1, *[1] * (original.dim() - 1))
@@ -58,70 +71,118 @@ def add_noise(original: torch.Tensor, noise: torch.Tensor, sigma: torch.Tensor) 
     return (1 - sigma) * original + sigma * noise
 
 
-def frames_to_video_tensor(frames, target_h: int, target_w: int) -> torch.Tensor:
-    tensors = []
-    for idx, image in enumerate(frames):
-        if image.size != (target_w, target_h):
-            raise ValueError(
-                f"Frame size mismatch at index {idx}: got={image.size}, expected={(target_w, target_h)}"
-            )
-        tensor = TVF.to_tensor(image)
-        tensors.append(tensor * 2.0 - 1.0)
-    return torch.stack(tensors, dim=1).contiguous()
-
-
 @torch.no_grad()
-def encode_memory_frames_batch(
-    *,
+def decode_generated_sample(
     video_vae,
-    batch_memory_frames,
-    target_h: int,
-    target_w: int,
-    device: torch.device,
-    dtype: torch.dtype,
-) -> torch.Tensor:
-    if getattr(video_vae, "encoder", None) is None:
-        raise RuntimeError("video VAE encoder is not initialized for memory encoding")
+    audio_vae,
+    video_latent,
+    audio_latent,
+    *,
+    video_tiling_config=None,
+):
+    if video_tiling_config is None:
+        video_pixel = video_vae.decode_to_pixel(video_latent)
+        video_uint8 = video_pixel[0]
+        if video_uint8.shape[0] == 3:
+            video_uint8 = video_uint8.permute(1, 0, 2, 3)
+        video_uint8 = video_uint8.permute(0, 2, 3, 1)
+        video_uint8 = (video_uint8.clamp(0, 1) * 255).cpu().to(torch.uint8).contiguous()
+    else:
+        video_chunks = list(
+            video_vae.decode_to_uint8_chunks(video_latent, video_tiling_config)
+        )
+        if not video_chunks:
+            raise RuntimeError("tiled video VAE decode produced no frames")
+        video_uint8 = torch.cat(video_chunks, dim=0)
 
-    latents = []
-    for memory_frames in batch_memory_frames:
-        if not memory_frames:
-            raise ValueError("memory_frames cannot be empty when encoding memory video")
-        per_frame_latents = []
-        for memory_item in memory_frames:
-            is_clip_memory = isinstance(memory_item, list)
-            frame_video = frames_to_video_tensor(
-                memory_item if is_clip_memory else [memory_item],
-                target_h,
-                target_w,
-            ).unsqueeze(0).to(device=device, dtype=dtype)
-            latent = video_vae.encode(frame_video)
-            del frame_video
-            latent = latent.permute(0, 2, 1, 3, 4).to(dtype=dtype)
-            if is_clip_memory:
-                latent = latent[:, -1:, :, :, :].contiguous()
-            per_frame_latents.append(latent)
-        latents.append(torch.cat(per_frame_latents, dim=1))
-        del per_frame_latents
-    return torch.cat(latents, dim=0)
-
-
-@torch.no_grad()
-def decode_benchmark_sample(video_vae, audio_vae, video_latent, audio_latent):
-    video_pixel = video_vae.decode_to_pixel(video_latent)
-    audio_waveform = audio_vae.decode_to_waveform(audio_latent) if audio_latent is not None else None
-
-    video_uint8 = video_pixel[0]
-    if video_uint8.shape[0] == 3:
-        video_uint8 = video_uint8.permute(1, 0, 2, 3)
-    video_uint8 = video_uint8.permute(0, 2, 3, 1)
-    video_uint8 = (video_uint8.clamp(0, 1) * 255).cpu().to(torch.uint8).contiguous()
+    audio_waveform = (
+        audio_vae.decode_to_waveform(audio_latent) if audio_latent is not None else None
+    )
 
     audio_float = normalize_audio_waveform_for_media(audio_waveform)
     return video_uint8, audio_float
 
 
-def write_benchmark_media(
+def fit_audio_to_video_frames(
+    audio: torch.Tensor,
+    *,
+    sample_rate: int,
+    video_frames: int,
+    video_fps: float,
+) -> torch.Tensor:
+    """Trim or zero-pad audio to the exact encoded video-frame duration."""
+
+    if sample_rate <= 0 or video_frames <= 0 or video_fps <= 0:
+        return audio
+    target_samples = max(1, round(video_frames * sample_rate / video_fps))
+    current_samples = int(audio.shape[-1])
+    if current_samples > target_samples:
+        return audio[..., :target_samples].contiguous()
+    if current_samples < target_samples:
+        return torch.nn.functional.pad(audio, (0, target_samples - current_samples))
+    return audio
+
+
+def _write_video_with_aligned_audio(
+    *,
+    video_uint8: torch.Tensor,
+    output_path: Path,
+    audio_path: Path,
+    fps: float,
+) -> None:
+    """Mux aligned audio without ``-shortest``, matching production."""
+
+    frame_count = int(video_uint8.shape[0])
+    if frame_count <= 0:
+        raise ValueError("cannot write an empty video")
+    if fps <= 0:
+        raise ValueError(f"invalid frame rate: {fps}")
+
+    duration_arg = f"{frame_count / float(fps):.9f}"
+    silent_path = output_path.with_name(
+        f"{output_path.stem}_silent{output_path.suffix}"
+    )
+    _write_video(str(silent_path), video_uint8, fps=int(fps))
+
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        silent_path.unlink(missing_ok=True)
+        raise RuntimeError("ffmpeg not found")
+
+    command = [
+        ffmpeg,
+        "-y",
+        "-i",
+        str(silent_path),
+        "-i",
+        str(audio_path),
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-af",
+        f"apad,atrim=duration={duration_arg},asetpts=N/SR/TB",
+        "-t",
+        duration_arg,
+        str(output_path),
+    ]
+    try:
+        subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    finally:
+        silent_path.unlink(missing_ok=True)
+
+
+def write_generated_media(
     *,
     output_path: Path,
     video_uint8: torch.Tensor,
@@ -131,32 +192,54 @@ def write_benchmark_media(
 ) -> dict[str, Any]:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     audio_waveform = normalize_audio_waveform_for_media(audio_waveform)
+    if audio_waveform is not None:
+        audio_waveform = fit_audio_to_video_frames(
+            audio_waveform,
+            sample_rate=audio_sr,
+            video_frames=int(video_uint8.shape[0]),
+            video_fps=float(fps),
+        )
     stats = audio_waveform_stats(audio_waveform)
 
     wrote_with_audio = False
     wrote_sidecar_wav = False
     if audio_waveform is not None:
+        audio_path = output_path.with_suffix(".wav")
+        torchaudio.save(str(audio_path), audio_waveform, audio_sr)
+        wrote_sidecar_wav = True
         try:
-            write_video(
-                str(output_path),
-                video_uint8,
-                fps=fps,
-                audio_array=audio_waveform,
-                audio_fps=audio_sr,
-                audio_codec="aac",
+            _write_video_with_aligned_audio(
+                video_uint8=video_uint8,
+                output_path=output_path,
+                audio_path=audio_path,
+                fps=float(fps),
             )
             wrote_with_audio = True
         except Exception as exc:
-            print(f"[warn] write_video with audio failed for {output_path}: {exc}; audio_stats={stats}", flush=True)
+            print(
+                f"[warn] aligned audio mux failed for {output_path}: {exc}; "
+                "retrying direct write_video",
+                flush=True,
+            )
+            try:
+                _write_video(
+                    str(output_path),
+                    video_uint8,
+                    fps=fps,
+                    audio_array=audio_waveform,
+                    audio_fps=audio_sr,
+                    audio_codec="aac",
+                )
+                wrote_with_audio = True
+            except Exception as fallback_exc:
+                print(
+                    f"[warn] direct audio mux failed for {output_path}: "
+                    f"{fallback_exc}; writing video only; audio_stats={stats}",
+                    flush=True,
+                )
 
     if not wrote_with_audio:
-        write_video(str(output_path), video_uint8, fps=fps)
-        if audio_waveform is not None:
-            try:
-                torchaudio.save(str(output_path.with_suffix(".wav")), audio_waveform, audio_sr)
-                wrote_sidecar_wav = True
-            except Exception as exc:
-                print(f"[warn] torchaudio.save failed for {output_path}: {exc}; audio_stats={stats}", flush=True)
+        _write_video(str(output_path), video_uint8, fps=fps)
 
     return {
         "wrote_audio_in_mp4": wrote_with_audio,
@@ -165,41 +248,58 @@ def write_benchmark_media(
     }
 
 
-def save_memory_bank_frames(memory_frames: list[Any], save_dir: Path) -> None:
-    save_dir.mkdir(parents=True, exist_ok=True)
-    for old_file in save_dir.glob("*.jpg"):
-        old_file.unlink()
-    for idx, frame in enumerate(memory_frames):
-        if isinstance(frame, list):
-            frame = frame[len(frame) // 2]
-        frame.convert("RGB").save(save_dir / f"memory_{idx:03d}.jpg")
-
-
 def concat_shot_videos(shot_paths: list[Path], output_path: Path) -> None:
     if not shot_paths:
         raise ValueError("No shot videos provided for concatenation")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as fp:
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".txt", delete=False, encoding="utf-8"
+    ) as fp:
         concat_file = Path(fp.name)
         for shot_path in shot_paths:
             fp.write(f"file '{shot_path.resolve().as_posix()}'\n")
 
     try:
         cmd = [
-            "ffmpeg", "-y", "-f", "concat", "-safe", "0",
-            "-i", str(concat_file), "-c", "copy", str(output_path),
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(concat_file),
+            "-c",
+            "copy",
+            str(output_path),
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             fallback_cmd = [
-                "ffmpeg", "-y", "-f", "concat", "-safe", "0",
-                "-i", str(concat_file),
-                "-c:v", "libx264", "-preset", "medium", "-crf", "18",
-                "-c:a", "aac", "-b:a", "192k",
+                "ffmpeg",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_file),
+                "-c:v",
+                "libx264",
+                "-preset",
+                "medium",
+                "-crf",
+                "18",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
                 str(output_path),
             ]
-            fallback_result = subprocess.run(fallback_cmd, capture_output=True, text=True)
+            fallback_result = subprocess.run(
+                fallback_cmd, capture_output=True, text=True
+            )
             if fallback_result.returncode != 0:
                 raise RuntimeError(
                     "Failed to concatenate shot videos with ffmpeg.\n"
@@ -219,5 +319,7 @@ def concat_shot_audios(audios: list[torch.Tensor]) -> Optional[torch.Tensor]:
     elif audio.ndim == 2:
         sample_dim = 1 if audio.shape[0] <= audio.shape[1] else 0
     else:
-        raise ValueError(f"Expected audio tensor with 1 or 2 dims, got shape={tuple(audio.shape)}")
+        raise ValueError(
+            f"Expected audio tensor with 1 or 2 dims, got shape={tuple(audio.shape)}"
+        )
     return torch.cat([a.contiguous() for a in audios], dim=sample_dim).contiguous()

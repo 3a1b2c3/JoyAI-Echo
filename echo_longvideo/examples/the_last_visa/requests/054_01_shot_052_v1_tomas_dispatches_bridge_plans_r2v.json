@@ -1,0 +1,22 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_052_v1_tomas_dispatches_bridge_plans_r2v",
+  "prompt": "ID_C is Tomas, a tall slightly stooped man with light brown hair and a narrow scholarly face. He wears a brown travel coat over a worn suit.\n\nThis video has exactly 3 shots.\n\nshot1: A brief close-up of a bridge engineering plan spread flat on a wooden table beside a ruler, compass, and field radio. Two plain route copies rest nearby. No readable writing appears.\n\nshot2: Cut to a natural medium side view of Tomas at the table. He looks toward two engineers standing offscreen and immediately says, \"Reinforce the northern span. Keep the southern crossing hidden. Begin now.\" Tomas completes the line once, closes his mouth, and looks back down at the plan. He never looks at the camera.\n\nshot3: Cut outside the operations building. Two bicycle couriers place the rolled route copies into canvas dispatch bags and ride away in opposite directions along two country roads.\n\nRealistic live-action 1940s wartime drama, soft 35mm texture, stable Tomas identity, clear synchronized English speech in shot2 only, coherent plans, bags, bicycles, and geography, natural paper, footsteps, bicycle, and countryside sounds, no extra speech, no narration, no subtitles, and nobody looks at the camera.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/id_c_tomas_4p3.jpg",
+      "audio_url": "../assets/audio/id_c_tomas_full.wav",
+      "metadata": {
+        "id": "ID_C",
+        "source": "character_image_full_voice",
+        "source_shot_id": 9
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1211,
+  "duration_sec": 9.6
+}

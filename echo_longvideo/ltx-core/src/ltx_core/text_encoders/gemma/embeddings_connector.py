@@ -142,14 +142,34 @@ class Embeddings1DConnector(torch.nn.Module):
 
         num_registers_duplications = hidden_states.shape[1] // self.num_learnable_registers
         learnable_registers = torch.tile(self.learnable_registers, (num_registers_duplications, 1))
-        attention_mask_binary = (attention_mask.squeeze(1).squeeze(1).unsqueeze(-1) >= -9000.0).int()
+        valid_mask = attention_mask.squeeze(1).squeeze(1) >= -9000.0
+        batch_size, sequence_length = valid_mask.shape
+        positions = torch.arange(sequence_length, device=hidden_states.device).unsqueeze(0)
+        valid_counts = valid_mask.sum(dim=1)
 
-        non_zero_hidden_states = hidden_states[:, attention_mask_binary.squeeze().bool(), :]
-        non_zero_nums = non_zero_hidden_states.shape[1]
-        pad_length = hidden_states.shape[1] - non_zero_nums
-        adjusted_hidden_states = torch.nn.functional.pad(non_zero_hidden_states, pad=(0, 0, 0, pad_length), value=0)
-        flipped_mask = torch.flip(attention_mask_binary, dims=[1])
-        hidden_states = flipped_mask * adjusted_hidden_states + (1 - flipped_mask) * learnable_registers
+        # Gemma inputs are left padded. Rotate every sample independently so its
+        # valid tokens start at index zero, then fill the remaining positions
+        # with the same position-dependent register sequence used by B=1.
+        expected_mask = positions >= (sequence_length - valid_counts).unsqueeze(1)
+        if not torch.equal(valid_mask, expected_mask):
+            raise ValueError(
+                "Embeddings1DConnector expects a contiguous left-padded attention mask"
+            )
+        source_positions = (
+            positions + (sequence_length - valid_counts).unsqueeze(1)
+        ) % sequence_length
+        compacted_hidden_states = torch.gather(
+            hidden_states,
+            dim=1,
+            index=source_positions.unsqueeze(-1).expand(-1, -1, hidden_states.shape[-1]),
+        )
+        output_valid_mask = positions < valid_counts.unsqueeze(1)
+        registers = learnable_registers.unsqueeze(0).expand(batch_size, -1, -1)
+        hidden_states = torch.where(
+            output_valid_mask.unsqueeze(-1),
+            compacted_hidden_states,
+            registers,
+        )
 
         attention_mask = torch.full_like(
             attention_mask,
@@ -177,7 +197,7 @@ class Embeddings1DConnector(torch.nn.Module):
             hidden_states, attention_mask = self._replace_padded_with_learnable_registers(hidden_states, attention_mask)
 
         indices_grid = torch.arange(hidden_states.shape[1], dtype=torch.float32, device=hidden_states.device)
-        indices_grid = indices_grid[None, None, :]
+        indices_grid = indices_grid[None, None, :].expand(hidden_states.shape[0], -1, -1)
         freq_grid_generator = generate_freq_grid_np if self.double_precision_rope else generate_freq_grid_pytorch
         freqs_cis = precompute_freqs_cis(
             indices_grid=indices_grid,

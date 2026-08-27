@@ -34,6 +34,8 @@ from ltx_core.model.video_vae import (
 from ltx_core.quantization import QuantizationPolicy
 from ltx_core.text_encoders.gemma import (
     EMBEDDINGS_PROCESSOR_KEY_OPS,
+    GEMMA_LANGUAGE_ONLY_KEY_OPS,
+    GEMMA_LANGUAGE_ONLY_MODEL_OPS,
     GEMMA_LLM_KEY_OPS,
     GEMMA_MODEL_OPS,
     EmbeddingsProcessor,
@@ -41,6 +43,7 @@ from ltx_core.text_encoders.gemma import (
     GemmaTextEncoder,
     GemmaTextEncoderConfigurator,
     module_ops_from_gemma_root,
+    tokenizer_module_ops_from_gemma_root,
 )
 from ltx_core.utils import find_matching_file
 
@@ -180,6 +183,17 @@ class ModelLedger:
                     module_ops=(GEMMA_MODEL_OPS, *module_ops),
                 )
 
+                self.language_only_text_encoder_builder = Builder(
+                    model_path=tuple(weight_paths),
+                    model_class_configurator=GemmaTextEncoderConfigurator,
+                    model_sd_ops=GEMMA_LANGUAGE_ONLY_KEY_OPS,
+                    registry=self.registry,
+                    module_ops=(
+                        GEMMA_LANGUAGE_ONLY_MODEL_OPS,
+                        *tokenizer_module_ops_from_gemma_root(self.gemma_root_path),
+                    ),
+                )
+
         if self.spatial_upsampler_path is not None:
             self.upsampler_builder = Builder(
                 model_path=self.spatial_upsampler_path,
@@ -260,6 +274,19 @@ class ModelLedger:
             )
 
         return self.text_encoder_builder.build(device=self._target_device(), dtype=self.dtype).to(self.device).eval()
+
+    def language_only_text_encoder(self) -> GemmaTextEncoder:
+        if not hasattr(self, "language_only_text_encoder_builder"):
+            raise ValueError(
+                "Language-only text encoder not initialized. Please provide a checkpoint path and gemma root path "
+                "to the ModelLedger constructor."
+            )
+
+        return (
+            self.language_only_text_encoder_builder.build(device=self._target_device(), dtype=self.dtype)
+            .to(self.device)
+            .eval()
+        )
 
     def gemma_embeddings_processor(self) -> EmbeddingsProcessor:
         if not hasattr(self, "embeddings_processor_builder"):

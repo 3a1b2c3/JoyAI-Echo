@@ -1,0 +1,40 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_029_v4_nathan_hands_tomas_visa_and_frequency_r2v",
+  "prompt": "This video has exactly 2 shots. shot1: On a wet 1940s airport apron during pale overcast early morning, the final silver propeller aircraft waits in soft neutral gray-blue dawn light with its boarding stairs lowered and empty. A black staff car is parked far behind the travelers near the checkpoint road. ID_A is Nathan Vale in a white dinner jacket over a black shirt, carrying one small folded document packet close to his body. ID_B is Elena Maris in a dark green travel coat, carrying one small dark medical case. ID_C is Tomas Arendt in a brown travel coat, carrying one waterproof engineering tube. Use one continuous rear three-quarter tracking view from behind the travelers. Elena and Tomas walk away from the parked car and toward the empty boarding stairs. Their backs and side profiles remain visible, and the aircraft becomes larger ahead of them. Nathan follows several steps behind while holding the folded packet securely. Elena reaches the foot of the stairs. Tomas pauses beside her and turns sideways toward Nathan as Nathan catches up. Nobody descends from the aircraft, nobody walks away from the stairs, and no loose paper leaves Nathan's hand. shot2: Make one clean cut to a stable medium two-shot at the foot of the same boarding stairs under the same pale gray-blue dawn illumination. ID_A is Nathan Vale in the same white dinner jacket over a black shirt. ID_A speaks with controlled brisk pacing. ID_C is Tomas Arendt in the same brown travel coat, keeping the waterproof engineering tube under his left arm. Elena waits several steps higher on the boarding stairs with her medical case. At the very beginning of shot2, Nathan extends the single folded document packet toward Tomas and ID_A immediately says quickly and clearly, \"Take the visa. Broadcast the route at dawn on this frequency. Go.\" Nathan delivers the essential first two sentences completely in one brisk continuous flow before the short buffer word \"Go.\" His face and mouth remain clearly visible and synchronized through every word. Tomas keeps his lips closed, accepts the packet securely with his right hand, and looks from the packet back to Nathan. After Nathan finishes, Tomas places the packet inside his coat while keeping the engineering tube under his other arm. Only Nathan's exact quoted dialogue is spoken in shot2. Realistic live-action wartime airfield suspense cinematography with restrained 1940s composition, soft 35mm texture, pale overcast early-morning daylight, wet pavement reflections, stable faces, correct eyelines, natural walking motion, correct hands, one folded document packet, one medical case, one engineering tube, one complete aircraft, and identical lighting, weather, aircraft geometry, wardrobe, and character identity across both shots.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_full_audio",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_memory_encoded_zero_audio",
+        "source_shot_id": 7
+      }
+    },
+    {
+      "image_url": "../assets/images/id_c_tomas_4p3.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_C",
+        "source": "character_memory_encoded_zero_audio",
+        "source_shot_id": 9
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 362,
+  "duration_sec": 9.6
+}

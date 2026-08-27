@@ -1,0 +1,22 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_051_v1_elena_safe_clinic_r2v",
+  "prompt": "ID_B is Elena, a dark-haired woman with an intelligent oval face and deep brown eyes. She wears a dark green travel coat over a cream blouse.\n\nThis video has exactly 3 shots.\n\nshot1: Inside a small safe-territory clinic in warm morning light, Elena walks past orderly rows of simple cots while nurses prepare clean bandages. She looks toward the patients, never toward the camera.\n\nshot2: Cut to a natural medium side view. Elena kneels beside a tired child resting safely on a cot, checks the child's clean arm bandage, and immediately says, \"You're safe now. Breathe slowly. Stay calm.\" Elena completes the line once while looking only at the child.\n\nshot3: Cut to a wider view of the clinic. Elena stands and moves toward the next patient as two nurses continue working. Sunlight enters through open windows and the room remains calm.\n\nRealistic live-action 1940s wartime drama, soft 35mm texture, stable Elena identity, clear synchronized English speech in shot2 only, coherent hands and medical objects, natural footsteps, fabric, and clinic ambience, no extra speech, no narration, no subtitles, and nobody looks at the camera.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_B_voice_shot7_v2_full.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_image_full_voice",
+        "source_shot_id": 7
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1201,
+  "duration_sec": 9.6
+}

@@ -5,7 +5,7 @@ Provides a simple interface for text encoding without prompt enhancement.
 Just pure text -> context embedding conversion.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Dict, List, Optional
 import torch
 import torch.nn as nn
 
@@ -61,38 +61,27 @@ class GemmaTextEncoderWrapper(nn.Module):
                 - audio_context: [B, seq_len, dim] audio conditioning
                 - attention_mask: [B, seq_len] attention mask
         """
-        batch_size = len(text_prompts)
+        if not text_prompts:
+            return {
+                "video_context": None,
+                "audio_context": None,
+                "attention_mask": None,
+            }
 
-        # Encode each prompt
-        video_contexts = []
-        audio_contexts = []
-        attention_masks = []
-
-        for prompt in text_prompts:
-            # 1) Run Gemma LLM to get raw hidden states + attention mask
-            hidden_states, attn_mask = self.text_encoder.encode(prompt, padding_side=padding_side)
-            # 2) Process hidden states to obtain final embeddings
-            output = self.embeddings_processor.process_hidden_states(
-                hidden_states, attn_mask, padding_side=padding_side
-            )
-
-            video_contexts.append(output.video_encoding)
-            audio_contexts.append(output.audio_encoding)
-            attention_masks.append(output.attention_mask)
-
-        # Stack batch
-        video_context = torch.cat(video_contexts, dim=0) if len(video_contexts) > 0 else None
-        # Handle optional audio connector (may be None depending on config)
-        if any(ac is None for ac in audio_contexts):
-            audio_context = None
-        else:
-            audio_context = torch.cat(audio_contexts, dim=0)
-        attention_mask = torch.cat(attention_masks, dim=0) if len(attention_masks) > 0 else None
+        hidden_states, attention_mask = self.text_encoder.encode_batch(
+            text_prompts,
+            padding_side=padding_side,
+        )
+        output = self.embeddings_processor.process_hidden_states(
+            hidden_states,
+            attention_mask,
+            padding_side=padding_side,
+        )
 
         return {
-            "video_context": video_context,
-            "audio_context": audio_context,
-            "attention_mask": attention_mask,
+            "video_context": output.video_encoding,
+            "audio_context": output.audio_encoding,
+            "attention_mask": output.attention_mask,
         }
 
     def encode_batch(
@@ -144,3 +133,41 @@ def create_text_encoder_wrapper(
     )
 
     return wrapper
+
+
+def create_language_only_text_encoder(
+    checkpoint_path: str,
+    gemma_path: str,
+    device: torch.device,
+    dtype: torch.dtype = torch.bfloat16,
+    registry: Registry | None = None,
+):
+    """Load only the Gemma language backbone and tokenizer for DMD encoding."""
+    from ltx_pipelines.utils.model_ledger import ModelLedger
+
+    ledger = ModelLedger(
+        dtype=dtype,
+        device=torch.device("cpu"),
+        checkpoint_path=checkpoint_path,
+        gemma_root_path=gemma_path,
+        registry=registry,
+    )
+    return ledger.language_only_text_encoder().to(device=device, dtype=dtype).eval()
+
+
+def create_text_embeddings_processor(
+    checkpoint_path: str,
+    device: torch.device,
+    dtype: torch.dtype = torch.bfloat16,
+    registry: Registry | None = None,
+):
+    """Load only Echo's feature extractor and video/audio text connectors."""
+    from ltx_pipelines.utils.model_ledger import ModelLedger
+
+    ledger = ModelLedger(
+        dtype=dtype,
+        device=torch.device("cpu"),
+        checkpoint_path=checkpoint_path,
+        registry=registry,
+    )
+    return ledger.gemma_embeddings_processor().to(device=device, dtype=dtype).eval()

@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_025b_rusk_faces_car_and_commands_r2v",
+  "prompt": "At the same wet airport checkpoint before dawn, the same black 1940s staff car remains stopped several feet before the same lowered red-and-white striped barrier. Its headlights illuminate the barrier and Captain Rusk from the side. ID_D is Captain Rusk, a 48-year-old security officer controlling departures from San Cordoba. ID_D has close-cropped gray hair, a broad clean-shaven face, pale green eyes, and a disciplined military build. ID_D has a courteous but calculating screen presence, treating law as a flexible instrument. ID_D's voice is a polished older male voice with firm brisk pacing, elegant diction, and lightly amused menace. ID_D wears a rain-darkened sand-colored military uniform and polished black boots, and carries one service pistol. Use one stable medium three-quarter profile composition. Captain Rusk stands on the right side of the frame facing left toward the stopped car, while the car and its windshield remain clearly visible on the left side. At the beginning, Rusk turns his head and fixes his eyes directly on the occupants behind the windshield. Keeping his gaze on the car, ID_D immediately says quickly and clearly, \"Stop! Show me your hands. Now.\" Rusk delivers the essential command \"Stop! Show me your hands\" completely in one brisk continuous flow before saying the short buffer word \"Now.\" His mouth remains visible in three-quarter profile and synchronized through every word. After finishing the command, Rusk raises his single service pistol toward the car and holds it steady. Two distant uniformed guards move into position behind the barrier while Rusk continues watching the windshield. Only Captain Rusk's exact quoted command is spoken in this shot. Realistic live-action wartime airport thriller cinematography, restrained 1940s noir composition, soft 35mm texture, hard floodlight beams, cool pre-dawn blue light, wet black pavement, correct hands, one pistol, one coherent car, stable character identity, clear eyeline toward the car, and one continuous camera view.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_ID_D_shot5_6p5.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_D_voice_shot5.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "character_memory_full_audio",
+        "source_shot_id": 5
+      }
+    },
+    {
+      "image_url": "../assets/images/shot_025_car_stopped_at_barrier.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "PREVIOUS_SHOT",
+        "source": "shot_025a_stopped_car_with_zero_audio",
+        "source_shot_id": "025a"
+      }
+    }
+  ],
+  "num_frames": 145,
+  "width": 1280,
+  "height": 736,
+  "seed": 306,
+  "duration_sec": 5.76
+}

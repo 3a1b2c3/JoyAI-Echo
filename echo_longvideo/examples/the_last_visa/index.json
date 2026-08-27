@@ -1,0 +1,591 @@
+{
+  "schema_version": "echo15.r2v.example.v1",
+  "title": "The Last Visa",
+  "request_count": 66,
+  "requests": [
+    {
+      "sequence": 1,
+      "request_order": 1,
+      "shot_id": "shot_001",
+      "request": "requests/001_01_shot_001.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 2,
+      "request_order": 1,
+      "shot_id": "shot_002_v7_courier_approach_envelope_closeup_r2v",
+      "request": "requests/002_01_shot_002_v7_courier_approach_envelope_closeup_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 3,
+      "request_order": 1,
+      "shot_id": "shot_003_v8_nathan_returns_picks_envelope_enters_r2v",
+      "request": "requests/003_01_shot_003_v8_nathan_returns_picks_envelope_enters_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 4,
+      "request_order": 1,
+      "shot_id": "shot_004_v11_two_visas_already_on_desk_r2v",
+      "request": "requests/004_01_shot_004_v11_two_visas_already_on_desk_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 5,
+      "request_order": 1,
+      "shot_id": "shot_005a_v3_nathan_slides_visas_under_radio_r2v",
+      "request": "requests/005_01_shot_005a_v3_nathan_slides_visas_under_radio_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 6,
+      "request_order": 1,
+      "shot_id": "shot_005b_v8_rusk_enters_inspects_speaks_idd_only_r2v",
+      "request": "requests/006_01_shot_005b_v8_rusk_enters_inspects_speaks_idd_only_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 7,
+      "request_order": 1,
+      "shot_id": "shot_006_v7_nathan_reply_ida_only_r2v",
+      "request": "requests/007_01_shot_006_v7_nathan_reply_ida_only_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 8,
+      "request_order": 1,
+      "shot_id": "shot_007_elena_returns_to_cafe_r2v",
+      "request": "requests/008_01_shot_007_elena_returns_to_cafe_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 9,
+      "request_order": 1,
+      "shot_id": "shot_008_nathan_replies_to_elena_r2v",
+      "request": "requests/009_01_shot_008_nathan_replies_to_elena_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 10,
+      "request_order": 1,
+      "shot_id": "shot_009_tomas_introduced_r2v",
+      "request": "requests/010_01_shot_009_tomas_introduced_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 11,
+      "request_order": 1,
+      "shot_id": "shot_010_elena_answers_tomas_r2v",
+      "request": "requests/011_01_shot_010_elena_answers_tomas_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 12,
+      "request_order": 1,
+      "shot_id": "shot_011_tomas_challenges_nathan_r2v",
+      "request": "requests/012_01_shot_011_tomas_challenges_nathan_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 13,
+      "request_order": 1,
+      "shot_id": "shot_012_nathan_answers_tomas_r2v",
+      "request": "requests/013_01_shot_012_nathan_answers_tomas_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 14,
+      "request_order": 1,
+      "shot_id": "shot_013_elena_explains_rooftop_r2v",
+      "request": "requests/014_01_shot_013_elena_explains_rooftop_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 15,
+      "request_order": 1,
+      "shot_id": "shot_014_nathan_answers_elena_r2v",
+      "request": "requests/015_01_shot_014_nathan_answers_elena_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 16,
+      "request_order": 1,
+      "shot_id": "shot_015_visas_harbor_cutaway_r2v",
+      "request": "requests/016_01_shot_015_visas_harbor_cutaway_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 17,
+      "request_order": 1,
+      "shot_id": "shot_016_nathan_old_ticket_r2v",
+      "request": "requests/017_01_shot_016_nathan_old_ticket_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 18,
+      "request_order": 1,
+      "shot_id": "shot_017_elena_walks_out_with_nathan_r2v",
+      "request": "requests/018_01_shot_017_elena_walks_out_with_nathan_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 19,
+      "request_order": 1,
+      "shot_id": "shot_018_gate_opens_for_truck_r2v",
+      "request": "requests/019_01_shot_018_gate_opens_for_truck_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 20,
+      "request_order": 1,
+      "shot_id": "shot_019_airfield_last_plane_r2v",
+      "request": "requests/020_01_shot_019_airfield_last_plane_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 21,
+      "request_order": 1,
+      "shot_id": "shot_020_nathan_blackmails_rusk_r2v",
+      "request": "requests/021_01_shot_020_nathan_blackmails_rusk_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 22,
+      "request_order": 1,
+      "shot_id": "shot_021_elena_tomas_split_plans_r2v",
+      "request": "requests/022_01_shot_021_elena_tomas_split_plans_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 23,
+      "request_order": 1,
+      "shot_id": "shot_022_nathan_gives_visas_r2v",
+      "request": "requests/023_01_shot_022_nathan_gives_visas_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 24,
+      "request_order": 1,
+      "shot_id": "shot_023_nathan_elena_goodbye_r2v",
+      "request": "requests/024_01_shot_023_nathan_elena_goodbye_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 25,
+      "request_order": 1,
+      "shot_id": "shot_024a_v5_three_reach_waiting_car_r2v",
+      "request": "requests/025_01_shot_024a_v5_three_reach_waiting_car_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 26,
+      "request_order": 1,
+      "shot_id": "shot_025a_car_stopped_by_barrier_r2v",
+      "request": "requests/026_01_shot_025a_car_stopped_by_barrier_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 26,
+      "request_order": 2,
+      "shot_id": "shot_025b_rusk_faces_car_and_commands_r2v",
+      "request": "requests/026_02_shot_025b_rusk_faces_car_and_commands_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 27,
+      "request_order": 1,
+      "shot_id": "shot_026a_nathan_activates_hidden_switch_r2v",
+      "request": "requests/027_01_shot_026a_nathan_activates_hidden_switch_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 27,
+      "request_order": 2,
+      "shot_id": "shot_026b_nathan_reveals_harbor_has_ledger_r2v",
+      "request": "requests/027_02_shot_026b_nathan_reveals_harbor_has_ledger_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 28,
+      "request_order": 1,
+      "shot_id": "shot_027b_v2_tomas_forces_rusk_to_lower_weapon_r2v",
+      "request": "requests/028_01_shot_027b_v2_tomas_forces_rusk_to_lower_weapon_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 29,
+      "request_order": 1,
+      "shot_id": "shot_028a_barrier_rises_and_car_passes_r2v",
+      "request": "requests/029_01_shot_028a_barrier_rises_and_car_passes_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 29,
+      "request_order": 2,
+      "shot_id": "shot_028b_car_crosses_airfield_to_plane_r2v",
+      "request": "requests/029_02_shot_028b_car_crosses_airfield_to_plane_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 30,
+      "request_order": 1,
+      "shot_id": "shot_029_v4_nathan_hands_tomas_visa_and_frequency_r2v",
+      "request": "requests/030_01_shot_029_v4_nathan_hands_tomas_visa_and_frequency_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 31,
+      "request_order": 1,
+      "shot_id": "shot_030_v1_elena_and_tomas_confirm_nathans_sacrifice_r2v",
+      "request": "requests/031_01_shot_030_v1_elena_and_tomas_confirm_nathans_sacrifice_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 32,
+      "request_order": 1,
+      "shot_id": "shot_031_v1_nathan_offers_rusk_an_honest_way_forward_r2v",
+      "request": "requests/032_01_shot_031_v1_nathan_offers_rusk_an_honest_way_forward_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 33,
+      "request_order": 1,
+      "shot_id": "shot_032_v1_rusk_places_his_pistol_down_and_agrees_to_testify_r2v",
+      "request": "requests/033_01_shot_032_v1_rusk_places_his_pistol_down_and_agrees_to_testify_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 34,
+      "request_order": 1,
+      "shot_id": "shot_033_v1_rusk_names_varga_and_soren_on_the_record_r2v",
+      "request": "requests/034_01_shot_033_v1_rusk_names_varga_and_soren_on_the_record_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 35,
+      "request_order": 1,
+      "shot_id": "shot_034_v1_broadcast_route_no_people_r2v",
+      "request": "requests/035_01_shot_034_v1_broadcast_route_no_people_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 36,
+      "request_order": 1,
+      "shot_id": "shot_035_v2_nathan_keeps_conditioned_old_ticket_r2v",
+      "request": "requests/036_01_shot_035_v2_nathan_keeps_conditioned_old_ticket_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 37,
+      "request_order": 1,
+      "shot_id": "shot_036_v2_relief_broadcast_simple_r2v",
+      "request": "requests/037_01_shot_036_v2_relief_broadcast_simple_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 38,
+      "request_order": 1,
+      "shot_id": "shot_037_v2_nathan_rusk_mutual_dialogue_seed1031_r2v",
+      "request": "requests/038_01_shot_037_v2_nathan_rusk_mutual_dialogue_seed1031_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 39,
+      "request_order": 1,
+      "shot_id": "shot_038_v1_three_ships_clear_channel_r2v",
+      "request": "requests/039_01_shot_038_v1_three_ships_clear_channel_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 40,
+      "request_order": 1,
+      "shot_id": "shot_039_v1_refugees_on_departing_ship_r2v",
+      "request": "requests/040_01_shot_039_v1_refugees_on_departing_ship_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 41,
+      "request_order": 1,
+      "shot_id": "shot_040_v1_elena_tomas_safe_airfield_r2v",
+      "request": "requests/041_01_shot_040_v1_elena_tomas_safe_airfield_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 42,
+      "request_order": 1,
+      "shot_id": "shot_041_v1_elena_tomas_operations_room_r2v",
+      "request": "requests/042_01_shot_041_v1_elena_tomas_operations_room_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 43,
+      "request_order": 1,
+      "shot_id": "shot_042_v1_medical_convoy_departure_r2v",
+      "request": "requests/043_01_shot_042_v1_medical_convoy_departure_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 44,
+      "request_order": 1,
+      "shot_id": "shot_043a_v1_bridge_approach_i2v_r2v",
+      "request": "requests/044_01_shot_043a_v1_bridge_approach_i2v_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 45,
+      "request_order": 1,
+      "shot_id": "shot_043b_v2_bridge_crossing_i2v_seed1103_r2v",
+      "request": "requests/045_01_shot_043b_v2_bridge_crossing_i2v_seed1103_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 46,
+      "request_order": 1,
+      "shot_id": "shot_044_v1_medical_convoy_field_clinic_r2v",
+      "request": "requests/046_01_shot_044_v1_medical_convoy_field_clinic_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 47,
+      "request_order": 1,
+      "shot_id": "shot_045_v5_elena_only_bufferline_r2v",
+      "request": "requests/047_01_shot_045_v5_elena_only_bufferline_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 48,
+      "request_order": 1,
+      "shot_id": "shot_046_v2_evacuation_network_signal_seed1151_r2v",
+      "request": "requests/048_01_shot_046_v2_evacuation_network_signal_seed1151_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 49,
+      "request_order": 1,
+      "shot_id": "shot_047_v2_nathan_identity_buffer2_r2v",
+      "request": "requests/049_01_shot_047_v2_nathan_identity_buffer2_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 50,
+      "request_order": 1,
+      "shot_id": "shot_048_v2_rusk_open_barrier_r2v",
+      "request": "requests/050_01_shot_048_v2_rusk_open_barrier_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 51,
+      "request_order": 1,
+      "shot_id": "shot_049_v1_refugees_board_train_r2v",
+      "request": "requests/051_01_shot_049_v1_refugees_board_train_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 52,
+      "request_order": 1,
+      "shot_id": "shot_050_v2_train_valley_long_interior_r2v",
+      "request": "requests/052_01_shot_050_v2_train_valley_long_interior_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 53,
+      "request_order": 1,
+      "shot_id": "shot_051_v1_elena_safe_clinic_r2v",
+      "request": "requests/053_01_shot_051_v1_elena_safe_clinic_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 54,
+      "request_order": 1,
+      "shot_id": "shot_052_v1_tomas_dispatches_bridge_plans_r2v",
+      "request": "requests/054_01_shot_052_v1_tomas_dispatches_bridge_plans_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 55,
+      "request_order": 1,
+      "shot_id": "shot_053_v1_southern_bridge_route_r2v",
+      "request": "requests/055_01_shot_053_v1_southern_bridge_route_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 56,
+      "request_order": 1,
+      "shot_id": "shot_054_v2_patrol_misses_hidden_route_seed1237_r2v",
+      "request": "requests/056_01_shot_054_v2_patrol_misses_hidden_route_seed1237_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 57,
+      "request_order": 1,
+      "shot_id": "shot_055_v2_nathan_final_broadcast_short_dialogue_r2v",
+      "request": "requests/057_01_shot_055_v2_nathan_final_broadcast_short_dialogue_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 58,
+      "request_order": 1,
+      "shot_id": "shot_056_v1_southern_route_signal_propagates_r2v",
+      "request": "requests/058_01_shot_056_v1_southern_route_signal_propagates_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 59,
+      "request_order": 1,
+      "shot_id": "shot_057_v1_refugees_cross_southern_bridge_r2v",
+      "request": "requests/059_01_shot_057_v1_refugees_cross_southern_bridge_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 60,
+      "request_order": 1,
+      "shot_id": "shot_058_v2_elena_confirms_southern_bridge_short_dialogue_r2v",
+      "request": "requests/060_01_shot_058_v2_elena_confirms_southern_bridge_short_dialogue_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 61,
+      "request_order": 1,
+      "shot_id": "shot_059_v3_nathan_rusk_relief_center_alliance_spatial_continuity_r2v",
+      "request": "requests/061_01_shot_059_v3_nathan_rusk_relief_center_alliance_spatial_continuity_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 62,
+      "request_order": 1,
+      "shot_id": "shot_060_v3_cinematic_harbor_street_finale_one_line_r2v",
+      "request": "requests/062_01_shot_060_v3_cinematic_harbor_street_finale_one_line_r2v.json",
+      "selected_video": "video.mp4"
+    },
+    {
+      "sequence": 62,
+      "request_order": 2,
+      "shot_id": "shot_060_v2_cinematic_harbor_street_finale_r2v",
+      "request": "requests/062_02_shot_060_v2_cinematic_harbor_street_finale_r2v.json",
+      "selected_video": "video.mp4"
+    }
+  ],
+  "assets": [
+    {
+      "path": "assets/audio/id_c_tomas_full.wav",
+      "sha256": "9fe281759e3f556d54bdecc4877533cf5c29c8ef6fda0346c0685c5d9b13108e",
+      "bytes": 1851470
+    },
+    {
+      "path": "assets/audio/last_visa_ID_B_voice_shot7_v2_full.wav",
+      "sha256": "ab24a8f5ff7f4e881b3b5c5ba7e989f335bd58078f1817a0425b2d35691bdd28",
+      "bytes": 1482830
+    },
+    {
+      "path": "assets/audio/last_visa_ID_D_voice_shot5.wav",
+      "sha256": "5ca1ca2e4a3c7838af045fc9d44badc5564a9ea22656b40ddbcde09214d2b009",
+      "bytes": 1017678
+    },
+    {
+      "path": "assets/audio/shot_001.wav",
+      "sha256": "9eb0a025a9ae687dbdae310f0e938bc72c65e49ab113e72be3f4d0a4a09ec4e5",
+      "bytes": 1851470
+    },
+    {
+      "path": "assets/audio/shot_001_voice_msst_clean.wav",
+      "sha256": "fc457086bd25ea6e84cb683b7dd4f4711be0fabbfe0ba6c84dfbaa2b30f4de09",
+      "bytes": 921678
+    },
+    {
+      "path": "assets/audio/silence_9p642667.wav",
+      "sha256": "d33a5d7db2abdd5f62f2ae9e86dbebf676871049c8edb9dcc4e1b7db4d38ecaf",
+      "bytes": 1851470
+    },
+    {
+      "path": "assets/images/id_c_tomas_4p3.jpg",
+      "sha256": "bc036fb7295219eeed4197f309f85581cdcf2bbafeadbbd18276323c91190cdf",
+      "bytes": 32828
+    },
+    {
+      "path": "assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "sha256": "b05d0c1890938ed337a5e9c3bc08952487d53af56dcab453630cbe7bb3f8af28",
+      "bytes": 41481
+    },
+    {
+      "path": "assets/images/last_visa_ID_D_shot5_6p5.jpg",
+      "sha256": "3eb3536ded259f4eac43fd70244ff0f91c8c5be4646639eb1deb9135bfac138c",
+      "bytes": 35267
+    },
+    {
+      "path": "assets/images/last_visa_id_a_canonical_shot1_5p5.jpg",
+      "sha256": "060870f410f3239f7e62a82a0da034fb7e49e60a566946bd2d138032f92a9189",
+      "bytes": 30902
+    },
+    {
+      "path": "assets/images/last_visa_id_a_current_shot4_v11_7p5.jpg",
+      "sha256": "74b3de1f3b0f215da3be633875b6a4807857c5e3d442970db02f73b0395dc551",
+      "bytes": 37058
+    },
+    {
+      "path": "assets/images/last_visa_id_d_rusk_shot25_3p0.jpg",
+      "sha256": "cabf741eeaf6e887d871bb05fbb8612e9e3c162e3a73428a670540debe6141d5",
+      "bytes": 45485
+    },
+    {
+      "path": "assets/images/last_visa_shot2_clean_scene_envelope_9p2.jpg",
+      "sha256": "31d794cb034323e23eb8c38a347ccef2093885ec440f86fea970f70147630504",
+      "bytes": 50456
+    },
+    {
+      "path": "assets/images/last_visa_shot42_tail_8p8.jpg",
+      "sha256": "4c99a67c80f02dfb903c328699477852d145568df3108285e7eb19b2fe117086",
+      "bytes": 46295
+    },
+    {
+      "path": "assets/images/last_visa_shot43a_tail_9p2.jpg",
+      "sha256": "2aa013cfcabe26e6ff05eae098bde910427f01b43a16577d39cef27fc7fbbabb",
+      "bytes": 49964
+    },
+    {
+      "path": "assets/images/last_visa_ticket_table_condition.jpg",
+      "sha256": "bc09a8473d57905dd2602ba4623d0d1697b7c5aca53f750bdd196b085052e73e",
+      "bytes": 55246
+    },
+    {
+      "path": "assets/images/shot11_nathan_8p6.jpg",
+      "sha256": "a1ffaeb0c3e8e1f75776e667515dcc5550554184e77ca471c65036c5a067c5a2",
+      "bytes": 31462
+    },
+    {
+      "path": "assets/images/shot13_nathan_8p6.jpg",
+      "sha256": "96588abaa0b8c17941ac8879000ca93f94875135407fe4aa3ffd67205e6175ff",
+      "bytes": 31748
+    },
+    {
+      "path": "assets/images/shot5a_v3_radio_condition_clean2.jpg",
+      "sha256": "1ac68007843e9ef81a99b046a3ccf44b1f326ebee08b42126e023f6be9b9b74f",
+      "bytes": 30339
+    },
+    {
+      "path": "assets/images/shot9_v6_elena_8p4.jpg",
+      "sha256": "58f084756134926fdaac77b31526ce7bbb6d90b945e261b06a7f972d2ace6b53",
+      "bytes": 35655
+    },
+    {
+      "path": "assets/images/shot_001.jpg",
+      "sha256": "08be007042a133aac2e0b6906126ff636b1fc6c6d6f54b72fa510fc91d75c70d",
+      "bytes": 40253
+    },
+    {
+      "path": "assets/images/shot_008_nathan_speaking_4p8.jpg",
+      "sha256": "fd0fc12f4f7bd76de9d78700a15304fb170514c190cf43711725971383d5ad48",
+      "bytes": 40561
+    },
+    {
+      "path": "assets/images/shot_025_car_stopped_at_barrier.jpg",
+      "sha256": "503736d41f64879b0ab9601d1b5fb12d8597774aff5dc33b7deefba0fd5f251b",
+      "bytes": 65529
+    },
+    {
+      "path": "assets/images/shot_028_checkpoint_car_passes.jpg",
+      "sha256": "e3f5478a4612b5162e65caad89405092a9812c42066cb0a89b672c89237b344f",
+      "bytes": 48394
+    }
+  ]
+}
