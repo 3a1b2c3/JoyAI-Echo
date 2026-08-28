@@ -30,7 +30,7 @@
 - 🎉 **JoyAI-Echo 1.5 is now available!** Code, model weights, and R2V inference are released.
 - 🎬 **We also introduce Echo Director Agent This Time !**, an agentic workflow for planning and creating multi-shot videos. See [`Director_Agent/`](Director_Agent/README.md).
 - 🎮 **JoyAI-Echo 1.5 brings high-quality video generation to consumer GPUs. Fire up your RTX GPU and start creating!**
-- 📦 JoyAI-Echo 1.0 remains available on the [`echo1.0` archive branch](https://github.com/jd-opensource/JoyAI-Echo/tree/echo1.0/echo_longvideo).
+- 📦 JoyAI-Echo 1.0 remains available on the [`echo1.0` archive branch](https://github.com/jd-opensource/JoyAI-Echo/tree/echo1.0).
 
 ## JoyAI-Echo 1.5
 

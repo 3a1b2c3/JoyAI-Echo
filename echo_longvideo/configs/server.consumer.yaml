@@ -3,8 +3,7 @@
 
 inference:
   config: configs/inference.consumer.fp4.yaml
-  # This workstation stores the standalone FP4 release outside the repository.
-  checkpoint: ../checkpoints/echo15_fp4_standalone_20260827_v2
+  checkpoint: checkpoints/echo15_fp4
   conditioning_cache_dir: data/conditioning_cache
 
 runtime:
