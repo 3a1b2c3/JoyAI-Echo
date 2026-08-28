@@ -22,6 +22,12 @@
 
 </div>
 
+## News
+
+- **2026-08-28** — Released [JoyAI-Echo 1.5 / Echo-LongVideo](echo_longvideo/README.md), including long-horizon generation, consumer-GPU inference profiles, and the Director Agent.
+- **2026-08-26** — Released [Echo-WM](echo_wm/README.md), our omnimodal world model for interactive audio-visual generation.
+- **2026-06-22** — Released [JoyAI-Echo 1.0](https://github.com/jd-opensource/JoyAI-Echo/tree/echo1.0), now preserved on the `echo1.0` archive branch.
+
 This repository holds two independent projects. Each has its own environment,
 checkpoints, and entrypoint — pick the one you need and follow its README.
 
