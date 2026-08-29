@@ -1,12 +1,16 @@
 @echo off
 setlocal enabledelayedexpansion
-REM JoyAI-Echo: Download models
+REM JoyAI-Echo: Download models (Echo 1.5 checkpoints)
+REM Variant override: set VARIANT=echo15_full_dmd (BF16, 46.14 GB) or echo15_fp4 (FP4, 22.81 GB)
+REM Default: echo15_fp8 (FP8, 27.62 GB)
 
 cd /d "%~dp0"
 
+if not defined VARIANT set "VARIANT=echo15_fp8"
+
 echo.
 echo ================================================================================
-echo JoyAI-Echo - Download Models
+echo JoyAI-Echo - Download Models (variant: %VARIANT%)
 echo ================================================================================
 echo.
 
@@ -16,36 +20,34 @@ if not exist "%CKPT_DIR%" mkdir "%CKPT_DIR%"
 echo Checkpoints: %CKPT_DIR%
 echo.
 echo Files to download:
-echo   1. echo-longvideo-release.safetensors  ~46 GB
+echo   1. %VARIANT% (Echo 1.5 checkpoint)
 echo   2. gemma-3-12b-it (text encoder)       ~24 GB
-echo   ------------------------------------------------
-echo   Total:                                 ~70 GB
 echo.
 
-python -m pip show huggingface_hub >nul 2>&1
+python -c "import huggingface_hub" >nul 2>&1
 if errorlevel 1 (
     echo Installing huggingface_hub...
-    python -m pip install --quiet -U "huggingface_hub[cli]"
+    python -m pip install --quiet -U huggingface_hub
 )
 
 REM ============================================================================
-REM 1. Echo model from jdopensource/JoyAI-Echo
+REM 1. Echo 1.5 checkpoint variant from jdopensource/JoyAI-Echo
 REM ============================================================================
-echo [1/2] Echo Model
+echo [1/2] Echo Model (%VARIANT%)
 echo.
 
-set "MODEL_FILE=%CKPT_DIR%\echo-longvideo-release.safetensors"
+set "VARIANT_DIR=%CKPT_DIR%\%VARIANT%"
 
-if exist "%MODEL_FILE%" (
-    echo Already exists: %MODEL_FILE%
+if exist "%VARIANT_DIR%\*" (
+    echo Already exists: %VARIANT_DIR%
 ) else (
-    echo Downloading ^(~46 GB, this will take a while^)...
-    hf download jdopensource/JoyAI-Echo echo-longvideo-release.safetensors --local-dir "%CKPT_DIR%"
+    echo Downloading %VARIANT% ^(this will take a while^)...
+    python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='jdopensource/JoyAI-Echo', allow_patterns=['%VARIANT%/*'], local_dir=r'%CKPT_DIR%')"
     if errorlevel 1 (
-        echo Download failed. URL: https://huggingface.co/jdopensource/JoyAI-Echo
+        echo Download failed. URL: https://huggingface.co/jdopensource/JoyAI-Echo/tree/main/%VARIANT%
         exit /b 1
     )
-    echo Downloaded: %MODEL_FILE%
+    echo Downloaded: %VARIANT_DIR%
 )
 
 REM ============================================================================
@@ -61,7 +63,7 @@ if exist "%GEMMA_DIR%\*" (
     echo Already exists: %GEMMA_DIR%
 ) else (
     echo Downloading ^(~24 GB, this will take a while^)...
-    hf download google/gemma-3-12b-it --local-dir "%GEMMA_DIR%"
+    python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='google/gemma-3-12b-it', local_dir=r'%GEMMA_DIR%')"
     if errorlevel 1 (
         echo Download failed.
         echo Gemma is gated: accept the license at https://huggingface.co/google/gemma-3-12b-it
@@ -76,15 +78,8 @@ echo ===========================================================================
 echo Download Complete
 echo ================================================================================
 echo.
-
-if exist "%MODEL_FILE%" (
-    echo Ready to run examples
-    echo.
-    echo Next: run_examples.bat
-) else (
-    echo Main model missing
-    exit /b 1
-)
-
+echo NOTE: this checkout's inference.py predates the Echo 1.5 checkpoint format
+echo (checkpoint.json + %VARIANT%\*.safetensors^). It will not load these files
+echo until the code is updated to match jd-opensource/JoyAI-Echo's echo_longvideo/ branch.
 echo.
 endlocal
