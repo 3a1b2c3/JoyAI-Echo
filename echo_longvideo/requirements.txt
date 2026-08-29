@@ -7,10 +7,10 @@ torch==2.9.1
 torchvision==0.24.1
 torchaudio==2.9.1
 triton==3.5.1
-# torchaudio 2.9 dropped its built-in decode backend in favor of TorchCodec;
-# torchaudio.load() raises ImportError without it. 0.9.0 is the release paired
-# with torch 2.9. Needs ffmpeg (already a project requirement) on PATH.
-torchcodec==0.9.0
+# NOTE: torchaudio.load() calls use backend="soundfile" explicitly
+# (see ltx-distillation/r2v_conditioning.py) instead of relying on
+# torchaudio's default TorchCodec backend, which has no aarch64 (Grace/
+# GB300) wheels at a version compatible with torch==2.9.1.
 
 transformers==4.57.6
 peft==0.17.1

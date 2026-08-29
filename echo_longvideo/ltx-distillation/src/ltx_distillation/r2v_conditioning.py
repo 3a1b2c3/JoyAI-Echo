@@ -160,7 +160,11 @@ class _ResourceStore:
 
     def audio(self, source: str) -> tuple[torch.Tensor, int]:
         raw = self.read(source, kind="R2V audio", max_bytes=MAX_AUDIO_BYTES)
-        waveform, sample_rate = torchaudio.load(io.BytesIO(raw))
+        # torchaudio>=2.9 defaults to a TorchCodec-backed loader, which has no
+        # aarch64 (Grace/GB300) wheels below torchcodec 0.11 (which pins
+        # torch==2.11). Use the soundfile backend instead — it's already a
+        # pinned dependency (requirements-msst.txt) and needs no extra wheel.
+        waveform, sample_rate = torchaudio.load(io.BytesIO(raw), backend="soundfile")
         return waveform.detach().cpu().float().contiguous(), int(sample_rate)
 
 
