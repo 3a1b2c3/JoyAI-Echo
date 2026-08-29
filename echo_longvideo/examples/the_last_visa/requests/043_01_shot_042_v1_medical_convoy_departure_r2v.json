@@ -1,0 +1,12 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_042_v1_medical_convoy_departure_r2v",
+  "prompt": "This video has exactly 3 distinct shots. No named character appears and nobody speaks.\n\nshot1: Inside a compact 1940s field dispatch room, use a close insert shot of a plain bridge map beside an active field radio. A small radio signal lamp blinks steadily. One gloved hand places a simple route marker on the northern bridge. No face and no readable writing appear.\n\nshot2: Make one clean cut to a medical depot courtyard in warm morning light. Exactly two period ambulances wait side by side. Two medics close the rear canvas doors after the supplies are already loaded. The engines start and both vehicles remain physically stable.\n\nshot3: Make one clean cut to a low roadside tracking view. The same two ambulances drive in order out of the depot and turn onto the northern road. The camera pans smoothly as they pass, revealing the distant bridge ahead. Both vehicles continue forward without colliding, vanishing, changing shape, or turning back.\n\nRealistic live-action 1940s wartime drama cinematography, restrained soft 35mm texture, coherent vehicle movement, clear visual continuity across all three shots, radio static, canvas movement, engine sound, tires, and distant morning ambience only. No speech, no narration, no singing, no subtitles, no modern vehicle, no combat, and no direct-to-camera gaze.",
+  "condition_img": null,
+  "memory_slots": [],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1081,
+  "duration_sec": 9.6
+}

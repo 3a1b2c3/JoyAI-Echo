@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/JoyAI/JoyAI-Echo15/schemas/r2v_request.schema.json",
+  "title": "Echo 1.5 R2V request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["work_id", "shot_id", "prompt", "memory_slots"],
+  "properties": {
+    "work_id": {"type": "string", "minLength": 1},
+    "shot_id": {"type": "string", "minLength": 1},
+    "prompt": {"type": "string", "minLength": 1},
+    "condition_img": {
+      "oneOf": [
+        {"type": "string", "minLength": 1},
+        {"type": "null"}
+      ]
+    },
+    "memory_slots": {
+      "type": "array",
+      "maxItems": 7,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "shot_id": {"type": "string", "minLength": 1},
+          "image_url": {"type": "string", "minLength": 1},
+          "audio_url": {"type": "string", "minLength": 1},
+          "audio_mode": {"const": "empty"},
+          "metadata": {"type": "object"}
+        },
+        "oneOf": [
+          {
+            "required": ["shot_id"],
+            "not": {
+              "anyOf": [
+                {"required": ["image_url"]},
+                {"required": ["audio_url"]},
+                {"required": ["audio_mode"]}
+              ]
+            }
+          },
+          {
+            "required": ["image_url"],
+            "not": {"required": ["shot_id"]},
+            "allOf": [
+              {
+                "not": {
+                  "allOf": [
+                    {"required": ["audio_url"]},
+                    {"required": ["audio_mode"]}
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "num_frames": {"type": "integer", "minimum": 1},
+    "duration_sec": {"type": "number", "exclusiveMinimum": 0},
+    "width": {"type": "integer", "minimum": 1},
+    "height": {"type": "integer", "minimum": 1},
+    "seed": {"type": "integer"}
+  }
+}

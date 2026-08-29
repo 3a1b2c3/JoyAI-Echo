@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_011_tomas_challenges_nathan_r2v",
+  "prompt": "A realistic live-action wartime romantic thriller inside the Blue Signal Cafe's dim storeroom. This is a new location with wine crates, radio parts, coffee sacks, one warm overhead lamp, and a closed back door. This video has 3 clean shots. shot1, from 0:00 to 0:02.5: A stable medium two-shot shows Nathan standing on the left and Tomas standing on the right across a waist-high wooden crate. Nathan is the same dark-haired man with a tired angular face, wearing his white dinner jacket over a black shirt. Tomas is the same light-brown-haired man with a narrow scholarly face, wearing his worn brown suit, white shirt, and dark tie. Both men remain silent with their lips closed. shot2, from 0:02.5 to 0:06: Cut cleanly to a medium close-up of Tomas's unobstructed face, oriented toward Nathan just offscreen to his left. Tomas speaks at a brisk, controlled natural pace in his soft mid-low adult male voice and says exactly one complete sentence: \"Neutrality is still a decision.\" Tomas finishes the final word well before this shot ends, then closes his mouth. Only Tomas speaks, with clear natural English and no invented words before or after the written sentence. shot3, from 0:06 to the end: Cut cleanly to a sustained medium close-up of Nathan's unobstructed face, oriented toward Tomas just offscreen to his right. Nathan remains completely silent with his lips closed. His expression stays guarded and skeptical, but the words have affected him. Hold on Nathan for the remainder of the video without cutting away. Preserve the exact same Nathan and Tomas faces, wardrobe, storeroom, and warm low-key lighting across all three shots. Quiet storeroom room tone accompanies Tomas's dialogue. No rain sound, music, on-screen text, labels, signs, cards, graphics, subtitles, or overlays appear.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_encoded_silence",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/id_c_tomas_4p3.jpg",
+      "audio_url": "../assets/audio/id_c_tomas_full.wav",
+      "metadata": {
+        "id": "ID_C",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 9
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 110,
+  "duration_sec": 9.6
+}

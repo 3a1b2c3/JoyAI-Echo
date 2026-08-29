@@ -1,0 +1,12 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_028a_barrier_rises_and_car_passes_r2v",
+  "prompt": "At a wet 1940s airport checkpoint before dawn, a black staff car waits several feet before a lowered red-and-white striped barrier. A period propeller aircraft and its floodlit boarding area are visible in the distance. A uniformed checkpoint guard receives a clear hand signal from the shelter doorway, grips the barrier control lever, and raises the striped barrier fully above the road. Captain Rusk stands several steps away with his pistol lowered beside his thigh and makes no attempt to block the lane. The black car begins moving only after the barrier is completely raised. It passes slowly between the guard and Rusk, then accelerates toward the open airfield road. Rusk turns his head and watches it leave while the guard remains beside the raised barrier. Use one continuous medium-wide lateral tracking view that preserves the positions of the car, barrier, shelter, guard, and Rusk. Realistic live-action wartime airport thriller cinematography, restrained 1940s noir composition, soft 35mm texture, cool pre-dawn floodlights, wet pavement reflections, one coherent period car, one intact barrier, natural vehicle movement, stable human anatomy, and clear spatial continuity.",
+  "condition_img": null,
+  "memory_slots": [],
+  "num_frames": 121,
+  "width": 1280,
+  "height": 736,
+  "seed": 335,
+  "duration_sec": 4.8
+}

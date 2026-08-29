@@ -1,0 +1,146 @@
+{
+  "app": {
+    "brand": "Echo Director",
+    "loading": {
+      "connecting": "Connecting to Echo Director…",
+      "boot": "Loading Echo Director…"
+    },
+    "error": {
+      "title": "Couldn't reach Echo Director",
+      "gatewayHint": "Make sure the gateway is running (`nanobot gateway`) and that this page is open on the same machine."
+    },
+    "notOpen": {
+      "title": "Not Available Yet"
+    },
+    "documentTitle": {
+      "base": "Echo Director",
+      "chat": "{{title}} · Echo Director"
+    },
+    "meta": {
+      "description": "Echo Director web UI — chat with your Echo Director workspace."
+    }
+  },
+  "sidebar": {
+    "collapse": "Collapse sidebar",
+    "toggleTheme": "Toggle theme",
+    "newChat": "New chat",
+    "recent": "Recent",
+    "refreshSessions": "Refresh sessions",
+    "language": {
+      "label": "Language",
+      "ariaLabel": "Change language"
+    }
+  },
+  "chat": {
+    "fallbackTitle": "Chat {{id}}",
+    "loading": "Loading…",
+    "noSessions": "No sessions yet.",
+    "actions": "Chat actions for {{title}}",
+    "delete": "Delete",
+    "newChat": "New chat",
+    "mode": {
+      "autoGenerate": "One-click film",
+      "stepwise": "Shot polish"
+    }
+  },
+  "deleteConfirm": {
+    "title": "Delete “{{title}}”?",
+    "description": "The session file will be removed from disk. This cannot be undone.",
+    "cancel": "Cancel",
+    "confirm": "Delete"
+  },
+  "connection": {
+    "idle": "Idle",
+    "connecting": "Connecting…",
+    "open": "Connected",
+    "reconnecting": "Reconnecting…",
+    "closed": "Disconnected",
+    "error": "Connection error"
+  },
+  "thread": {
+    "loadingConversation": "Loading conversation…",
+    "empty": {
+      "description": "Ask questions, continue local work, or start a new thread."
+    },
+    "header": {
+      "toggleSidebar": "Toggle sidebar"
+    },
+    "composer": {
+      "placeholderThread": "Type your message…",
+      "placeholderHero": "What's on your mind?",
+      "placeholderHeroShort": "Share your creative story — you can upload a favorite image as the first frame to make a short video. The image aspect ratio must match the video.",
+      "placeholderStepwise": "Upload a first-frame image, then share your story idea.",
+      "placeholderStepwiseAuto": "Share your story idea — skip polishing and generate the full film.",
+      "placeholderStepwiseAutoEmpty": "Upload a first-frame image and generate the full film in one click.",
+      "autoGenerate": "One-click generate",
+      "placeholderOpening": "Opening a new chat…",
+      "inputAria": "Message input",
+      "sendHint": "Enter for newline · ↑ to send",
+      "charCount": "{{count}} chars",
+      "send": "Send message",
+      "durationLabel": "Duration · {{sec}}s",
+      "durationPickerAria": "Select video duration",
+      "attachImage": "Attach image",
+      "encoding": "Encoding…",
+      "remove": "Remove attachment",
+      "normalizedSizeHint": "{{orig}} → {{current}} (auto)",
+      "imageRejected": {
+        "unsupported_type": "Unsupported file type",
+        "too_many_images": "Max {{max}} images per message",
+        "magic_mismatch": "File doesn't look like a real image",
+        "decode_failed": "Couldn't decode this image",
+        "too_large": "Image is too large — try a smaller one",
+        "io": "Couldn't read this file"
+      }
+    },
+    "firstFrame": {
+      "uploadAria": "Upload first-frame reference image",
+      "previewAria": "Preview first-frame reference image",
+      "remove": "Remove first-frame reference image",
+      "dropHint": "Drop to upload a first-frame image",
+      "uploadFailed": "First-frame upload failed. Please try again.",
+      "uploadFailedOk": "Got it",
+      "locked": "Cannot be changed",
+      "rejected": {
+        "unsupported_type": "Unsupported image type — use PNG / JPEG / WebP",
+        "decode_failed": "Couldn't process this image — try another"
+      }
+    },
+    "scrollToBottom": "Scroll to bottom"
+  },
+  "message": {
+    "streaming": "streaming",
+    "assistantTyping": "Assistant is typing",
+    "toolSingle": "Using a tool",
+    "toolMany": "Used {{count}} tools",
+    "imageAttachment": "Image attachment"
+  },
+  "lightbox": {
+    "title": "Image preview",
+    "open": "View image",
+    "prev": "Previous image",
+    "next": "Next image",
+    "close": "Close image preview"
+  },
+  "code": {
+    "fallbackLanguage": "code",
+    "copyAria": "Copy code",
+    "copy": "Copy",
+    "copied": "Copied"
+  },
+  "common": {
+    "dismiss": "Dismiss"
+  },
+  "errors": {
+    "messageTooBig": {
+      "title": "Message too large",
+      "body": "The server rejected your last message because it exceeded the size limit. Remove some images or try smaller files, then send again."
+    }
+  },
+  "login": {
+    "title": "Login Required",
+    "placeholder": "Enter password",
+    "submit": "Login",
+    "error": "Incorrect password"
+  }
+}

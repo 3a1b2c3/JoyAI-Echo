@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_030_v1_elena_and_tomas_confirm_nathans_sacrifice_r2v",
+  "prompt": "This video has exactly 2 shots. shot1: Inside the passenger cabin of the same 1940s silver propeller aircraft shortly after takeoff, pale gray-blue morning light enters through rain-speckled windows. The aircraft is already airborne; the wet runway and harbor recede below outside the windows. ID_B is Elena Maris in a dark green travel coat, seated beside the window with her small dark medical case secured near her feet. ID_C is Tomas Arendt in a brown travel coat, seated beside Elena with the waterproof engineering tube secured across his lap and Nathan's folded document packet held safely in one hand. Use a stable medium two-shot. At the very beginning, Tomas looks down at the folded packet, then looks directly at Elena and ID_C immediately says clearly, \"He gave away the only papers he could have used.\" Tomas completes the entire sentence in one calm continuous delivery. Elena listens with her lips closed and keeps her eyes on Tomas. Only Tomas speaks in shot1. shot2: Make one clean cut to a stable closer view of Elena in the same aircraft seat under identical morning light. Tomas remains visible in soft side profile beside her, keeping his lips closed and holding the document packet and engineering tube securely. Elena turns from Tomas toward the rain-speckled window and ID_B immediately says with quiet certainty, \"He finally used them exactly as he intended.\" Elena completes the entire sentence clearly without pausing. After the final word, she remains silent, looks through the window at the shrinking coastline, and rests one hand on the closed medical case while the aircraft continues a smooth climb. Only Elena speaks in shot2. Realistic live-action wartime suspense cinematography with restrained 1940s composition, soft 35mm texture, stable faces, correct eyelines, natural aircraft vibration, synchronized lips, one medical case, one engineering tube, one folded document packet, and identical cabin geometry, window light, wardrobe, props, and character identity across both shots. No extra passenger speaks, no object changes hands, and nobody stands or leaves the aircraft.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_B_voice_shot7_v2_full.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_memory_full_audio",
+        "source_shot_id": 7
+      }
+    },
+    {
+      "image_url": "../assets/images/id_c_tomas_4p3.jpg",
+      "audio_url": "../assets/audio/id_c_tomas_full.wav",
+      "metadata": {
+        "id": "ID_C",
+        "source": "character_memory_full_audio",
+        "source_shot_id": 9
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 371,
+  "duration_sec": 9.6
+}

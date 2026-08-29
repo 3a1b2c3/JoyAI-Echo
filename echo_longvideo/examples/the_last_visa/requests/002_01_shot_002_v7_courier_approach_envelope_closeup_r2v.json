@@ -1,0 +1,12 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_002_v7_courier_approach_envelope_closeup_r2v",
+  "prompt": "This video has exactly 2 shots.\n\nshot1: A cinematic 1940s wartime thriller at night in a narrow service alley. Wet cobblestones reflect warm wall lamps beside an aged dark green cellar door. A nervous courier in a charcoal raincoat walks naturally from the distant right side of the alley toward the cellar door while holding one worn brown leather document envelope. He reaches the door, crouches, and places the envelope flat on the stone threshold. He releases it completely. Do not show the courier leaving.\n\nshot2: Make a clean cut to a close-up of the same brown leather envelope lying alone on the stone threshold directly against the bottom of the closed green door. The courier is completely out of frame. Hold on the envelope with a subtle slow camera push-in.\n\nRealistic feature-film cinematography, natural movement, one courier, one envelope, one closed door, no dialogue, no narration, no visible text.",
+  "condition_img": null,
+  "memory_slots": [],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 673,
+  "duration_sec": 9.6
+}

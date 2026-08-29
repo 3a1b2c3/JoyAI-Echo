@@ -1,0 +1,159 @@
+.player {
+  --track: hsl(var(--muted-foreground) / 0.22);
+  --fill: hsl(var(--foreground) / 0.42);
+  --thumb: hsl(var(--muted-foreground) / 0.75);
+  position: relative;
+  display: flex;
+  height: 2rem;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  background: hsl(var(--muted) / 0.85);
+  padding: 0 0.625rem;
+}
+
+.iconBtn {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 9999px;
+  color: hsl(var(--foreground) / 0.9);
+  transition: background-color 0.15s ease;
+}
+
+.iconBtn:hover {
+  background: hsl(var(--foreground) / 0.06);
+}
+
+.progress {
+  height: 0.25rem;
+  min-width: 0;
+  flex: 1;
+  cursor: pointer;
+  appearance: none;
+  border-radius: 9999px;
+  background: transparent;
+}
+
+.progress:disabled {
+  cursor: default;
+}
+
+.progress::-webkit-slider-runnable-track {
+  height: 0.25rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--fill) var(--progress, 0%),
+    var(--track) var(--progress, 0%)
+  );
+}
+
+.progress::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 0;
+  height: 0;
+  border: 0;
+  background: transparent;
+}
+
+.progress::-moz-range-track {
+  height: 0.25rem;
+  border-radius: 9999px;
+  background: var(--track);
+}
+
+.progress::-moz-range-progress {
+  height: 0.25rem;
+  border-radius: 9999px;
+  background: var(--fill);
+}
+
+.progress::-moz-range-thumb {
+  width: 0;
+  height: 0;
+  border: 0;
+  background: transparent;
+}
+
+.volumeWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.volumePanel {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  width: 2rem;
+  height: 6rem;
+  translate: -50% 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: hsl(var(--muted));
+  box-shadow:
+    0 4px 14px hsl(0 0% 0% / 0.1),
+    0 0 0 1px hsl(var(--border) / 0.6);
+}
+
+.volumeSlider {
+  width: 4.5rem;
+  height: 0.25rem;
+  cursor: pointer;
+  appearance: none;
+  border-radius: 9999px;
+  background: transparent;
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
+.volumeSlider::-webkit-slider-runnable-track {
+  height: 0.25rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--fill) var(--volume, 100%),
+    var(--track) var(--volume, 100%)
+  );
+}
+
+.volumeSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-top: -0.25rem;
+  border-radius: 9999px;
+  border: 2px solid hsl(var(--background));
+  background: var(--thumb);
+  box-shadow: 0 0 0 1px hsl(var(--border));
+  cursor: pointer;
+}
+
+.volumeSlider::-moz-range-track {
+  height: 0.25rem;
+  border-radius: 9999px;
+  background: var(--track);
+}
+
+.volumeSlider::-moz-range-progress {
+  height: 0.25rem;
+  border-radius: 9999px;
+  background: var(--fill);
+}
+
+.volumeSlider::-moz-range-thumb {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
+  border: 2px solid hsl(var(--background));
+  background: var(--thumb);
+  box-shadow: 0 0 0 1px hsl(var(--border));
+  cursor: pointer;
+}

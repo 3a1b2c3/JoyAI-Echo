@@ -1,0 +1,22 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_028b_car_crosses_airfield_to_plane_r2v",
+  "prompt": "A black 1940s staff car travels quickly across a broad wet airport apron before dawn toward the final waiting propeller aircraft. The same aircraft stands beneath white floodlights with both propellers turning slowly, its boarding stairs still lowered and a small ground crew preparing the departure. Use one continuous low tracking view parallel to the car. A broad searchlight beam sweeps across the moving car, the wet pavement, and the silver aircraft fuselage. The car follows the painted service lane, curves smoothly around stacked cargo crates, and approaches the boarding area without colliding with any object. As the car nears the aircraft, the camera rises slightly to reveal the complete plane, the open boarding stairs, two ground crew members, and the car reducing speed beside a safe stopping point. Realistic live-action wartime airfield suspense cinematography, restrained 1940s composition, soft 35mm texture, cool pre-dawn blue light, hard white floodlights, wet pavement reflections, one coherent black period car, one complete propeller aircraft, natural vehicle motion, stable aircraft geometry, and one continuous camera move.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_028_checkpoint_car_passes.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "PREVIOUS_SHOT",
+        "source": "shot_028a_checkpoint_exit_with_zero_audio",
+        "source_shot_id": "028a"
+      }
+    }
+  ],
+  "num_frames": 121,
+  "width": 1280,
+  "height": 736,
+  "seed": 336,
+  "duration_sec": 4.8
+}

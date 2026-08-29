@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_060_v2_cinematic_harbor_street_finale_r2v",
+  "prompt": "ID_A is Nathan, a lean man with dark wavy side-parted hair, a long pale angular face, and pronounced cheekbones. He wears a white dinner jacket over a black shirt.\n\nID_D is Captain Rusk, an older military officer with close-cropped gray hair, a broad clean-shaven face, and a disciplined build. He wears a dark rain-marked military uniform.\n\nThis video has exactly 2 shots. Nobody speaks.\n\nshot1: At sunrise inside the Blue Signal relief radio center, Nathan switches the transmitter to receive and leaves the radio key beside the open route map. Rusk picks up his coat. The two men exchange a quiet nod, turn toward the doorway, and walk out together. Nobody speaks.\n\nshot2: Cut outside to a wide cinematic view of a wet harbor street at dawn. Nathan and Rusk walk side by side away from the camera beneath fading streetlamps. The reopened Blue Signal cafe glows behind them while relief trucks pass toward the waterfront. They never turn around. The camera slowly pulls back and rises above the street, revealing the waking harbor and brightening sky, then gently fades to black.\n\nRealistic live-action 1940s wartime drama, soft 35mm texture, stable Nathan and Rusk identities, cinematic final-shot composition, restrained natural movement, natural footsteps, distant trucks, wind, harbor water, and one distant ship horn, no speech, no voices, no narration, no subtitles, no direct-to-camera gaze, no extra people near the two men, and no extra scene.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_a_current_shot4_v11_7p5.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_image_zero_audio",
+        "source_shot_id": 4
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_id_d_rusk_shot25_3p0.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "character_image_zero_audio",
+        "source_shot_id": 25
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1283,
+  "duration_sec": 9.6
+}

@@ -1,0 +1,12 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_001",
+  "prompt": "This video has 2 shots. shot1: ID_A is Nathan Vale, a lean 39-year-old American man with dark wavy hair, gray-blue eyes, and a tired angular face. ID_A wears a white dinner jacket, black shirt, dark trousers, and polished shoes. ID_A's voice is dry, low, controlled, and quietly ironic. His mouth is clearly visible. At normal speed, Nathan turns from the radio toward a nervous patron and ID_A says, \"In San Cordoba, every table orders coffee and asks for a border.\" His lips remain synchronized with the line as he gives the patron a guarded look. A restrained medium close-up slowly pushes toward his face in smoky period lighting. Only the written spoken dialogue is voiced; no additional human vocalizations are audible. No prominent background music. No OCR or readable text appears anywhere in the frame. No on-screen text or subtitles. shot2: Cut to a wider view of the Blue Signal Cafe as refugees discreetly slide travel papers beneath coffee cups while Nathan turns back to the radio. Ceiling fans rotate above smoky tables, maps, period radio sets, and a small stage. Radio static, glasses, and a distant ship horn are audible as muted piano and low strings enter softly. Realistic live-action wartime romantic-thriller cinematography with restrained black-and-white-inspired lighting. No OCR or readable text appears anywhere in the frame. No on-screen text or subtitles.",
+  "condition_img": null,
+  "memory_slots": [],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 42,
+  "duration_sec": 9.64
+}

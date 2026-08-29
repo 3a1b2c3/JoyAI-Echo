@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_013_elena_explains_rooftop_r2v",
+  "prompt": "A realistic live-action wartime romantic thriller on the rooftop of the Blue Signal Cafe shortly before dawn. This is a new location under dark blackout curtains, with distant harbor lights, a low parapet, and a few laundry lines moving gently in the night wind. This video has 3 clean shots. shot1, from 0:00 to 0:02.5: A stable medium two-shot shows Elena standing on the left and Nathan standing on the right near the rooftop parapet, facing each other at a respectful distance. Elena is the same dark-haired woman wearing her dark green travel coat over a cream blouse. Nathan is the same dark-haired man wearing his white dinner jacket over a black shirt. Both remain silent with their lips closed while the fabric behind them moves gently in the wind. shot2, from 0:02.5 to 0:06.5: Cut cleanly to a medium close-up of Elena's unobstructed face, oriented toward Nathan just offscreen to her right. Elena speaks at a brisk but emotionally controlled natural pace in her clear warm adult female voice and says exactly one complete sentence: \"I did not choose the silence you received.\" Elena completes the final word well before this shot ends, then closes her mouth. Only Elena speaks, with clear natural English and no invented words before or after the written sentence. shot3, from 0:06.5 to the end: Cut cleanly to a sustained medium close-up of Nathan's unobstructed face, oriented toward Elena just offscreen to his left. Nathan remains completely silent with his lips closed. His guarded expression softens slightly as he absorbs her explanation. Hold on Nathan for the remainder of the video without cutting away. Preserve the exact same Elena and Nathan faces, wardrobe, rooftop, night lighting, and restrained wind across all three shots. Quiet rooftop and distant harbor ambience accompany Elena's dialogue. No rain sound, music, on-screen text, labels, signs, cards, graphics, subtitles, or overlays appear.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_encoded_silence",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_B_voice_shot7_v2_full.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 7
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 130,
+  "duration_sec": 9.6
+}

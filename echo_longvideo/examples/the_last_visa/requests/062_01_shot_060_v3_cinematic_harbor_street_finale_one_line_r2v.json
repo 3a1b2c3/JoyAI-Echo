@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_060_v3_cinematic_harbor_street_finale_one_line_r2v",
+  "prompt": "ID_A is Nathan, a lean man with dark wavy side-parted hair, a long pale angular face, and pronounced cheekbones. He wears a white dinner jacket over a black shirt.\n\nID_D is Captain Rusk, an older military officer with close-cropped gray hair, a broad clean-shaven face, and a disciplined build. He wears a dark rain-marked military uniform.\n\nThis video has exactly 2 shots.\n\nshot1: At sunrise inside the Blue Signal relief radio center, Nathan stands beside the completed route map while Rusk waits near the doorway. Nathan looks toward Rusk and immediately says exactly once, \"Come on. The city is waking.\" Nathan finishes the sentence, closes his mouth, and walks out with Rusk in silence.\n\nshot2: Cut to a wide cinematic view of a wet harbor street at dawn. Nathan and Rusk walk side by side away from the camera beneath fading streetlamps. The reopened Blue Signal cafe glows behind them while relief trucks pass toward the waterfront. They never turn around. Nobody speaks. The camera slowly pulls back and rises above the street, revealing the waking harbor and brightening sky, then gently fades to black.\n\nRealistic live-action 1940s wartime drama, soft 35mm texture, stable Nathan and Rusk identities, cinematic final-shot composition, clear synchronized English speech in shot1 only, Nathan says only the exact written sentence once, no overlapping dialogue, no speech or voices in shot2, natural footsteps, distant trucks, wind, harbor water, and one distant ship horn, no narration, no subtitles, no direct-to-camera gaze, and no extra scene.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_a_current_shot4_v11_7p5.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_image_full_voice",
+        "source_shot_id": 4
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_id_d_rusk_shot25_3p0.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "character_image_zero_audio",
+        "source_shot_id": 25
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1289,
+  "duration_sec": 9.6
+}

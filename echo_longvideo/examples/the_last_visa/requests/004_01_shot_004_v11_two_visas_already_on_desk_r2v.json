@@ -1,0 +1,22 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_004_v11_two_visas_already_on_desk_r2v",
+  "prompt": "This video has exactly 2 shots.\n\nshot1: A top-down close-up of a wooden desk late at night. One closed yellow-brown document envelope and exactly two transit visa papers are already lying separately beneath a warm desk lamp. ID_A's hand enters the frame and picks up the two visa papers together. The envelope remains closed and still on the desk.\n\nshot2: Cut to a medium close-up of ID_A holding the two visa papers below his face. He looks down at the papers and immediately says, \"Two visas. Who leaves?\" After completing the sentence, he keeps studying them in silence.\n\nMoody 1940s wartime thriller cinematography, black nighttime windows, warm practical lamplight, stable ID_A face, natural hands, one closed envelope, exactly two visa papers, no daylight, no additional speech, no narration or subtitles.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_a_canonical_shot1_5p5.jpg",
+      "audio_url": "../assets/audio/shot_001_voice_msst_clean.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "canonical_character_memory_msst_voice",
+        "source_shot_id": 1
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 733,
+  "duration_sec": 9.6
+}

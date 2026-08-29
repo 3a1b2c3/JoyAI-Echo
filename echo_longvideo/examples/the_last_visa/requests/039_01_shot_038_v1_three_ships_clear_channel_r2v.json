@@ -1,0 +1,12 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_038_v1_three_ships_clear_channel_r2v",
+  "prompt": "This video has exactly 1 shot. No named character appears.\n\nAt pale dawn in a 1940s wartime harbor, exactly three modest civilian transport ships move one behind another through the newly cleared eastern channel. Begin with a low wide view near the water as the first ship passes the dark harbor wall, then let the camera pan smoothly with the convoy. Small signal lamps blink from the breakwater, sailors work naturally on the distant decks, and the final ship follows safely into open water. The city and the Blue Signal radio tower remain far behind in the morning haze. The ships continue steadily forward throughout the shot; none turns back, collides, vanishes, or changes shape.\n\nRealistic live-action 1940s wartime thriller cinematography, restrained soft 35mm texture, coherent ship motion, smooth restrained camera movement, cold dawn light, natural sea wind, water, and engine sound only. No speech, no narration, no singing, no subtitles, no modern vessel, no aircraft, and no direct-to-camera person.",
+  "condition_img": null,
+  "memory_slots": [],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1041,
+  "duration_sec": 9.6
+}

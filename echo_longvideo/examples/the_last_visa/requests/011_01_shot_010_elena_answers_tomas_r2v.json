@@ -1,0 +1,40 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_010_elena_answers_tomas_r2v",
+  "prompt": "The video begins exactly on the provided starting frame in the same private booth behind the beaded curtain at the Blue Signal Cafe. This video has 2 clean shots. shot1, from 0:00 to 0:05.5: Continue the same sustained medium close-up of Elena, the dark-haired woman wearing the dark green travel coat over a cream blouse. Tomas remains only as a soft out-of-focus profile at the right edge. Elena raises her eyes toward Tomas and, at a brisk calm natural pace in her clear warm adult female voice, says exactly one complete sentence: \"Nathan knows how people leave San Cordoba.\" Elena completes the entire sentence within about three seconds, finishes the final word well before this shot ends, then closes her mouth. Only Elena speaks, with clear natural English and no invented words before or after the written sentence. shot2, from 0:05.5 to the end: Cut cleanly to a sustained medium close-up of Tomas's unobstructed face, oriented toward Elena just offscreen to his left. Tomas remains completely silent with his lips closed and absorbs what Elena has told him with restrained concern. Hold on Tomas for the remainder of the video without cutting away. Preserve the exact same Elena and Tomas faces, wardrobe, booth, beaded curtain, and dim cafe lighting. Quiet interior room tone accompanies Elena's dialogue. No rain sound, music, on-screen text, labels, signs, cards, graphics, subtitles, or overlays appear.",
+  "condition_img": "../assets/images/shot9_v6_elena_8p4.jpg",
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_B_voice_shot7_v2_full.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 7
+      }
+    },
+    {
+      "image_url": "../assets/images/id_c_tomas_4p3.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_C",
+        "source": "character_memory_encoded_silence",
+        "source_shot_id": 9
+      }
+    },
+    {
+      "image_url": "../assets/images/shot9_v6_elena_8p4.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "PREVIOUS_SHOT",
+        "source": "shot_009_v6_elena_8p4_encoded_silence",
+        "source_shot_id": 9
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 101,
+  "duration_sec": 9.6
+}

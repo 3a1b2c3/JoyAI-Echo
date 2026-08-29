@@ -1,0 +1,12 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_056_v1_southern_route_signal_propagates_r2v",
+  "prompt": "This video has exactly 2 shots. No human face is visible.\n\nshot1: At night, a wartime radio tower above San Cordoba sends a signal through rain and low clouds. Its red signal lamp pulses while antenna cables tremble in the wind.\n\nshot2: Cut inside a concealed field communications post far beyond the city. A radio receiver lamp comes alive beside a large river map. A gloved hand circles the southern bridge crossing in pencil, and a second signal lamp answers.\n\nRealistic live-action 1940s wartime drama, soft 35mm texture, cinematic night lighting, restrained natural camera movement, clear radio static, rain, wind, electrical clicks, and pencil sounds, no speech, no voice, no narration, no subtitles, no visible faces, and no extra scene.",
+  "condition_img": null,
+  "memory_slots": [],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1247,
+  "duration_sec": 9.6
+}

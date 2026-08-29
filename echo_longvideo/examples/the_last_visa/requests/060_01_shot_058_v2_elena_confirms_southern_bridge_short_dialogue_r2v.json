@@ -1,0 +1,22 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_058_v2_elena_confirms_southern_bridge_short_dialogue_r2v",
+  "prompt": "ID_B is Elena, a woman with dark shoulder-length hair, an intelligent oval face, and deep brown eyes. She wears a dark green coat over a cream blouse.\n\nThis video has exactly 2 shots.\n\nshot1: A brief view inside a rural field clinic at dawn. Elena finishes checking a newly arrived child as relief workers guide refugees through the open doorway.\n\nshot2: Cut immediately to Elena at a field radio. Looking at the radio rather than the camera, she promptly says, \"Blue Signal, they made it. South bridge is secure.\" She finishes speaking early, releases the radio switch, closes her mouth, and returns to the patients in silence.\n\nRealistic live-action 1940s wartime drama, soft 35mm texture, stable Elena identity, warm dawn light, restrained natural camera movement, clear synchronized English speech, natural clinic and radio ambience, no extra speech, no narration, no subtitles, no direct-to-camera gaze, and no extra scene.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_B_voice_shot7_v2_full.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_image_full_voice",
+        "source_shot_id": 7
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1261,
+  "duration_sec": 9.6
+}

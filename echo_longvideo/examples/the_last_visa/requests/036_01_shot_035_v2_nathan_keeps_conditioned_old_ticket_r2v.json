@@ -1,0 +1,23 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_035_v2_nathan_keeps_conditioned_old_ticket_r2v",
+  "prompt": "Use the provided condition image as the exact first frame.\n\nID_A is Nathan, a lean man with dark wavy side-parted hair, a long angular face, pronounced cheekbones, and gray-blue eyes. He wears a white dinner jacket over a black shirt. ID_A keeps this same face and wardrobe throughout the video.\n\nThis video has exactly 2 shots.\n\nshot1: Hold briefly on the same single faded railway ticket shown in the first frame. It lies flat on a plain dark wooden surface, outside every radio cabinet. No portrait, passport, visa, official seal, person, or hand appears.\n\nshot2: Cut to a stable medium close-up of ID_A standing alone beside the fully open cafe shutters as pale morning light fills the empty Blue Signal Cafe. He looks across the room and immediately says in a dry, reflective voice, \"Some departures save a life. Others return a person to his own decisions.\" He completes the full line, closes his mouth, and remains quietly beside the open window.\n\nRealistic live-action 1940s wartime thriller cinematography, restrained soft 35mm texture, stable ID_A identity, clear synchronized speech, no additional speech, no narration, no subtitles, no visa, no passport, and no other person visible.",
+  "condition_img": "../assets/images/last_visa_ticket_table_condition.jpg",
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_a_current_shot4_v11_7p5.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "current_character_image_full_voice",
+        "source_shot_id": 4,
+        "timestamp_sec": 7.5
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 983,
+  "duration_sec": 9.6
+}

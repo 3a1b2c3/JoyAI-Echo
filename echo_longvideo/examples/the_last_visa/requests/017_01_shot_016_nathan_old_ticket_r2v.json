@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_016_nathan_old_ticket_r2v",
+  "prompt": "A realistic live-action wartime romantic thriller inside the Blue Signal Cafe shortly before dawn, photographed with restrained 1940s noir-inspired composition, soft 35mm texture, practical highlights, deep shadows, and natural shallow depth of field. The cafe has just closed: chairs are stacked on some tables, the piano is silent, ceiling fans turn slowly, and pale window light mixes with a few warm wall lamps. Use one continuous cinematic walk-and-talk shot for the entire video. Nathan and Elena walk side by side at a natural measured pace through the long central aisle of the empty cafe, moving from the darker dining room toward the brighter harbor windows. Nathan is the same dark-haired man wearing his white dinner jacket over a black shirt. Elena is the same dark-haired woman wearing her dark green travel coat over a cream blouse. A smooth lateral tracking camera travels beside them at chest height, occasionally passing behind soft foreground chair backs and columns to create elegant depth, while alternating bands of warm lamplight and cool window light move naturally across their faces. Both faces remain readable and their bodies move continuously forward with strong background parallax. Nathan turns his head slightly toward Elena and begins speaking within the first second. At a brisk, dry, controlled natural pace in his mid-low adult male voice, Nathan says exactly two complete sentences: \"I waited until dawn. I kept your ticket until the ink disappeared.\" Nathan delivers both sentences continuously while walking and completes the final word. Elena remains silent with her lips closed and listens beside him. After Nathan finishes, Elena falls only half a step behind while Nathan continues forward, creating a subtle visual distance between them; Nathan notices this without stopping. Only Nathan speaks, with clear natural English and no invented words before or after the written dialogue. Preserve the exact same Nathan and Elena faces and wardrobe throughout the moving shot. Keep the tracking motion smooth and physically coherent with no sudden camera jump, no cut, no character teleportation, and no exaggerated camera movement. Quiet footsteps and empty-cafe room tone accompany Nathan's dialogue. No rain sound, music, on-screen text, labels, signs, cards, graphics, subtitles, or overlays appear.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_memory_encoded_silence",
+        "source_shot_id": 7
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 161,
+  "duration_sec": 9.6
+}

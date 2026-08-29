@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_020_nathan_blackmails_rusk_r2v",
+  "prompt": "This video has exactly 2 shots. shot1: Inside the cramped Blue Signal Cafe radio booth shortly before dawn, warm instrument lamps illuminate a period recording turntable, stacked recording discs, headphones, a microphone, and a live transmitter. ID_A is Nathan Vale, the same lean dark-haired man with a tired angular face, wearing his white dinner jacket over a black shirt. ID_D is Captain Rusk, the same broad older officer with close-cropped gray hair and a stern clean-shaven face, wearing his sand-colored military uniform. Nathan stands beside the spinning recording disc while Rusk faces him across the narrow desk. Nathan calmly lowers the playback needle onto the disc, keeps one hand beside the live transmitter switch, looks directly at Rusk, and ID_A says in his dry controlled mid-low voice, \"Your career sounds clearer on a recording.\" Nathan's face and mouth remain clearly visible while he speaks the complete sentence at a natural brisk pace. Rusk remains completely silent with his lips closed. The recording equipment produces only low electrical static and rotating-disc noise; it does not play any intelligible human speech. A restrained medium two-shot slowly pushes toward Nathan. Only Nathan's written quoted line is voiced in shot1, with no additional human vocalization. shot2: Make one clean cut to a stable medium close-up of Captain Rusk on the opposite side of the same radio desk. The same spinning disc and warm transmitter lights remain visible out of focus behind him. Rusk briefly glances at the live transmitter switch, then looks back at Nathan and ID_D says in his polished, lightly menacing older male voice, \"Blackmail is an unstable form of friendship.\" Rusk's mouth remains clearly visible and synchronized through the complete sentence. Nathan remains silent off camera. Only Rusk's written quoted line is voiced in shot2, with no repeated word, invented phrase, narrator, radio announcement, or additional human vocalization. Realistic live-action wartime suspense cinematography with restrained 1940s noir-inspired composition, soft 35mm texture, practical amber highlights, deep shadows, and natural shallow depth of field. Preserve Nathan's and Rusk's exact faces, clothing, body scale, and positions across the cut. No music, readable writing, OCR, subtitle, on-screen text, graphic, extra character, duplicated object, sudden camera jump, or third shot appears.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_ID_D_shot5_6p5.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_D_voice_shot5.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 5
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 189,
+  "duration_sec": 9.6
+}

@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_041_v1_elena_tomas_operations_room_r2v",
+  "prompt": "ID_B is Elena Maris, a 35-year-old Spanish woman with dark shoulder-length hair, an intelligent oval face, and deep brown eyes. She wears a dark green travel coat over a cream blouse.\n\nID_C is Tomas Arendt, a 41-year-old Czech man with light brown hair, a narrow scholarly face, blue eyes, and a tall slightly stooped build. He wears a brown travel coat over a worn suit and carries one waterproof engineering tube.\n\nThis video has exactly 1 shot.\n\nInside a small 1940s airfield operations room after sunrise, exactly ID_B and ID_C stand across a plain map table. A wall map, one field radio, and the closed waterproof engineering tube are visible and physically stable. Use a stable medium two-shot with both people in three-quarter profile. They face each other and maintain natural eye contact; neither ever looks toward the camera.\n\nID_C looks only at ID_B and promptly says, \"The northern bridge is still open.\" He completes the sentence and closes his mouth. ID_B looks only at ID_C and immediately replies, \"Then the first medical convoy leaves now.\" She completes the sentence and closes her mouth. ID_C gives one restrained nod. ID_B turns toward the field radio to begin organizing the convoy while ID_C remains beside the map table.\n\nRealistic live-action 1940s wartime drama cinematography, restrained soft 35mm texture, warm morning window light, stable distinct identities, correct mutual eyelines, clear synchronized English speech, exactly two people, no duplicate person, no additional dialogue, no narration, no subtitles, and absolutely no direct-to-camera gaze.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_B_voice_shot7_v2_full.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_image_full_voice",
+        "source_shot_id": 7
+      }
+    },
+    {
+      "image_url": "../assets/images/id_c_tomas_4p3.jpg",
+      "audio_url": "../assets/audio/id_c_tomas_full.wav",
+      "metadata": {
+        "id": "ID_C",
+        "source": "character_image_full_voice",
+        "source_shot_id": 9
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1071,
+  "duration_sec": 9.6
+}

@@ -1,0 +1,22 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_048_v2_rusk_open_barrier_r2v",
+  "prompt": "ID_D is Rusk, a broad clean-shaven middle-aged man with very short gray hair and a square jaw. He wears a sand-colored 1940s military uniform.\n\nThis video has exactly 3 shots.\n\nshot1: Inside the Blue Signal Cafe, Rusk stands alone beside a field telephone and a road map. He looks down at the map, lifts the handset, and immediately says, \"Open the eastern road. Move now.\" He completes the line once and remains silent.\n\nshot2: Cut to the military checkpoint outside the city. The striped barrier is already fully upright and fixed open before this shot begins. Two guards stand beside the open checkpoint, look toward the approaching road, and signal the vehicles forward. The barrier remains upright for the entire shot.\n\nshot3: Cut to a low wide roadside view. Two canvas-covered refugee trucks drive through the open checkpoint and continue toward the countryside. The camera pans smoothly with them as the city recedes behind.\n\nRealistic live-action 1940s wartime drama, soft 35mm texture, stable Rusk identity, clear synchronized English speech in shot1 only, coherent vehicles and geography, natural telephone, radio, barrier, engine, and road sounds, no narration, no subtitles, and nobody looks at the camera.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_d_rusk_shot25_3p0.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_D_voice_shot5.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "character_image_full_voice",
+        "source_shot_id": 25
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1171,
+  "duration_sec": 9.6
+}

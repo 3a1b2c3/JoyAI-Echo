@@ -1,0 +1,22 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_005b_v8_rusk_enters_inspects_speaks_idd_only_r2v",
+  "prompt": "ID_D is Captain Rusk, a mature officer with very short close-cropped gray hair, a broad square clean-shaven face, pale green eyes, and a firm jaw. He wears a sand-colored military uniform. ID_D keeps this same face and uniform throughout the entire video.\n\nThis video has exactly 3 shots. Only ID_D appears in the entire video.\n\nshot1: Late at night inside Nathan's office, the green door opens and ID_D steps normally into the room. He stops just inside the doorway. No one speaks.\n\nshot2: Cut to a side medium shot of ID_D. He slowly turns once and carefully scans the office, looking across the dark windows, the desk, and the walls. He does not touch anything and does not speak.\n\nshot3: Cut to a stable medium close-up of ID_D. He faces Nathan, who remains completely off-camera, and immediately says, \"Two papers are making powerful men nervous.\" After completing the sentence, ID_D remains still and waits for an answer.\n\nMoody nighttime 1940s wartime thriller cinematography, black windows, warm practical lamplight, stable ID_D identity, no other person visible, no additional speech, no narration or subtitles.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_d_rusk_shot25_3p0.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_D_voice_shot5.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "canonical_character_memory_voice",
+        "source_shot_id": 25
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 877,
+  "duration_sec": 9.6
+}

@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_003_v8_nathan_returns_picks_envelope_enters_r2v",
+  "prompt": "This video has exactly 2 shots.\n\nshot1: In the same nighttime alley, ID_A walks home toward the dark green cellar door. He wears the same white dinner jacket and black shirt shown in the ID_A memory. The courier is gone and does not appear. ID_A notices the brown leather envelope lying on the stone threshold, stops, crouches, and picks it up.\n\nshot2: From a closer side view, ID_A stands while holding the envelope securely. With his free hand, he opens the green door from outside, steps normally through the doorway carrying the envelope, and enters his home.\n\nMoody realistic 1940s feature-film cinematography, natural walking and door movement, stable ID_A face, one man, one envelope, no dialogue, no narration, no subtitles or visible text.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_a_canonical_shot1_5p5.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "canonical_character_image_encoded_zero_audio",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/last_visa_shot2_clean_scene_envelope_9p2.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "PREVIOUS_SHOT",
+        "source": "clean_doorway_and_envelope_scene",
+        "source_shot_id": 2
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 691,
+  "duration_sec": 9.6
+}

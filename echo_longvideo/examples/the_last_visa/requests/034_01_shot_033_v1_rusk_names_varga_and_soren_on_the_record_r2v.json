@@ -1,0 +1,22 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_033_v1_rusk_names_varga_and_soren_on_the_record_r2v",
+  "prompt": "This video has exactly 2 shots. shot1: Inside a compact 1940s harbor office under cool morning window light and warm desk lamps, the same service pistol remains flat at the far edge of a long wooden desk. A small recording-disc machine turns quietly at the far left corner of the desk, well away from both men, and a typed list lies in front of Rusk. There is no microphone anywhere in the room or on the desk. Nathan remains completely off camera throughout the video. No part of Nathan's face, body, hands, or clothing appears. ID_D is Captain Rusk in the same rain-darkened sand-colored military uniform, seated directly across the desk from Nathan. Use a stable frontal medium close-up of Rusk alone. Nothing overlaps or blocks Rusk's face. Rusk's face and mouth are centered and unobstructed. Both of Rusk's empty hands rest flat and motionless on the desk, one on each side of the typed list. No pen appears. At the very beginning, ID_D immediately says clearly, \"Minister Varga bought the northern route.\" Rusk completes the entire sentence in one controlled continuous delivery while both hands remain in the same positions. Only Rusk speaks in shot1. shot2: Make one clean cut to a slightly tighter unobstructed frontal close-up of Rusk from the chest upward in the same room. The same typed list remains centered in front of him, and both empty hands begin resting flat in the same positions. No pen or writing instrument appears. Rusk raises his eyes directly toward Nathan off camera and ID_D immediately continues, \"Colonel Soren sold the harbor lists.\" Rusk completes the entire sentence clearly without pausing. After the final word, Rusk remains silent and uses only his right open hand to push the existing typed list straight across the desk toward Nathan off camera. His left hand remains flat and still. Only Rusk speaks in shot2. Realistic live-action wartime office suspense cinematography with restrained 1940s composition, soft 35mm texture, stable identity, synchronized lips, anatomically correct hands, one pistol, one typed list, and one small recording-disc machine positioned far from the face. Preserve identical room geometry, window light, desk lamps, wardrobe, props, hand positions, and character identity across both shots. No microphone or pen appears. No telephone, radio, Nathan, guard, or unseen person produces speech.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_id_d_rusk_shot25_3p0.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_D_voice_shot5.wav",
+      "metadata": {
+        "id": "ID_D",
+        "source": "character_memory_full_audio",
+        "source_shot_id": 25
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 449,
+  "duration_sec": 9.6
+}

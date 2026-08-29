@@ -1,0 +1,23 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_043a_v1_bridge_approach_i2v_r2v",
+  "prompt": "Use the provided condition image as the exact first frame and continue the same two vehicles moving naturally forward on the same road. This video has exactly 2 shots. No named character appears and nobody speaks.\n\nshot1: Continue directly from the first frame. The same two 1940s ambulances drive in the same order toward an old steel bridge visible ahead. The road, morning light, vehicle spacing, direction, scale, and appearance remain unchanged. A striped checkpoint barrier is lowered at the bridge entrance. Both ambulances slow naturally and stop before the barrier without colliding or changing shape.\n\nshot2: Make one clean cut to a stable side view beside the bridge checkpoint hut. One bridge guard receives a signal from a period field radio, turns toward the waiting ambulances rather than toward the camera, and raises the striped barrier with a manual lever. The same two ambulances remain visible beyond the barrier. The barrier rises once and stays fully raised.\n\nRealistic live-action 1940s wartime drama cinematography, restrained soft 35mm texture, clear continuity from the provided first frame, coherent vehicles and geography, natural radio static, engines, brakes, lever movement, river, and wind only. No speech, no narration, no singing, no subtitles, no modern vehicle, no vehicle duplication, and no direct-to-camera gaze.",
+  "condition_img": "../assets/images/last_visa_shot42_tail_8p8.jpg",
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_shot42_tail_8p8.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "PREVIOUS_SHOT",
+        "source": "previous_shot_encoded_zero_audio",
+        "source_shot_id": 42,
+        "timestamp_sec": 8.8
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1093,
+  "duration_sec": 9.6
+}

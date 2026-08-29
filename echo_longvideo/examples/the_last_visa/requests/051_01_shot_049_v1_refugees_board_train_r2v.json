@@ -1,0 +1,12 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_049_v1_refugees_board_train_r2v",
+  "prompt": "This video has exactly 3 shots. No named character appears and nobody speaks.\n\nshot1: Two canvas-covered 1940s trucks arrive at a quiet rural railway siding in morning light. They stop beside a dark green passenger train. Refugees step down with small bags while railway workers guide them toward the platform.\n\nshot2: Cut to a side view along the platform. Families board the same train through two open carriage doors in an orderly line. A mother helps her child up the steps, and an elderly man follows with assistance. Nobody looks at the camera.\n\nshot3: Cut to a wide view beyond the station. The carriage doors are closed and the same train pulls away along the countryside track. The camera pans smoothly as the train gains speed and the platform recedes.\n\nRealistic live-action 1940s wartime drama, soft 35mm texture, coherent vehicles and people across all three shots, natural engines, train brakes, footsteps, doors, wheels, and countryside ambience only. No speech, no narration, no subtitles, no modern objects, and nobody looks at the camera.",
+  "condition_img": null,
+  "memory_slots": [],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1181,
+  "duration_sec": 9.6
+}

@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_040_v1_elena_tomas_safe_airfield_r2v",
+  "prompt": "ID_B is Elena Maris, a 35-year-old Spanish woman with dark shoulder-length hair, an intelligent oval face, and deep brown eyes. She wears a dark green travel coat over a cream blouse and carries one small dark medical case.\n\nID_C is Tomas Arendt, a 41-year-old Czech man with light brown hair, a narrow scholarly face, blue eyes, and a tall slightly stooped build. He wears a brown travel coat over a worn suit and carries one waterproof engineering tube.\n\nThis video has exactly 1 shot.\n\nAt a quiet safe rural airfield after sunrise, the same silver 1940s propeller aircraft stands parked in the background with both engines stopped. Exactly two people are visible: ID_B and ID_C. They have already left the aircraft and now walk side by side across the tarmac toward a small operations building. ID_B securely carries her closed medical case. ID_C securely carries the same waterproof engineering tube under one arm. They briefly turn their faces toward each other with relieved, restrained eye contact, then look ahead toward the building and continue walking. Neither person speaks or looks toward the camera. The aircraft, clothing, faces, case, and tube remain physically stable.\n\nRealistic live-action 1940s wartime drama cinematography, restrained soft 35mm texture, warm early-morning light, smooth lateral tracking movement, stable distinct identities, natural footsteps and distant airfield ambience only. No speech, no narration, no singing, no subtitles, no duplicate person, no document exchange, no additional passenger, and absolutely no direct-to-camera gaze.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_image_encoded_zero_audio",
+        "source_shot_id": 7
+      }
+    },
+    {
+      "image_url": "../assets/images/id_c_tomas_4p3.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_C",
+        "source": "character_image_encoded_zero_audio",
+        "source_shot_id": 9
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1061,
+  "duration_sec": 9.6
+}

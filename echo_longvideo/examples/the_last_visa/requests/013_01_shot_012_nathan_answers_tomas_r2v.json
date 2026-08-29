@@ -1,0 +1,40 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_012_nathan_answers_tomas_r2v",
+  "prompt": "The video begins exactly on the provided starting frame in the same dim storeroom of the Blue Signal Cafe. Use one continuous, stable medium close-up for the entire video with no cuts and no camera movement. Nathan is the dark-haired man wearing the white dinner jacket over a black shirt. Tomas remains only as the same soft out-of-focus profile at the right edge. Nathan keeps his eyes on Tomas and begins speaking immediately. At a brisk, dry, controlled natural pace in his mid-low adult male voice, Nathan says exactly one complete sentence: \"It is the decision that keeps this door open tomorrow.\" Nathan delivers the sentence continuously, completes the final word, then closes his mouth and silently holds Tomas's gaze for the rest of the video. Only Nathan speaks, with clear natural English and no invented words before or after the written sentence. Preserve the exact same Nathan and Tomas faces, wardrobe, storeroom, standing positions, framing, and warm low-key lighting from beginning to end. Quiet storeroom room tone accompanies Nathan's dialogue. No rain sound, music, on-screen text, labels, signs, cards, graphics, subtitles, or overlays appear.",
+  "condition_img": "../assets/images/shot11_nathan_8p6.jpg",
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/shot_001.jpg",
+      "audio_url": "../assets/audio/shot_001.wav",
+      "metadata": {
+        "id": "ID_A",
+        "source": "character_memory_full_audio_server_msst",
+        "source_shot_id": 1
+      }
+    },
+    {
+      "image_url": "../assets/images/id_c_tomas_4p3.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_C",
+        "source": "character_memory_encoded_silence",
+        "source_shot_id": 9
+      }
+    },
+    {
+      "image_url": "../assets/images/shot11_nathan_8p6.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "PREVIOUS_SHOT",
+        "source": "shot_011_nathan_8p6_encoded_silence",
+        "source_shot_id": 11
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 121,
+  "duration_sec": 9.6
+}

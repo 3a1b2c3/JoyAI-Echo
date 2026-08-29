@@ -1,0 +1,31 @@
+{
+  "work_id": "memory-agent-last-visa-0802-en",
+  "shot_id": "shot_045_v5_elena_only_bufferline_r2v",
+  "prompt": "ID_B is Elena, a dark-haired woman in a dark green travel coat.\nID_C is Tomas, a light-brown-haired man in a brown travel coat.\n\nThis video has exactly 2 distinct shots.\n\nshot1: A brief close-up of a 1940s field radio beside a bridge map. The signal lamp blinks twice.\n\nshot2: Cut to a natural medium two-shot in the airfield operations room. Elena stands on the left and Tomas stands on the right, facing and looking at each other. Tomas remains silent with his mouth closed. Elena looks at Tomas and immediately says briskly, \"The first convoy crossed. Send the next. We still have time.\" Elena is the only speaker. After speaking, both remain silent and keep looking at each other. Neither looks at the camera.\n\nRealistic live-action 1940s drama, soft 35mm texture, stable identities, subtle natural camera movement, clear synchronized English speech, no other people, no extra speech, no narration, and no subtitles.",
+  "condition_img": null,
+  "memory_slots": [
+    {
+      "image_url": "../assets/images/last_visa_ID_B_shot7_v2_6p6.jpg",
+      "audio_url": "../assets/audio/last_visa_ID_B_voice_shot7_v2_full.wav",
+      "metadata": {
+        "id": "ID_B",
+        "source": "character_image_full_voice",
+        "source_shot_id": 7
+      }
+    },
+    {
+      "image_url": "../assets/images/id_c_tomas_4p3.jpg",
+      "audio_url": "../assets/audio/silence_9p642667.wav",
+      "metadata": {
+        "id": "ID_C",
+        "source": "character_image_encoded_zero_audio",
+        "source_shot_id": 9
+      }
+    }
+  ],
+  "num_frames": 241,
+  "width": 1280,
+  "height": 736,
+  "seed": 1121,
+  "duration_sec": 9.6
+}
