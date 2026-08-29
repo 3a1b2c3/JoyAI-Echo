@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any, TypeAlias
 from urllib.request import Request, urlopen
 
+import soundfile as sf
 import torch
-import torchaudio
 from PIL import Image
 from safetensors import safe_open
 from safetensors.torch import save_file
@@ -160,12 +160,14 @@ class _ResourceStore:
 
     def audio(self, source: str) -> tuple[torch.Tensor, int]:
         raw = self.read(source, kind="R2V audio", max_bytes=MAX_AUDIO_BYTES)
-        # torchaudio>=2.9 defaults to a TorchCodec-backed loader, which has no
+        # torchaudio>=2.9's load() always routes through TorchCodec regardless
+        # of the `backend` kwarg (which it now ignores), and TorchCodec has no
         # aarch64 (Grace/GB300) wheels below torchcodec 0.11 (which pins
-        # torch==2.11). Use the soundfile backend instead — it's already a
+        # torch==2.11). Read directly with soundfile instead — already a
         # pinned dependency (requirements-msst.txt) and needs no extra wheel.
-        waveform, sample_rate = torchaudio.load(io.BytesIO(raw), backend="soundfile")
-        return waveform.detach().cpu().float().contiguous(), int(sample_rate)
+        data, sample_rate = sf.read(io.BytesIO(raw), dtype="float32", always_2d=True)
+        waveform = torch.from_numpy(data.T).contiguous()  # [channels, frames]
+        return waveform, int(sample_rate)
 
 
 def _release_cuda(device: torch.device) -> None:
