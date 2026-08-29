@@ -17,11 +17,16 @@ mkdir -p "$CKPT_DIR"
 echo "Checkpoints: $CKPT_DIR"
 echo ""
 echo "Files to download:"
-echo "  1. echo-longvideo-release.safetensors  2.5 GB"
-echo "  2. gemma-3-12b (text encoder)          8.0 GB"
+echo "  1. echo-longvideo-release.safetensors  ~46 GB"
+echo "  2. gemma-3-12b-it (text encoder)       ~24 GB"
 echo "  ────────────────────────────────────────────"
-echo "  Total:                                 10.5 GB"
+echo "  Total:                                 ~70 GB"
 echo ""
+
+if ! python -m pip show huggingface_hub >/dev/null 2>&1; then
+    echo "Installing huggingface_hub..."
+    python -m pip install --quiet -U "huggingface_hub[cli]"
+fi
 
 # ============================================================================
 # 1. Echo model from jdopensource/JoyAI-Echo
@@ -35,7 +40,7 @@ if [ -f "$MODEL_FILE" ]; then
     SIZE=$(du -h "$MODEL_FILE" | cut -f1)
     echo "✓ Already exists ($SIZE)"
 else
-    echo "Downloading (2.5 GB, ~5-10 min)..."
+    echo "Downloading (~46 GB, this will take a while)..."
 
     if hf download jdopensource/JoyAI-Echo \
         echo-longvideo-release.safetensors \
@@ -51,10 +56,10 @@ else
 fi
 
 # ============================================================================
-# 2. Gemma text encoder
+# 2. Gemma text encoder (required — inference.py fails to start without it)
 # ============================================================================
 echo ""
-echo "[2/2] Text Encoder (Gemma)"
+echo "[2/2] Text Encoder (Gemma 3 12B Instruct)"
 echo ""
 
 GEMMA_DIR="$CKPT_DIR/gemma-3-12b"
@@ -63,15 +68,18 @@ if [ -d "$GEMMA_DIR" ] && [ -n "$(ls -A "$GEMMA_DIR" 2>/dev/null)" ]; then
     SIZE=$(du -sh "$GEMMA_DIR" | cut -f1)
     echo "✓ Already exists ($SIZE)"
 else
-    echo "Downloading (8.0 GB, ~10-15 min)..."
+    echo "Downloading (~24 GB, this will take a while)..."
 
-    if hf download google/gemma-2-12b \
+    if hf download google/gemma-3-12b-it \
         --local-dir "$GEMMA_DIR"; then
 
         SIZE=$(du -sh "$GEMMA_DIR" | cut -f1)
         echo "✓ Downloaded ($SIZE)"
     else
-        echo "⚠ Warning: Gemma download failed (optional)"
+        echo "✗ Download failed"
+        echo "  Gemma is gated: accept the license at https://huggingface.co/google/gemma-3-12b-it"
+        echo "  then log in with: hf auth login"
+        exit 1
     fi
 fi
 

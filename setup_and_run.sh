@@ -74,62 +74,7 @@ echo "  ✓ Dependencies installed"
 echo ""
 echo "[4/5] Downloading models (first run only)..."
 echo ""
-echo "  File size estimates:"
-echo "  • echo-longvideo-release.safetensors: 2.5 GB"
-echo "  • gemma-3-12b (text encoder):         8.0 GB"
-echo "  • Total:                               10.5 GB"
-echo ""
-
-CKPT_DIR="$REPO_DIR/checkpoints"
-mkdir -p "$CKPT_DIR"
-
-# Check main model
-MODEL_FILE="$CKPT_DIR/echo-longvideo-release.safetensors"
-if [ ! -f "$MODEL_FILE" ]; then
-    echo "  Downloading echo-longvideo-release.safetensors (2.5 GB)..."
-    if python -c "
-from huggingface_hub import hf_hub_download
-hf_hub_download(
-    repo_id='jdopensource/JoyAI-Echo',
-    filename='echo-longvideo-release.safetensors',
-    local_dir='$CKPT_DIR'
-)" 2>&1 | grep -E "Downloading|Downloaded"; then
-        SIZE=$(du -h "$MODEL_FILE" 2>/dev/null | cut -f1)
-        echo "    ✓ Downloaded ($SIZE)"
-    else
-        echo "    ERROR: Failed to download model"
-        exit 1
-    fi
-else
-    SIZE=$(du -h "$MODEL_FILE" | cut -f1)
-    echo "  ✓ Main model ready ($SIZE)"
-fi
-
-# Check text encoder
-GEMMA_DIR="$CKPT_DIR/gemma-3-12b"
-if [ ! -d "$GEMMA_DIR" ] || [ -z "$(ls -A "$GEMMA_DIR" 2>/dev/null)" ]; then
-    echo "  Downloading gemma-3-12b (8.0 GB)..."
-    if python -c "
-from huggingface_hub import snapshot_download
-snapshot_download(
-    repo_id='google/gemma-2-12b',
-    local_dir='$GEMMA_DIR',
-    local_dir_use_symlinks=False
-)" 2>&1 | grep -E "Downloading|Downloaded"; then
-        SIZE=$(du -sh "$GEMMA_DIR" 2>/dev/null | cut -f1)
-        echo "    ✓ Downloaded ($SIZE)"
-    else
-        echo "    WARNING: Failed to download Gemma (will use fallback or CPU)"
-    fi
-else
-    SIZE=$(du -sh "$GEMMA_DIR" | cut -f1)
-    echo "  ✓ Text encoder ready ($SIZE)"
-fi
-
-echo ""
-echo "  Total checkpoint size:"
-du -sh "$CKPT_DIR" 2>/dev/null | sed 's/^/    /'
-echo ""
+bash "$REPO_DIR/download_models.sh"
 
 # 5. Run examples
 echo ""
@@ -139,29 +84,29 @@ echo "==========================================================================
 echo "QUICKSTART"
 echo "================================================================================"
 echo ""
-echo "Single shot (9.6 seconds):"
+echo "Run all prompt files in prompts/ (each is a multi-shot story):"
 echo "  python inference.py"
 echo ""
-echo "Multi-shot (5 minutes, from JSON):"
-echo "  python inference.py --prompts_glob 'prompts/example_multi_shot.json'"
+echo "Run a single prompt file:"
+echo "  python inference.py --prompts-glob 'test_001.json'"
 echo ""
 echo "Custom resolution:"
-echo "  python inference.py --width 1024 --height 576"
+echo "  python inference.py --video-width 1024 --video-height 576"
 echo ""
 echo "================================================================================"
 echo ""
 
 # Optional: run default example
-read -p "Run default example now? (y/n) " -n 1 -r
+read -p "Run one example prompt file now (test_001.json, ~15 shots, ~50-60 min on A100/H100)? (y/n) " -n 1 -r
 echo ""
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo ""
-    echo "Running inference (this will take 1-2 minutes on A100/H100)..."
-    echo "Expected output size: ~500 MB - 1 GB per video"
+    echo "Running inference on prompts/test_001.json..."
+    echo "Expected output size: ~2-3 GB"
     echo ""
 
     START_TIME=$(date +%s)
-    if python inference.py; then
+    if python inference.py --prompts-glob "test_001.json"; then
         END_TIME=$(date +%s)
         DURATION=$((END_TIME - START_TIME))
 
@@ -169,10 +114,10 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo "✓ Complete! (${DURATION}s)"
         echo ""
         echo "Outputs:"
-        find inference_result/dmd -type f -name "*.mp4" -o -name "*.wav" 2>/dev/null | while read f; do
+        find inference_result -name "combined_shots.mp4" 2>/dev/null | while read -r f; do
             SIZE=$(du -h "$f" | cut -f1)
             echo "  $f ($SIZE)"
-        done || echo "  (no outputs yet)"
+        done
     else
         echo "ERROR: Inference failed"
         exit 1
@@ -182,14 +127,10 @@ else
     echo "Setup complete!"
     echo ""
     echo "Next steps:"
-    echo "  1. Run single shot: python inference.py"
-    echo "  2. Run multi-shot:  python inference.py --prompts_glob 'prompts/example_multi_shot.json'"
-    echo "  3. Custom config:   python inference.py --width 1024 --height 576"
-    echo ""
-    echo "Expected sizes:"
-    echo "  • Single shot (9.6s):    ~100-150 MB"
-    echo "  • Multi-shot (5 min):    ~2-3 GB"
-    echo "  • Audio + video + logs:  +200-300 MB"
+    echo "  1. Run all prompt files: python inference.py"
+    echo "  2. Run one prompt file:  python inference.py --prompts-glob 'test_001.json'"
+    echo "  3. Custom resolution:    python inference.py --video-width 1024 --video-height 576"
+    echo "  Or use the interactive picker: bash run_examples.sh"
 fi
 
 echo ""
