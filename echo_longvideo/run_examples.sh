@@ -54,6 +54,9 @@ echo ""
 
 read -p "Choose example (1-5): " choice
 
+MARKER="$(mktemp)"
+START_TIME=$(date +%s.%N)
+
 case "$choice" in
     1)
         echo ""
@@ -108,12 +111,35 @@ case "$choice" in
         ;;
 esac
 
+END_TIME=$(date +%s.%N)
+ELAPSED=$(awk -v a="$START_TIME" -v b="$END_TIME" 'BEGIN { printf "%.2f", b - a }')
+
 echo ""
 echo "================================================================================"
 echo "Complete!"
 echo "================================================================================"
 echo ""
 
+echo "Wall-clock time: ${ELAPSED}s"
+
+mapfile -t NEW_MP4S < <(find inference_result -name "*.mp4" -newer "$MARKER" 2>/dev/null)
+rm -f "$MARKER"
+
+if [ "${#NEW_MP4S[@]}" -gt 0 ] && command -v ffprobe &>/dev/null; then
+    TOTAL_VIDEO_DURATION=0
+    for f in "${NEW_MP4S[@]}"; do
+        D=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f" 2>/dev/null)
+        if [ -n "$D" ]; then
+            TOTAL_VIDEO_DURATION=$(awk -v a="$TOTAL_VIDEO_DURATION" -v b="$D" 'BEGIN { printf "%.3f", a + b }')
+        fi
+    done
+    REALTIME_FACTOR=$(awk -v v="$TOTAL_VIDEO_DURATION" -v e="$ELAPSED" 'BEGIN { if (e > 0) printf "%.3f", v / e; else print "n/a" }')
+    echo "Video generated:  ${TOTAL_VIDEO_DURATION}s across ${#NEW_MP4S[@]} file(s)"
+    echo "Real-time factor: ${REALTIME_FACTOR}x"
+    echo "  (1.0x = generation kept pace with video length; <1.0x = slower than real-time)"
+fi
+
+echo ""
 echo "Results:"
 find inference_result -name "*.mp4" 2>/dev/null | while read -r f; do
     SIZE=$(du -h "$f" | cut -f1)
