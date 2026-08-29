@@ -2,7 +2,7 @@
 # Open-source DMD inference - Python dependencies
 #
 # These pins match the conda environment we developed and tested against
-# (CUDA 13.0). For PyTorch family wheels with CUDA, install from the
+# (CUDA 13.2). For PyTorch family wheels with CUDA, install from the
 # official PyTorch index, e.g.:
 #
 #     pip install --index-url https://download.pytorch.org/whl/cu130 \

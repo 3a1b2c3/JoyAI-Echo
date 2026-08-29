@@ -48,7 +48,7 @@ echo "  ✓ Activated .venv"
 
 # 3. Install dependencies
 echo ""
-echo "[3/5] Installing dependencies (CUDA 13.0)..."
+echo "[3/5] Installing dependencies (CUDA 13.2)..."
 "$PYTHON" -m pip install --upgrade pip setuptools wheel > /dev/null 2>&1
 
 # Install PyTorch from official index
