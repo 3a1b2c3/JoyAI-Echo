@@ -19,7 +19,8 @@ call .venv\Scripts\activate.bat
 echo Activated .venv
 echo.
 
-if not exist "checkpoints\echo-longvideo-release.safetensors" (
+dir /b "checkpoints\echo15_*" >nul 2>&1
+if errorlevel 1 (
     echo ERROR: Models not downloaded. Run download_models.bat first
     exit /b 1
 )

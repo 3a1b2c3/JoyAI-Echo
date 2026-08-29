@@ -21,8 +21,8 @@ source .venv/bin/activate
 echo "✓ Activated .venv"
 echo ""
 
-# Check models
-if [ ! -f "checkpoints/echo-longvideo-release.safetensors" ]; then
+# Check models (any downloaded Echo 1.5 variant: echo15_fp8, echo15_full_dmd, echo15_fp4)
+if ! compgen -G "checkpoints/echo15_*/*" > /dev/null; then
     echo "ERROR: Models not downloaded. Run download_models.sh first"
     exit 1
 fi
