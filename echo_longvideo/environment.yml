@@ -6,5 +6,5 @@ dependencies:
   - pip>=25
   - ffmpeg>=6
   - pip:
-      - --extra-index-url https://download.pytorch.org/whl/cu128
+      - --extra-index-url https://download.pytorch.org/whl/cu130
       - -r requirements-server.txt
