@@ -50,13 +50,9 @@ if [ "$VARIANT" = "echo15_fp4" ]; then
     uv pip install -r requirements-fp4.txt
 fi
 
-# Install local packages
-for pkg_dir in ltx-core ltx-pipelines ltx-distillation; do
-    if [ -d "$pkg_dir" ]; then
-        echo "  Installing $pkg_dir..."
-        uv pip install -e "$pkg_dir"
-    fi
-done
+# ltx-core, ltx-pipelines, ltx-distillation are not installable packages
+# (no pyproject.toml/setup.py) — inference.py adds their src/ dirs to
+# sys.path itself at runtime, so no pip install step is needed here.
 
 echo "  ✓ Dependencies installed"
 
