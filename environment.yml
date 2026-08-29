@@ -6,7 +6,7 @@
 #     conda activate echo-long
 #
 # This installs Python 3.11 plus ffmpeg from conda-forge, then pulls the
-# Python deps (torch family with CUDA 12.8) from pip via requirements.txt.
+# Python deps (torch family with CUDA 13.0) from pip via requirements.txt.
 # =============================================================================
 name: echo-long
 channels:
@@ -16,5 +16,5 @@ dependencies:
   - pip
   - ffmpeg>=6
   - pip:
-      - --extra-index-url https://download.pytorch.org/whl/cu128
+      - --extra-index-url https://download.pytorch.org/whl/cu130
       - -r requirements.txt

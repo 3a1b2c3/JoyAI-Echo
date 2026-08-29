@@ -48,13 +48,13 @@ echo "  ✓ Activated .venv"
 
 # 3. Install dependencies
 echo ""
-echo "[3/5] Installing dependencies (CUDA 12.8)..."
+echo "[3/5] Installing dependencies (CUDA 13.0)..."
 "$PYTHON" -m pip install --upgrade pip setuptools wheel > /dev/null 2>&1
 
 # Install PyTorch from official index
 echo "  Installing PyTorch..."
-"$PYTHON" -m pip install --index-url https://download.pytorch.org/whl/cu128 \
-    torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 > /dev/null 2>&1
+"$PYTHON" -m pip install --index-url https://download.pytorch.org/whl/cu130 \
+    torch==2.9.1 torchvision==0.24.1 torchaudio==2.9.1 > /dev/null 2>&1
 
 # Install requirements
 echo "  Installing requirements..."
