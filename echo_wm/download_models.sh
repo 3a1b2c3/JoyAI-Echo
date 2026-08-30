@@ -6,8 +6,8 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_DIR"
 
 # Which checkpoint to fetch. Override with:
-#   VARIANT=echo-wm-flash ./download_models.sh   (Flash Preview, autoregressive/causal)
-VARIANT="${VARIANT:-echo-wm-base}"
+#   VARIANT=echo-wm-base ./download_models.sh   (Base, full multi-step diffusion, no streaming)
+VARIANT="${VARIANT:-echo-wm-flash}"
 
 echo ""
 echo "================================================================================"
