@@ -905,6 +905,64 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
     return demo
 
 
+def _warmup(engine, engine_kind: str) -> None:
+    """Run one small, throwaway generation at startup so the 47GB of lazily-loaded
+    weights and any first-call CUDA kernel compilation happen here instead of
+    during the first real user request."""
+    if not CASES:
+        print("[warmup] No example cases found -- skipping (nothing to warm up with).", flush=True)
+        return
+    image_path = next(iter(CASES.values()))["image"]
+    out_dir = OUTPUT_ROOT / "_warmup"
+    t0 = time.time()
+    print(f"[warmup] Starting warmup generation (image={image_path})...", flush=True)
+    try:
+        if engine_kind == "causal":
+            for _ in engine.generate(
+                image_path=image_path,
+                prompt="warmup",
+                action_str="w-8",
+                seed=0,
+                num_frames=25,
+                fps=24.0,
+                width=256,
+                height=128,
+                fov_deg=70.0,
+                translation_speed=DEFAULT_TRANSLATION_SPEED,
+                rotation_speed_deg=DEFAULT_ROTATION_SPEED_DEG,
+                pitch_limit_deg=DEFAULT_PITCH_LIMIT_DEG,
+                generate_audio=False,
+                overlay=False,
+                out_dir=out_dir,
+            ):
+                pass
+        else:
+            engine.generate(
+                image_path=image_path,
+                prompt="warmup",
+                action_str="w-8",
+                seed=0,
+                num_frames=25,
+                fps=24.0,
+                steps=2,
+                video_cfg=1.0,
+                audio_cfg=1.0,
+                width=256,
+                height=128,
+                fov_deg=70.0,
+                translation_speed=DEFAULT_TRANSLATION_SPEED,
+                rotation_speed_deg=DEFAULT_ROTATION_SPEED_DEG,
+                pitch_limit_deg=DEFAULT_PITCH_LIMIT_DEG,
+                generate_audio=False,
+                overlay=False,
+                out_dir=out_dir,
+            )
+        print(f"[warmup] Done in {time.time() - t0:.1f}s.", flush=True)
+    except Exception as exc:  # noqa: BLE001 - warmup is an optimization, not a hard requirement
+        print(f"[warmup] Failed after {time.time() - t0:.1f}s (continuing anyway): {exc}", flush=True)
+        traceback.print_exc()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -917,6 +975,9 @@ def main() -> None:
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=7860)
     parser.add_argument("--share", action="store_true", help="Create public gradio share link")
+    parser.add_argument("--no-warmup", action="store_true",
+                         help="Skip the startup warmup generation (weights would then load "
+                              "lazily on the first real request instead, making it slow).")
     args = parser.parse_args()
 
     if not torch.cuda.is_available():
@@ -946,6 +1007,9 @@ def main() -> None:
         demo = build_ui(engine)
 
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+
+    if not args.no_warmup:
+        _warmup(engine, engine_kind)
 
     print(f"[server] Engine: {engine_kind}", flush=True)
     print(f"[server] Serving on http://127.0.0.1:{args.port} "
