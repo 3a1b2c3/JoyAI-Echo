@@ -726,12 +726,13 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
     """Build the Gradio interface for the streaming Flash Preview (causal) engine."""
     run_counter = {"n": 0}
     video_cfg = engine.cfg.get("video", {})
-    # UI defaults, deliberately lower than the config file's 1280x704 (used by
-    # the CLI/other scripts) — same aspect ratio, ~51% the pixel count, for
-    # faster iteration. Still a multiple of 32 (required by assert_resolution)
-    # and adjustable in the UI below, not a model-imposed fixed size.
-    default_width = 896
-    default_height = 512
+    # UI defaults: config file's width/height if set, else 896x512 --
+    # deliberately lower than the historical 1280x704 default (same aspect
+    # ratio, ~51% the pixel count) for faster iteration. Still a multiple of
+    # 32 (required by assert_resolution) and adjustable in the UI below, not
+    # a model-imposed fixed size.
+    default_width = int(video_cfg.get("width", 896))
+    default_height = int(video_cfg.get("height", 512))
     default_num_frames = int(video_cfg.get("num_frames", 241))
     default_fps = float(video_cfg.get("fps", 24))
     default_seed = int(video_cfg.get("seed", 42))
