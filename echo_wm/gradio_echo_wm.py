@@ -455,13 +455,20 @@ class EchoWMCausalEngine:
 
         video_path = out_dir / "output.mp4"
         t0 = time.time()
-        encode_video(
-            video=video,
-            fps=int(fps),
-            audio=audio if generate_audio else None,
-            output_path=str(video_path),
-            video_chunks_number=get_video_chunks_number(num_frames, TilingConfig.default()),
-        )
+        # `video` is a lazy generator (nothing decoded yet) returned by
+        # self.pipeline(), whose own @torch.inference_mode() scope has
+        # already closed by this point. Consuming it (inside encode_video,
+        # via next()) must happen under its own inference_mode, or the
+        # decoder's weights — created as inference tensors — crash trying to
+        # build an autograd graph in plain (grad-enabled) mode.
+        with torch.inference_mode():
+            encode_video(
+                video=video,
+                fps=int(fps),
+                audio=audio if generate_audio else None,
+                output_path=str(video_path),
+                video_chunks_number=get_video_chunks_number(num_frames, TilingConfig.default()),
+            )
         timing["encode"] = time.time() - t0
 
         overlaid_path = None
