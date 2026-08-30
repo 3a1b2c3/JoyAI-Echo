@@ -726,7 +726,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                         msg += f"\n  overlay: {overlaid_path.name}"
                     yield msg, str(shown), str(shown), str(video_path)
         except Exception as e:
-            yield f"❌ Generation failed: {e}\n{traceback.format_exc()[-800:]}", None, None, None
+            yield f"❌ Generation failed: {e}\n{traceback.format_exc()}", None, None, None
 
     with gr.Blocks(title="Echo-WM Flash Preview (Streaming)") as demo:
         gr.Markdown(
