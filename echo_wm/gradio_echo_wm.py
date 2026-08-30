@@ -37,6 +37,21 @@ _orig_is_allowed_file = _gr_utils.is_allowed_file
 
 
 def _debug_is_allowed_file(path, blocked_paths, allowed_paths, created_paths):
+    # Gradio's own allowed_paths prefix-matching has repeatedly 403'd files
+    # that are genuinely under OUTPUT_ROOT/EXAMPLES_DIR (symlink/realpath
+    # normalization mismatch between what we pass to allowed_paths and how
+    # Gradio compares the incoming request path -- never fully pinned down,
+    # and not worth continuing to chase since we already own this override).
+    # Trust our own known-safe directories directly instead of delegating.
+    try:
+        resolved = Path(path).resolve()
+        for trusted_root in (OUTPUT_ROOT, EXAMPLES_DIR):
+            resolved_root = trusted_root.resolve()
+            if resolved == resolved_root or resolved_root in resolved.parents:
+                print(f"[is_allowed_file] TRUSTED {path!r} under {trusted_root}", flush=True)
+                return True
+    except OSError:
+        pass
     result = _orig_is_allowed_file(path, blocked_paths, allowed_paths, created_paths)
     print(
         f"[DEBUG is_allowed_file] path={path!r} result={result} "
