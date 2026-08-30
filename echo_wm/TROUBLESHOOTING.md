@@ -1,5 +1,54 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -1. Visible stutter/gap between block updates in the live preview (not fixed -- proposed fix identified)
+
+Even with item 0 below fixed (real incremental blocks now arrive), each
+new block causes a visible pause: `stream_video` (`gr.Video`) does a full
+`<video src=...>` swap per block, which means a full HTTP fetch + decode +
+rebuffer in the browser every time, not a seamless append.
+
+**Proposed real fix, not yet implemented:** Gradio 5.x's `gr.Video`
+supports `streaming=True`, where a generator's chunks get appended into
+one continuous MSE (Media Source Extensions) buffer client-side instead of
+triggering a full element reload per chunk. Blocker: `encode_video()`
+(`ltx_pipelines/utils/media_io.py`, PyAV-based, shared by 3 call sites)
+currently writes a standard, non-fragmented MP4 per block. MSE append
+generally requires fragmented MP4 segments
+(`movflags: frag_keyframe+empty_moov` or similar) to concatenate cleanly --
+a real change to shared encoding code, not a flag flip on the Gradio
+component alone. Not attempted yet given the scope/risk of changing a
+shared encoder; flagging as the correct direction if the stutter needs to
+actually go away rather than just becoming less frequent (see item 0.5).
+
+## 0.5. Preview decode is redundant/slow -- partially mitigated
+
+`decode_video()`/`decode_audio()` (`ltx_core/model/video_vae`) have no
+incremental/cached-state API -- every `on_block` call re-decodes the
+*entire* accumulated prefix from scratch (not just the new slice), so cost
+grows as generation progresses; a block near the end re-decodes almost
+everything shown by earlier blocks all over again. This was already
+happening even before item 0's fix (the decode always ran; only the
+*output* was discarded for "zero frame" blocks).
+
+**Mitigation applied** (`causal_ti2vid.py`, `raw_on_block`): added
+`PREVIEW_DECODE_STRIDE = 3` -- only actually decode+preview every 3rd
+block plus always the last one; other blocks report a zero-frame chunk
+(cheap, no decode work) via the existing zero-frame skip path. Trades
+preview granularity (fewer visible updates -> contributes to the stutter
+in item -1) for real speedup (fewer expensive re-decodes).
+
+**Not implemented, more correct fix:** since the decoder is causal (only
+looks backward), it likely doesn't need the *entire* prefix from frame 0
+to correctly decode the recent tail -- just some bounded lookback window.
+Slicing the decode input to `[video_start - window : video_end]` instead
+of `[0 : video_end]` would keep per-block decode cost roughly constant
+instead of growing, allowing every block to decode+show (fixing both the
+speed problem and the item -1 stutter's stride-induced gaps at once)
+without a stride at all. Not attempted because the decoder's actual
+required receptive field/lookback size hasn't been confirmed -- guessing
+wrong risks visibly corrupted preview frames (not a crash, so it could go
+unnoticed).
+
 ## 0. "Live preview only ever shows one block, then nothing" (fixed -- root cause confirmed)
 
 **Symptom:** with `num_frames=241`, block 0's `on_block` callback carried
