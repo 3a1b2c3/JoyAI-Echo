@@ -77,23 +77,17 @@ VLM_MODEL = os.environ.get("VLM_MODEL", "Qwen/Qwen3-VL-8B-Instruct")
 # 403ing on files served during a streaming generation.
 os.environ.setdefault("GRADIO_TEMP_DIR", str(OUTPUT_ROOT))
 
-# gr.Video/gr.Image accept a URL string directly and just point the browser at
-# it — no is_allowed_file() check involved, unlike a raw filesystem path (which
-# goes through Gradio's /gradio_api/file= route and its allowed_paths check).
-# main() mounts OUTPUT_ROOT as a plain FastAPI StaticFiles route at MEDIA_URL_PREFIX.
-MEDIA_URL_PREFIX = "/media"
-
-
-def output_url(path: Path, request: gr.Request) -> str:
-    # gr.Video/gr.File only skip the /gradio_api/file= wrapping (and fetch a
-    # URL directly) when the value passes client_utils.is_http_url_like(),
-    # i.e. a real http(s):// URL — a root-relative "/media/..." string still
-    # gets treated as a local path. The server binds 0.0.0.0 so it doesn't
-    # know its own browser-facing host; take it from the actual request.
-    rel = path.resolve().relative_to(OUTPUT_ROOT.resolve()).as_posix()
-    host = request.headers.get("host", f"{request.client.host}:{request.headers.get('x-forwarded-port', '')}")
-    scheme = request.headers.get("x-forwarded-proto", "http")
-    return f"{scheme}://{host}{MEDIA_URL_PREFIX}/{rel}"
+# NOTE: gr.Video/gr.File values that look like a real http(s):// URL get
+# server-side downloaded-and-cached by Gradio (via safehttpx's SSRF guard),
+# which hard-rejects ANY private/loopback address (LAN IPs, 127.0.0.1,
+# localhost alike, no exceptions, no bypass short of a domain_whitelist
+# Gradio doesn't expose) — so a URL pointing at this box can never work,
+# tunnel or not. Plain local filesystem paths (routed through
+# /gradio_api/file= + is_allowed_file()) are therefore the only viable
+# option; that path relies on GRADIO_TEMP_DIR being set (above) so files
+# under OUTPUT_ROOT land in Gradio's own trusted upload folder.
+def output_url(path: Path) -> str:
+    return str(path)
 
 NEGATIVE_PROMPT = (
     "worst quality, inconsistent motion, blurry, jittery, distorted, "
@@ -513,7 +507,6 @@ def build_ui(engine: EchoWMEngine) -> gr.Blocks:
         video_cfg, audio_cfg, width, height, fov_deg,
         translation_speed, rotation_speed, pitch_limit,
         gen_audio, overlay,
-        request: gr.Request,
     ):
         if not image_path:
             yield "❌ Pick or upload an image first.", None, None
@@ -567,7 +560,7 @@ def build_ui(engine: EchoWMEngine) -> gr.Blocks:
         msg = f"✅ Done in {time.time() - t0:.1f}s ({parts}).\n  video: {video_path.name}"
         if overlaid_path:
             msg += f"\n  overlay: {overlaid_path.name}"
-        yield msg, output_url(shown, request), str(video_path)
+        yield msg, output_url(shown), str(video_path)
 
     with gr.Blocks(title="Echo-WM World Model") as demo:
         gr.Markdown(
@@ -694,7 +687,6 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
         image_path, prompt, action_str, seed, num_frames, fps, width, height,
         fov_deg, translation_speed, rotation_speed, pitch_limit,
         gen_audio, overlay,
-        request: gr.Request,
     ):
         if not image_path:
             yield "❌ Pick or upload an image first.", None, None, None
@@ -741,7 +733,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                     yield (
                         f"⏳ Block {block_index + 1}/{total_blocks} ({elapsed:.1f}s elapsed, "
                         f"{frames_so_far} frames so far, ~{fps_estimate:.2f} fps generated)…"
-                    ), output_url(block_path, request), None, None
+                    ), output_url(block_path), None, None
                 else:
                     _, video_path, overlaid_path, timing = item
                     shown = overlaid_path or video_path
@@ -755,7 +747,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                     )
                     if overlaid_path:
                         msg += f"\n  overlay: {overlaid_path.name}"
-                    yield msg, output_url(shown, request), output_url(shown, request), str(video_path)
+                    yield msg, output_url(shown), output_url(shown), str(video_path)
         except Exception as e:
             yield f"❌ Generation failed: {e}\n{traceback.format_exc()}", None, None, None
 
@@ -899,31 +891,16 @@ def main() -> None:
 
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
-    if args.share:
-        print("[server] WARNING: --share is not supported when serving via a custom "
-              "FastAPI static mount (needed to work around Gradio's file-serving "
-              "403s during streaming) — ignoring.", flush=True)
-
-    # Serve OUTPUT_ROOT (block previews + final videos) as plain static files,
-    # bypassing Gradio's own /gradio_api/file= route and its is_allowed_file()
-    # check entirely — that route was returning 403 for files written during a
-    # streaming generation despite allowed_paths nominally covering them.
-    import uvicorn
-    from fastapi import FastAPI
-    from fastapi.staticfiles import StaticFiles
-
-    app = FastAPI()
-    app.mount(MEDIA_URL_PREFIX, StaticFiles(directory=str(OUTPUT_ROOT)), name="media")
-    app = gr.mount_gradio_app(
-        app, demo.queue(), path="/",
-        allowed_paths=[str(OUTPUT_ROOT), str(EXAMPLES_DIR)],
-        show_error=True,
-    )
-
     print(f"[server] Engine: {engine_kind}", flush=True)
     print(f"[server] Serving on http://127.0.0.1:{args.port} "
           f"(forward port {args.port} if you are on a remote host)", flush=True)
-    uvicorn.run(app, host=args.host, port=args.port)
+    demo.queue().launch(
+        server_name=args.host,
+        server_port=args.port,
+        share=args.share,
+        allowed_paths=[str(OUTPUT_ROOT), str(EXAMPLES_DIR)],
+        show_error=True,
+    )
 
 
 if __name__ == "__main__":
