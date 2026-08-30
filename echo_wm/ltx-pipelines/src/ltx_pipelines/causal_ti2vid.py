@@ -192,14 +192,26 @@ class CausalTI2VidPipeline:
                 video_chunk = decoded_so_far_valid[seen["video_frames"]:].clone()
                 seen["video_frames"] = decoded_so_far_valid.shape[0]
 
-                audio_chunk = None
+                # Same fixed-size-buffer issue as video: audio_output_so_far
+                # never grows either, so decoded_audio_so_far's waveform is
+                # always the full-clip length. Truncate proportionally using
+                # this block's target audio-latent-frame count vs. the total
+                # (audio_frames, the full-clip audio latent length computed
+                # at call start) against the full decoded waveform length --
+                # avoids needing decoded_audio_so_far's exact sample-rate/
+                # hop-size relationship to audio latent frames.
+                target_audio_frames = causal_audio_frames(video_end, self.cache_config.video_chunk_size)
                 waveform = decoded_audio_so_far.waveform
-                if waveform.shape[-1] > seen["audio_samples"]:
+                sample_end = int(waveform.shape[-1] * target_audio_frames / audio_frames)
+                waveform_valid = waveform[..., :sample_end]
+
+                audio_chunk = None
+                if waveform_valid.shape[-1] > seen["audio_samples"]:
                     audio_chunk = Audio(
-                        waveform=waveform[..., seen["audio_samples"]:].clone(),
+                        waveform=waveform_valid[..., seen["audio_samples"]:].clone(),
                         sampling_rate=decoded_audio_so_far.sampling_rate,
                     )
-                    seen["audio_samples"] = waveform.shape[-1]
+                    seen["audio_samples"] = waveform_valid.shape[-1]
 
                 on_block(block_index, total_blocks, video_chunk, audio_chunk)
 
