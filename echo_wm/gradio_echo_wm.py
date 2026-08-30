@@ -84,8 +84,16 @@ os.environ.setdefault("GRADIO_TEMP_DIR", str(OUTPUT_ROOT))
 MEDIA_URL_PREFIX = "/media"
 
 
-def output_url(path: Path) -> str:
-    return f"{MEDIA_URL_PREFIX}/{path.resolve().relative_to(OUTPUT_ROOT.resolve()).as_posix()}"
+def output_url(path: Path, request: gr.Request) -> str:
+    # gr.Video/gr.File only skip the /gradio_api/file= wrapping (and fetch a
+    # URL directly) when the value passes client_utils.is_http_url_like(),
+    # i.e. a real http(s):// URL — a root-relative "/media/..." string still
+    # gets treated as a local path. The server binds 0.0.0.0 so it doesn't
+    # know its own browser-facing host; take it from the actual request.
+    rel = path.resolve().relative_to(OUTPUT_ROOT.resolve()).as_posix()
+    host = request.headers.get("host", f"{request.client.host}:{request.headers.get('x-forwarded-port', '')}")
+    scheme = request.headers.get("x-forwarded-proto", "http")
+    return f"{scheme}://{host}{MEDIA_URL_PREFIX}/{rel}"
 
 NEGATIVE_PROMPT = (
     "worst quality, inconsistent motion, blurry, jittery, distorted, "
@@ -400,6 +408,7 @@ class EchoWMCausalEngine:
         blocks_dir.mkdir(parents=True, exist_ok=True)
 
         result_queue: queue.Queue = queue.Queue()
+        frame_count = {"n": 0}
 
         def on_block(block_index: int, total_blocks: int, video_chunk, audio_chunk) -> None:
             block_path = blocks_dir / f"block_{block_index:03d}.mp4"
@@ -410,7 +419,8 @@ class EchoWMCausalEngine:
                 output_path=str(block_path),
                 video_chunks_number=1,
             )
-            result_queue.put(("block", block_index, total_blocks, block_path))
+            frame_count["n"] += video_chunk.shape[0]
+            result_queue.put(("block", block_index, total_blocks, block_path, frame_count["n"]))
 
         def worker() -> None:
             try:
@@ -503,6 +513,7 @@ def build_ui(engine: EchoWMEngine) -> gr.Blocks:
         video_cfg, audio_cfg, width, height, fov_deg,
         translation_speed, rotation_speed, pitch_limit,
         gen_audio, overlay,
+        request: gr.Request,
     ):
         if not image_path:
             yield "❌ Pick or upload an image first.", None, None
@@ -556,7 +567,7 @@ def build_ui(engine: EchoWMEngine) -> gr.Blocks:
         msg = f"✅ Done in {time.time() - t0:.1f}s ({parts}).\n  video: {video_path.name}"
         if overlaid_path:
             msg += f"\n  overlay: {overlaid_path.name}"
-        yield msg, output_url(shown), str(video_path)
+        yield msg, output_url(shown, request), str(video_path)
 
     with gr.Blocks(title="Echo-WM World Model") as demo:
         gr.Markdown(
@@ -683,6 +694,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
         image_path, prompt, action_str, seed, num_frames, fps, width, height,
         fov_deg, translation_speed, rotation_speed, pitch_limit,
         gen_audio, overlay,
+        request: gr.Request,
     ):
         if not image_path:
             yield "❌ Pick or upload an image first.", None, None, None
@@ -723,18 +735,27 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                 out_dir=out_dir,
             ):
                 if item[0] == "block":
-                    _, block_index, total_blocks, block_path = item
+                    _, block_index, total_blocks, block_path, frames_so_far = item
+                    elapsed = time.time() - t0
+                    fps_estimate = frames_so_far / elapsed if elapsed > 0 else 0.0
                     yield (
-                        f"⏳ Block {block_index + 1}/{total_blocks} ({time.time() - t0:.1f}s elapsed)…"
-                    ), output_url(block_path), None, None
+                        f"⏳ Block {block_index + 1}/{total_blocks} ({elapsed:.1f}s elapsed, "
+                        f"{frames_so_far} frames so far, ~{fps_estimate:.2f} fps generated)…"
+                    ), output_url(block_path, request), None, None
                 else:
                     _, video_path, overlaid_path, timing = item
                     shown = overlaid_path or video_path
                     parts = "  ".join(f"{k}={v:.1f}s" for k, v in timing.items())
-                    msg = f"✅ Done in {time.time() - t0:.1f}s ({parts}).\n  video: {video_path.name}"
+                    generate_secs = timing.get("generate", 0.0)
+                    avg_fps = int(num_frames) / generate_secs if generate_secs > 0 else 0.0
+                    msg = (
+                        f"✅ Done in {time.time() - t0:.1f}s ({parts}).\n"
+                        f"  avg generation speed: ~{avg_fps:.2f} fps ({int(num_frames)} frames / {generate_secs:.1f}s)\n"
+                        f"  video: {video_path.name}"
+                    )
                     if overlaid_path:
                         msg += f"\n  overlay: {overlaid_path.name}"
-                    yield msg, output_url(shown), output_url(shown), str(video_path)
+                    yield msg, output_url(shown, request), output_url(shown, request), str(video_path)
         except Exception as e:
             yield f"❌ Generation failed: {e}\n{traceback.format_exc()}", None, None, None
 
