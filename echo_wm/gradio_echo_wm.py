@@ -28,47 +28,33 @@ import gradio as gr
 import torch
 import yaml
 
-# --- TEMP DEBUG: log exactly what Gradio's real file-serving check compares,
-# on the actual running server, instead of guessing/simulating separately.
-# Remove once the 403-on-block-videos issue is resolved.
+# Gradio's own allowed_paths prefix-matching has repeatedly 403'd files that
+# are genuinely under OUTPUT_ROOT/EXAMPLES_DIR (symlink/realpath
+# normalization mismatch between what we pass to allowed_paths and how
+# Gradio compares the incoming request path -- never fully pinned down, and
+# not worth continuing to chase since we already own this override). Trust
+# our own known-safe directories directly instead of delegating.
 import gradio.utils as _gr_utils  # noqa: E402
 
 _orig_is_allowed_file = _gr_utils.is_allowed_file
 
 
-def _debug_is_allowed_file(path, blocked_paths, allowed_paths, created_paths):
-    # Gradio's own allowed_paths prefix-matching has repeatedly 403'd files
-    # that are genuinely under OUTPUT_ROOT/EXAMPLES_DIR (symlink/realpath
-    # normalization mismatch between what we pass to allowed_paths and how
-    # Gradio compares the incoming request path -- never fully pinned down,
-    # and not worth continuing to chase since we already own this override).
-    # Trust our own known-safe directories directly instead of delegating.
+def _trusted_is_allowed_file(path, blocked_paths, allowed_paths, created_paths):
     try:
         resolved = Path(path).resolve()
-        print(f"[is_allowed_file] checking path={path!r} resolved={resolved!r} "
-              f"path_exists={resolved.exists()} os_path_exists={os.path.exists(str(resolved))}", flush=True)
         for trusted_root in (OUTPUT_ROOT, EXAMPLES_DIR):
             resolved_root = trusted_root.resolve()
-            match = resolved == resolved_root or resolved_root in resolved.parents
-            print(f"[is_allowed_file]   vs trusted_root={trusted_root!r} resolved_root={resolved_root!r} match={match}", flush=True)
-            if match:
-                print(f"[is_allowed_file] TRUSTED {path!r} under {trusted_root}", flush=True)
+            if resolved == resolved_root or resolved_root in resolved.parents:
                 return True, "trusted output/example root"
-    except OSError as e:
-        print(f"[is_allowed_file] OSError resolving path={path!r}: {e!r}", flush=True)
-    result = _orig_is_allowed_file(path, blocked_paths, allowed_paths, created_paths)
-    print(
-        f"[DEBUG is_allowed_file] path={path!r} result={result} "
-        f"allowed_paths={list(allowed_paths)!r} created_paths={list(created_paths)!r}",
-        flush=True,
-    )
-    return result
+    except OSError:
+        pass
+    return _orig_is_allowed_file(path, blocked_paths, allowed_paths, created_paths)
 
 
-_gr_utils.is_allowed_file = _debug_is_allowed_file
+_gr_utils.is_allowed_file = _trusted_is_allowed_file
 try:
     import gradio.route_utils as _gr_route_utils  # noqa: E402
-    _gr_route_utils.utils.is_allowed_file = _debug_is_allowed_file
+    _gr_route_utils.utils.is_allowed_file = _trusted_is_allowed_file
 except Exception as _e:  # noqa: BLE001
     print(f"[DEBUG] could not patch route_utils.utils.is_allowed_file: {_e}", flush=True)
 
@@ -466,6 +452,8 @@ class EchoWMCausalEngine:
                 output_path=str(block_path),
                 video_chunks_number=1,
             )
+            print(f"[block] wrote block_index={block_index}/{total_blocks} "
+                  f"path={block_path} frames={video_chunk.shape[0]}", flush=True)
             frame_count["n"] += video_chunk.shape[0]
             result_queue.put(("block", block_index, total_blocks, block_path, frame_count["n"]))
 
