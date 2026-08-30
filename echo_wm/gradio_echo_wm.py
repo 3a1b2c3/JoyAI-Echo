@@ -810,7 +810,6 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                     ), output_url(block_path), None, None
                 elif item[0] == "heartbeat":
                     elapsed = item[1]
-                    print(f"[heartbeat] elapsed={elapsed:.1f}s at {time.strftime('%H:%M:%S')}", flush=True)
                     yield (
                         f"⏳ Still generating... ({elapsed:.1f}s elapsed, no new preview "
                         f"chunk yet -- denoising/audio steps between video decodes)…"
