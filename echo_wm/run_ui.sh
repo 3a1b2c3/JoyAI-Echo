@@ -12,10 +12,20 @@ fi
 
 source .venv/bin/activate
 
+# Prefer the causal/Flash checkpoint (supports streaming live preview) if
+# present; fall back to Base otherwise.
 CHECKPOINT=""
-for v in echo-wm-base echo-wm-flash; do
+ENGINE=""
+CONFIG=""
+for entry in "echo-wm-flash:causal:configs/inference_wm_causal.yaml" "echo-wm-base:base:configs/inference_wm.yaml"; do
+    v="${entry%%:*}"
+    rest="${entry#*:}"
+    e="${rest%%:*}"
+    c="${rest#*:}"
     if [ -f "checkpoints/$v.safetensors" ]; then
         CHECKPOINT="checkpoints/$v.safetensors"
+        ENGINE="$e"
+        CONFIG="$c"
         break
     fi
 done
@@ -26,11 +36,12 @@ fi
 
 echo ""
 echo "================================================================================"
-echo "Echo-WM - Launch Web Demo"
+echo "Echo-WM - Launch Web Demo (engine: $ENGINE)"
 echo "================================================================================"
 echo ""
 
 CHECKPOINT="$CHECKPOINT" \
 GEMMA_PATH="checkpoints/gemma-3" \
+CONFIG="$CONFIG" \
 PORT="${PORT:-7860}" \
-bash run_gradio.sh
+bash run_gradio.sh --engine "$ENGINE"

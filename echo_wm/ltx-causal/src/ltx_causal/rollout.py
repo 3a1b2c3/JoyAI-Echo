@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import torch
@@ -19,6 +20,15 @@ from .scheduling import (
 )
 
 Block = tuple[int, int]
+# Called after each post-prefix block is written into the output buffers.
+# Args: (block_index, total_blocks, video_block, video_output_so_far,
+# audio_output_so_far) — block_index/total_blocks are 0-indexed among the
+# streamed (non-prefix) blocks; video_block is this block's (start, end)
+# latent-frame range (the newly-completed part); video_output_so_far/
+# audio_output_so_far are the FULL-sequence output buffers with real content
+# through this block and zeros beyond (same shape patchify/unpatchify
+# expects — there is no per-slice unpatchify).
+OnBlock = Callable[[int, int, Block, torch.Tensor, torch.Tensor], None]
 
 
 def _modality(
@@ -284,10 +294,14 @@ def _generate_av_blocks(
     audio_blocks: list[Block],
     sigmas: list[float],
     generator: torch.Generator,
+    on_block: OnBlock | None = None,
 ) -> None:
     """Generate, store, and cache all blocks after the image sink."""
     patches_per_frame = forward.wrapper.patches_per_frame
-    for video_block, audio_block in zip(video_blocks[1:], audio_blocks[1:], strict=True):
+    total_blocks = len(video_blocks) - 1
+    for block_index, (video_block, audio_block) in enumerate(
+        zip(video_blocks[1:], audio_blocks[1:], strict=True)
+    ):
         video_sample, audio_sample = _denoise_av_block(
             forward,
             buffers.initial_video,
@@ -303,6 +317,8 @@ def _generate_av_blocks(
             :, video_start * patches_per_frame : video_end * patches_per_frame
         ] = video_sample
         buffers.audio_output[:, audio_start:audio_end] = audio_sample
+        if on_block is not None:
+            on_block(block_index, total_blocks, video_block, buffers.video_output, buffers.audio_output)
         forward(video_sample, video_block, 0.0, audio_sample, audio_block, 0.0)
 
 
@@ -320,6 +336,7 @@ def causal_rollout(  # noqa: PLR0913
     action_cond: dict[str, torch.Tensor],
     seed: int,
     timesteps: tuple[int, ...] | list[int] = DEFAULT_CAUSAL_TIMESTEPS,
+    on_block: OnBlock | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Generate all audio-video blocks and refresh caches with clean outputs."""
     patches_per_frame = wrapper.patches_per_frame
@@ -358,5 +375,5 @@ def causal_rollout(  # noqa: PLR0913
         sigmas,
         generator,
     )
-    _generate_av_blocks(forward, buffers, video_blocks, audio_blocks, sigmas, generator)
+    _generate_av_blocks(forward, buffers, video_blocks, audio_blocks, sigmas, generator, on_block)
     return buffers.video_output, buffers.audio_output

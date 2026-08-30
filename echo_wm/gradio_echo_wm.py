@@ -17,7 +17,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import queue
 import sys
+import threading
 import time
 import traceback
 from pathlib import Path
@@ -33,7 +35,10 @@ for package in ("ltx-core/src", "ltx-pipelines/src"):
     sys.path.insert(0, str(ROOT / package))
 
 from ltx_core.components.guiders import MultiModalGuiderParams  # noqa: E402
+from ltx_core.types import Audio  # noqa: E402
+from ltx_causal import CausalCacheConfig, DEFAULT_CAUSAL_TIMESTEPS  # noqa: E402
 from ltx_pipelines.ti2vid_one_stage import TI2VidOneStagePipeline  # noqa: E402
+from ltx_pipelines.causal_ti2vid import CausalTI2VidPipeline  # noqa: E402
 from ltx_core.model.video_vae.tiling import TilingConfig  # noqa: E402
 from ltx_core.model.video_vae.video_vae import get_video_chunks_number  # noqa: E402
 from ltx_pipelines.utils.args import ImageConditioningInput  # noqa: E402
@@ -43,6 +48,7 @@ from helpers.action_condition import (  # noqa: E402
     action_config,
     build_action_condition,
     build_action_trajectory,
+    build_causal_action_condition,
 )
 from helpers.action_camera import (  # noqa: E402
     DEFAULT_PITCH_LIMIT_DEG,
@@ -52,10 +58,15 @@ from helpers.action_camera import (  # noqa: E402
 )
 from helpers.action_overlay import overlay_genie_on_video  # noqa: E402
 
-# Default paths
+# Default paths (Base model — full multi-step diffusion, no live preview)
 DEFAULT_CONFIG = ROOT / "configs" / "inference_wm.yaml"
 DEFAULT_CHECKPOINT = ROOT / "checkpoints" / "echo-wm-base.safetensors"
 DEFAULT_GEMMA = ROOT / "checkpoints" / "gemma-3"
+
+# Default paths (Flash Preview / causal — 4-step autoregressive, supports
+# per-block streaming preview via EchoWMCausalEngine below)
+DEFAULT_CAUSAL_CONFIG = ROOT / "configs" / "inference_wm_causal.yaml"
+DEFAULT_CAUSAL_CHECKPOINT = ROOT / "checkpoints" / "echo-wm-flash.safetensors"
 EXAMPLES_DIR = ROOT / "examples"
 OUTPUT_ROOT = ROOT / "outputs" / "gradio_app"
 VLM_MODEL = os.environ.get("VLM_MODEL", "Qwen/Qwen3-VL-8B-Instruct")
@@ -278,6 +289,178 @@ class EchoWMEngine:
         return video_path, overlaid_path, timing
 
 
+class EchoWMCausalEngine:
+    """Loads Echo-WM Flash Preview (causal, 4-step autoregressive) once; streams
+    each denoised block as its own short mp4 as soon as it's ready, instead of
+    only returning the full video at the end like EchoWMEngine.
+    """
+
+    def __init__(
+        self,
+        checkpoint: Path,
+        gemma_path: Path,
+        config_path: Path,
+        device: torch.device,
+    ):
+        self.device = device
+        self.checkpoint = checkpoint
+        self.gemma_path = gemma_path
+        self.config_path = config_path
+
+        print(f"[engine] Loading config from {config_path}", flush=True)
+        self.cfg = yaml.safe_load(config_path.read_text()) or {}
+        self.causal_cfg = self.cfg.get("causal", {})
+
+        print("[engine] Loading Echo-WM Flash (causal) model...", flush=True)
+        print(f"  checkpoint: {checkpoint}", flush=True)
+        print(f"  gemma: {gemma_path}", flush=True)
+        EchoWMEngine._probe_checkpoint(checkpoint)
+
+        self.cache_config = CausalCacheConfig(
+            video_local_attn_size=self.causal_cfg.get("video_local_attn_size", 19),
+            video_sink_size=self.causal_cfg.get("video_sink_size", 7),
+            video_chunk_size=self.causal_cfg.get("video_chunk_size", 3),
+        )
+        self.cache_config.validate()
+        self.timesteps = tuple(self.causal_cfg.get("timesteps", DEFAULT_CAUSAL_TIMESTEPS))
+
+        self.pipeline = CausalTI2VidPipeline(
+            checkpoint_path=str(checkpoint),
+            gemma_root=str(gemma_path),
+            device=device,
+            action_config=None,  # Set per generation
+            cache_config=self.cache_config,
+        )
+        print("[engine] Ready (weights load on first generation, streaming enabled).", flush=True)
+
+    def generate(
+        self,
+        image_path: str,
+        prompt: str,
+        action_str: str,
+        seed: int,
+        num_frames: int,
+        fps: float,
+        width: int,
+        height: int,
+        fov_deg: float,
+        translation_speed: float,
+        rotation_speed_deg: float,
+        pitch_limit_deg: float,
+        generate_audio: bool,
+        overlay: bool,
+        out_dir: Path,
+    ):
+        """Generator. Yields ("block", index, total, block_video_path) as each
+        block finishes, then a final ("done", video_path, overlaid_path_or_None,
+        timing).
+
+        Runs the (blocking) pipeline call on a background thread and relays its
+        on_block callbacks through a queue, since a callback fired from inside
+        a blocking call cannot itself yield from this generator's frame.
+        """
+        timing: dict[str, float] = {}
+        parse_action_string(action_str)
+
+        t0 = time.time()
+        action_cond = build_causal_action_condition(
+            device=self.device,
+            action=action_str,
+            num_frames=num_frames,
+            width=width,
+            height=height,
+            translation_speed=translation_speed,
+            rotation_speed_deg=rotation_speed_deg,
+            pitch_limit_deg=pitch_limit_deg,
+            fov_deg=fov_deg,
+            fps=fps,
+        )
+        timing["action_prep"] = time.time() - t0
+
+        self.pipeline.action_config = action_config(width, height)
+
+        out_dir.mkdir(parents=True, exist_ok=True)
+        blocks_dir = out_dir / "blocks"
+        blocks_dir.mkdir(parents=True, exist_ok=True)
+
+        result_queue: queue.Queue = queue.Queue()
+
+        def on_block(block_index: int, total_blocks: int, video_chunk, audio_chunk) -> None:
+            block_path = blocks_dir / f"block_{block_index:03d}.mp4"
+            encode_video(
+                video=video_chunk,
+                fps=int(fps),
+                audio=audio_chunk if generate_audio else None,
+                output_path=str(block_path),
+                video_chunks_number=1,
+            )
+            result_queue.put(("block", block_index, total_blocks, block_path))
+
+        def worker() -> None:
+            try:
+                video, audio = self.pipeline(
+                    prompt=prompt,
+                    seed=seed,
+                    height=height,
+                    width=width,
+                    num_frames=num_frames,
+                    frame_rate=fps,
+                    images=[ImageConditioningInput(str(image_path), 0, 1.0)],
+                    action_cond=action_cond,
+                    timesteps=self.timesteps,
+                    video_tiling_config=TilingConfig.default(),
+                    on_block=on_block,
+                )
+                result_queue.put(("final", video, audio))
+            except Exception as exc:  # noqa: BLE001 - relay to the consumer thread
+                result_queue.put(("error", exc))
+
+        t0 = time.time()
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+
+        video = audio = None
+        while True:
+            item = result_queue.get()
+            if item[0] == "block":
+                yield item
+            elif item[0] == "error":
+                thread.join()
+                raise item[1]
+            else:
+                _, video, audio = item
+                break
+        thread.join()
+        timing["generate"] = time.time() - t0
+
+        video_path = out_dir / "output.mp4"
+        t0 = time.time()
+        encode_video(
+            video=video,
+            fps=int(fps),
+            audio=audio if generate_audio else None,
+            output_path=str(video_path),
+            video_chunks_number=get_video_chunks_number(num_frames, TilingConfig.default()),
+        )
+        timing["encode"] = time.time() - t0
+
+        overlaid_path = None
+        if overlay:
+            t0 = time.time()
+            trajectory = build_action_trajectory(
+                action_str,
+                num_frames=num_frames,
+                translation_speed=translation_speed,
+                rotation_speed_deg=rotation_speed_deg,
+                pitch_limit_deg=pitch_limit_deg,
+                fps=fps,
+            )
+            overlaid_path = out_dir / "output_action.mp4"
+            overlay_genie_on_video(video_path, trajectory, output_path=overlaid_path)
+            timing["overlay"] = time.time() - t0
+
+        yield ("done", video_path, overlaid_path, timing)
+
 
 def build_ui(engine: EchoWMEngine) -> gr.Blocks:
     """Build Gradio interface."""
@@ -450,11 +633,202 @@ def build_ui(engine: EchoWMEngine) -> gr.Blocks:
     return demo
 
 
+def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
+    """Build the Gradio interface for the streaming Flash Preview (causal) engine."""
+    run_counter = {"n": 0}
+    video_cfg = engine.cfg.get("video", {})
+    # UI defaults, deliberately lower than the config file's 1280x704 (used by
+    # the CLI/other scripts) — same aspect ratio, ~51% the pixel count, for
+    # faster iteration. Still a multiple of 32 (required by assert_resolution)
+    # and adjustable in the UI below, not a model-imposed fixed size.
+    default_width = 896
+    default_height = 512
+    default_num_frames = int(video_cfg.get("num_frames", 241))
+    default_fps = float(video_cfg.get("fps", 24))
+    default_seed = int(video_cfg.get("seed", 42))
+    action_cfg = engine.cfg.get("action", {})
+
+    def on_preset(name: str):
+        return gr.update(value=ACTION_PRESETS.get(name, "w-240"))
+
+    def on_case(name: str):
+        case = CASES.get(name)
+        if case is None:
+            return (gr.update(),) * 5
+        return (
+            gr.update(value=case["image"]),
+            gr.update(value=case.get("prompt", "")),
+            gr.update(value=case.get("action", "w-240")),
+            gr.update(value=case.get("fov_deg", 70.0)),
+            gr.update(value=case.get("seed", 42)),
+        )
+
+    def on_generate(
+        image_path, prompt, action_str, seed, num_frames, fps, width, height,
+        fov_deg, translation_speed, rotation_speed, pitch_limit,
+        gen_audio, overlay,
+    ):
+        if not image_path:
+            yield "❌ Pick or upload an image first.", None, None, None
+            return
+        if not (prompt or "").strip():
+            yield "❌ Prompt is empty.", None, None, None
+            return
+        try:
+            parse_action_string(action_str)
+        except Exception as e:
+            yield f"❌ Invalid action string: {e}", None, None, None
+            return
+
+        run_counter["n"] += 1
+        out_dir = OUTPUT_ROOT / f"run_causal_{run_counter['n']:04d}"
+
+        yield (
+            f"⏳ Streaming generation started…\naction=[{action_str}] seed={int(seed)}"
+        ), None, None, None
+
+        t0 = time.time()
+        try:
+            for item in engine.generate(
+                image_path=image_path,
+                prompt=prompt,
+                action_str=action_str,
+                seed=int(seed),
+                num_frames=int(num_frames),
+                fps=float(fps),
+                width=int(width),
+                height=int(height),
+                fov_deg=float(fov_deg),
+                translation_speed=float(translation_speed),
+                rotation_speed_deg=float(rotation_speed),
+                pitch_limit_deg=float(pitch_limit),
+                generate_audio=bool(gen_audio),
+                overlay=bool(overlay),
+                out_dir=out_dir,
+            ):
+                if item[0] == "block":
+                    _, block_index, total_blocks, block_path = item
+                    yield (
+                        f"⏳ Block {block_index + 1}/{total_blocks} ({time.time() - t0:.1f}s elapsed)…"
+                    ), str(block_path), None, None
+                else:
+                    _, video_path, overlaid_path, timing = item
+                    shown = overlaid_path or video_path
+                    parts = "  ".join(f"{k}={v:.1f}s" for k, v in timing.items())
+                    msg = f"✅ Done in {time.time() - t0:.1f}s ({parts}).\n  video: {video_path.name}"
+                    if overlaid_path:
+                        msg += f"\n  overlay: {overlaid_path.name}"
+                    yield msg, str(shown), str(shown), str(video_path)
+        except Exception as e:
+            yield f"❌ Generation failed: {e}\n{traceback.format_exc()[-800:]}", None, None, None
+
+    with gr.Blocks(title="Echo-WM Flash Preview (Streaming)") as demo:
+        gr.Markdown(
+            f"# Echo-WM Flash Preview: 4-Step Autoregressive, Streaming\n"
+            f"Checkpoint: `{engine.checkpoint.name}` · Gemma: `{engine.gemma_path.name}`\n\n"
+            f"Blocks stream into the live preview below as they're denoised+decoded; "
+            f"the Result panel gets the full, correctly-assembled final video once "
+            f"generation completes."
+        )
+
+        with gr.Row():
+            with gr.Column(scale=1):
+                case_picker = gr.Dropdown(
+                    list(CASES),
+                    label="Example case (fills image, prompt, action, FOV, seed)",
+                    value=None,
+                )
+                image = gr.Image(label="First-frame image", type="filepath", height=300)
+
+                with gr.Row():
+                    prompt = gr.Textbox(
+                        label="Prompt",
+                        lines=4,
+                        placeholder="Describe the scene, style, perspective...",
+                    )
+                gr.Markdown(ACTION_HELP)
+                action = gr.Textbox(label="Action string", value="w-240")
+                preset = gr.Dropdown(
+                    list(ACTION_PRESETS),
+                    label="Action preset",
+                    value="forward (w-240)",
+                )
+
+                with gr.Accordion("Video Settings", open=False):
+                    with gr.Row():
+                        width = gr.Number(
+                            label="Width (multiple of 32)", value=default_width, precision=0
+                        )
+                        height = gr.Number(
+                            label="Height (multiple of 32)", value=default_height, precision=0
+                        )
+                    with gr.Row():
+                        num_frames = gr.Number(
+                            label="Frames (must be 1 + 8n)", value=default_num_frames, precision=0
+                        )
+                        fps = gr.Number(label="FPS", value=default_fps, precision=1)
+                    seed = gr.Number(label="Seed", value=default_seed, precision=0)
+
+                with gr.Accordion("Action Settings", open=False):
+                    fov_deg = gr.Slider(
+                        30, 120, value=action_cfg.get("fov_deg", 70.0), step=5, label="FOV (degrees)"
+                    )
+                    translation_speed = gr.Slider(
+                        0.005, 0.1, value=action_cfg.get("translation_speed", DEFAULT_TRANSLATION_SPEED),
+                        step=0.005, label="Translation speed (w/s/a/d per frame)",
+                    )
+                    rotation_speed = gr.Slider(
+                        0.1, 3.0, value=action_cfg.get("rotation_speed_deg", DEFAULT_ROTATION_SPEED_DEG),
+                        step=0.1, label="Rotation speed (°/frame, i/k/j/l)",
+                    )
+                    pitch_limit = gr.Slider(
+                        0, 90, value=action_cfg.get("pitch_limit_deg", DEFAULT_PITCH_LIMIT_DEG),
+                        step=5, label="Pitch limit (degrees)",
+                    )
+
+                with gr.Row():
+                    overlay = gr.Checkbox(label="Action HUD overlay", value=True)
+                    gen_audio = gr.Checkbox(label="Generate audio", value=True)
+
+                generate_btn = gr.Button("🚀 Generate (streaming)", variant="primary", size="lg")
+
+            with gr.Column(scale=1):
+                stream_video = gr.Video(
+                    label="Live preview (streams block-by-block)",
+                    height=300, streaming=True, autoplay=True,
+                )
+                out_video = gr.Video(label="Result (final, full quality)", height=300)
+                status = gr.Textbox(label="Status", lines=6, interactive=False)
+                raw_file = gr.File(label="Raw video (no overlay)", interactive=False)
+
+        case_picker.change(
+            on_case, inputs=case_picker,
+            outputs=[image, prompt, action, fov_deg, seed],
+        )
+        preset.change(on_preset, inputs=preset, outputs=action)
+        generate_btn.click(
+            on_generate,
+            inputs=[
+                image, prompt, action, seed, num_frames, fps, width, height,
+                fov_deg, translation_speed, rotation_speed, pitch_limit,
+                gen_audio, overlay,
+            ],
+            outputs=[status, stream_video, out_video, raw_file],
+            concurrency_limit=1,
+        )
+
+    return demo
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
-    parser.add_argument("--gemma-path", type=Path, default=DEFAULT_GEMMA)
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--engine", choices=("auto", "base", "causal"), default="auto",
+        help="auto picks 'causal' (streaming Flash Preview) if its checkpoint exists, else 'base'.",
+    )
+    parser.add_argument("--checkpoint", type=Path, default=None)
+    parser.add_argument("--gemma-path", type=Path, default=None)
+    parser.add_argument("--config", type=Path, default=None)
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=7860)
     parser.add_argument("--share", action="store_true", help="Create public gradio share link")
@@ -463,17 +837,32 @@ def main() -> None:
     if not torch.cuda.is_available():
         raise SystemExit("CUDA device required.")
 
-    device = torch.device("cuda")
-    engine = EchoWMEngine(
-        checkpoint=args.checkpoint,
-        gemma_path=args.gemma_path,
-        config_path=args.config,
-        device=device,
-    )
+    engine_kind = args.engine
+    if engine_kind == "auto":
+        default_causal_ckpt = args.checkpoint or DEFAULT_CAUSAL_CHECKPOINT
+        engine_kind = "causal" if default_causal_ckpt.is_file() else "base"
 
-    demo = build_ui(engine)
+    device = torch.device("cuda")
+    if engine_kind == "causal":
+        engine = EchoWMCausalEngine(
+            checkpoint=args.checkpoint or DEFAULT_CAUSAL_CHECKPOINT,
+            gemma_path=args.gemma_path or DEFAULT_GEMMA,
+            config_path=args.config or DEFAULT_CAUSAL_CONFIG,
+            device=device,
+        )
+        demo = build_causal_ui(engine)
+    else:
+        engine = EchoWMEngine(
+            checkpoint=args.checkpoint or DEFAULT_CHECKPOINT,
+            gemma_path=args.gemma_path or DEFAULT_GEMMA,
+            config_path=args.config or DEFAULT_CONFIG,
+            device=device,
+        )
+        demo = build_ui(engine)
+
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
+    print(f"[server] Engine: {engine_kind}", flush=True)
     print(f"[server] Serving on http://127.0.0.1:{args.port} "
           f"(forward port {args.port} if you are on a remote host)", flush=True)
     demo.queue().launch(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import torch
 
@@ -28,6 +28,14 @@ from ltx_pipelines.utils.helpers import create_noised_state, noise_video_state
 from ltx_pipelines.utils.types import PipelineComponents
 
 device = get_device()
+
+# Called after each streamed block is decoded, with newly-available pixel
+# media only (not the running total). Args: (block_index, total_blocks,
+# video_chunk_uint8 [f, h, w, c], audio_chunk_or_None). Opting in (passing
+# on_block to __call__) keeps the video/audio decoders resident on GPU for
+# the whole rollout instead of only after the transformer is freed, so it
+# costs extra peak VRAM versus the non-streaming path.
+OnBlockMedia = Callable[[int, int, torch.Tensor, Audio | None], None]
 
 
 class CausalTI2VidPipeline:
@@ -72,6 +80,7 @@ class CausalTI2VidPipeline:
         action_cond: dict[str, torch.Tensor],
         timesteps: tuple[int, ...] | list[int] = DEFAULT_CAUSAL_TIMESTEPS,
         video_tiling_config: TilingConfig | None = None,
+        on_block: OnBlockMedia | None = None,
     ) -> tuple[Iterator[torch.Tensor], Audio]:
         assert_resolution(height=height, width=width, is_two_stage=False)
         latent_frames = (num_frames - 1) // 8 + 1
@@ -112,6 +121,69 @@ class CausalTI2VidPipeline:
             patches_per_frame=(height // 32) * (width // 32),
             cache=self.cache_config,
         )
+
+        # Streaming preview (opt-in): build the decoders now so each block can
+        # be decoded as soon as it's denoised, instead of only after the
+        # transformer is freed. This holds decoders + transformer on GPU at
+        # the same time, so it costs extra peak VRAM versus the default path.
+        preview_video_decoder = preview_audio_decoder = preview_vocoder = None
+        raw_on_block = None
+        if on_block is not None:
+            preview_video_decoder = self.model_ledger.video_decoder()
+            preview_audio_decoder = self.model_ledger.audio_decoder()
+            preview_vocoder = self.model_ledger.vocoder()
+            # Frames/samples already handed to on_block, so each call only
+            # emits the newly-decoded tail. The causal decoder only looks
+            # backward in time, so already-emitted frames are stable as later
+            # (still-zero) blocks are appended past them.
+            seen = {"video_frames": 0, "audio_samples": 0}
+
+            def raw_on_block(
+                block_index: int,
+                total_blocks: int,
+                _video_block,
+                video_output_so_far: torch.Tensor,
+                audio_output_so_far: torch.Tensor,
+            ) -> None:
+                preview_video_state = video_tools.unpatchify(video_tools.clear_conditioning(
+                    video_state.__class__(
+                        latent=video_output_so_far,
+                        denoise_mask=video_state.denoise_mask,
+                        positions=video_state.positions,
+                        clean_latent=video_state.clean_latent,
+                        attention_mask=None,
+                    )
+                ))
+                preview_audio_state = audio_tools.unpatchify(audio_tools.clear_conditioning(
+                    audio_state.__class__(
+                        latent=audio_output_so_far,
+                        denoise_mask=audio_state.denoise_mask,
+                        positions=audio_state.positions,
+                        clean_latent=audio_state.clean_latent,
+                        attention_mask=None,
+                    )
+                ))
+                decoded_video_so_far = next(vae_decode_video(
+                    preview_video_state.latent, preview_video_decoder, tiling_config=None, generator=generator,
+                ))
+                decoded_audio_so_far = vae_decode_audio(
+                    preview_audio_state.latent, preview_audio_decoder, preview_vocoder
+                )
+
+                video_chunk = decoded_video_so_far[seen["video_frames"]:]
+                seen["video_frames"] = decoded_video_so_far.shape[0]
+
+                audio_chunk = None
+                waveform = decoded_audio_so_far.waveform
+                if waveform.shape[-1] > seen["audio_samples"]:
+                    audio_chunk = Audio(
+                        waveform=waveform[..., seen["audio_samples"]:],
+                        sampling_rate=decoded_audio_so_far.sampling_rate,
+                    )
+                    seen["audio_samples"] = waveform.shape[-1]
+
+                on_block(block_index, total_blocks, video_chunk, audio_chunk)
+
         generated_video, generated_audio = causal_rollout(
             wrapper=wrapper,
             clean_video=video_state.clean_latent,
@@ -124,6 +196,7 @@ class CausalTI2VidPipeline:
             action_cond=action_cond,
             seed=seed,
             timesteps=timesteps,
+            on_block=raw_on_block,
         )
         del wrapper, x0_model
         cleanup_memory()
@@ -148,13 +221,13 @@ class CausalTI2VidPipeline:
         ))
         decoded_video = vae_decode_video(
             video_state.latent,
-            self.model_ledger.video_decoder(),
+            preview_video_decoder or self.model_ledger.video_decoder(),
             tiling_config=video_tiling_config,
             generator=generator,
         )
         decoded_audio = vae_decode_audio(
             audio_state.latent,
-            self.model_ledger.audio_decoder(),
-            self.model_ledger.vocoder(),
+            preview_audio_decoder or self.model_ledger.audio_decoder(),
+            preview_vocoder or self.model_ledger.vocoder(),
         )
         return decoded_video, decoded_audio
