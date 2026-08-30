@@ -449,10 +449,16 @@ class EchoWMCausalEngine:
         frame_count = {"n": 0}
 
         def on_block(block_index: int, total_blocks: int, video_chunk, audio_chunk) -> None:
+            # Some callbacks in this pipeline carry zero video frames (e.g.
+            # audio-only/bookkeeping chunks) -- expected, not an error. There's
+            # nothing to encode or show for these; encoding them anyway
+            # produces no output file (PyAV's muxer writes nothing for zero
+            # frames) and pointing the UI at that file 403s at the Gradio
+            # file-serving layer since it never exists.
+            if video_chunk.shape[0] == 0:
+                frame_count["n"] += 0
+                return
             block_path = blocks_dir / f"block_{block_index:03d}.mp4"
-            print(f"[DEBUG on_block] block_index={block_index} video_chunk "
-                  f"shape={tuple(video_chunk.shape)} dtype={video_chunk.dtype} "
-                  f"device={video_chunk.device} numel={video_chunk.numel()}", flush=True)
             encode_video(
                 video=video_chunk,
                 fps=int(fps),
@@ -460,18 +466,6 @@ class EchoWMCausalEngine:
                 output_path=str(block_path),
                 video_chunks_number=1,
             )
-            # encode_video() calls container.close() before returning, so the
-            # write is complete -- but on a network filesystem, exists()/stat()
-            # checked immediately after can still lag behind (client-side
-            # attribute-cache staleness) even in this same process. Poll
-            # briefly rather than notifying the UI about a file it can't see
-            # yet, which otherwise 403s at the Gradio file-serving layer.
-            deadline = time.time() + 2.0
-            while not block_path.exists() and time.time() < deadline:
-                time.sleep(0.02)
-            print(f"[DEBUG on_block] wrote block_index={block_index}/{total_blocks} "
-                  f"path={block_path} exists={block_path.exists()} "
-                  f"size={block_path.stat().st_size if block_path.exists() else -1}", flush=True)
             frame_count["n"] += video_chunk.shape[0]
             result_queue.put(("block", block_index, total_blocks, block_path, frame_count["n"]))
 
