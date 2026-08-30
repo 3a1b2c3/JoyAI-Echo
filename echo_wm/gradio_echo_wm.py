@@ -810,18 +810,32 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
     _video_src_watch_js = """
     <script>
     (function() {
+      function logChange(video, reason) {
+        console.log("[video-watch]", new Date().toISOString(), reason, "currentSrc:", video.currentSrc, "src attr:", video.getAttribute("src"));
+      }
       function watch(video) {
         if (video.__srcWatched) return;
         video.__srcWatched = true;
+        // Covers: src attribute changes on <video> itself, <source> children
+        // being added/removed/changed (some players swap sources instead of
+        // setting video.src directly), and any other child mutation.
         const obs = new MutationObserver((muts) => {
           for (const m of muts) {
-            if (m.attributeName === "src") {
-              console.log("[video-watch]", new Date().toISOString(), "src changed:", video.currentSrc || video.src);
+            if (m.type === "attributes" && m.attributeName === "src") {
+              logChange(video, "attribute mutation");
+            } else if (m.type === "childList") {
+              logChange(video, "child nodes changed (e.g. <source> swap)");
             }
           }
         });
-        obs.observe(video, {attributes: true, attributeFilter: ["src"]});
-        console.log("[video-watch] now watching", video);
+        obs.observe(video, {attributes: true, attributeFilter: ["src"], childList: true, subtree: true});
+        // loadstart/loadeddata fire whenever the browser actually starts
+        // loading new media, regardless of *how* src was set (attribute,
+        // property, or a <source> child) -- this is the most reliable signal.
+        video.addEventListener("loadstart", () => logChange(video, "loadstart event"));
+        video.addEventListener("loadeddata", () => logChange(video, "loadeddata event"));
+        video.addEventListener("error", () => console.log("[video-watch]", new Date().toISOString(), "ERROR event", video.error));
+        console.log("[video-watch] now watching", video, "current src:", video.currentSrc);
       }
       const scan = () => document.querySelectorAll("video").forEach(watch);
       scan();
