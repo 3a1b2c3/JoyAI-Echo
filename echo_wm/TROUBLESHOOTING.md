@@ -1,5 +1,28 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -2. Live preview fades/goes to black near the end (mitigated, not fully diagnosed)
+
+Reported: the live preview appears to fade to black by the end of
+generation. Not yet isolated to a specific cause -- the reporting user
+interrupted (Ctrl+C) runs before reaching completion each time, so it was
+never confirmed whether the **final downloaded result** also ends in
+black (a real generation artifact, would need investigating the model/
+decode path) or whether it's specific to the **live preview** component
+(a UI transition quirk).
+
+**Mitigation applied**, addresses one plausible cause regardless of root
+cause: `stream_video` didn't have `loop=True`. A short block clip that
+finishes playing before the next block's update arrives has nothing
+telling the `<video>` element to keep showing content, which could read as
+"faded to black" depending on browser behavior at end-of-playback. Added
+`loop=True` so it keeps replaying the last block's content instead.
+
+**Still needed to fully diagnose:** let a generation run to completion
+(no Ctrl+C) and check whether the *downloaded* final video also ends in
+black. If it does, this isn't a UI issue at all -- the model/decode
+pipeline is producing genuinely black frames near the clip's end, a
+different and more serious problem.
+
 ## -1. Visible stutter/gap between block updates in the live preview (tried a fix, reverted -- still open)
 
 Even with item 0 below fixed (real incremental blocks now arrive), each
