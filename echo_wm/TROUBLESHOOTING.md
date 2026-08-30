@@ -1,24 +1,35 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
-## -1. Visible stutter/gap between block updates in the live preview (not fixed -- proposed fix identified)
+## -1. Visible stutter/gap between block updates in the live preview (tried a fix, reverted -- still open)
 
 Even with item 0 below fixed (real incremental blocks now arrive), each
 new block causes a visible pause: `stream_video` (`gr.Video`) does a full
 `<video src=...>` swap per block, which means a full HTTP fetch + decode +
 rebuffer in the browser every time, not a seamless append.
 
-**Proposed real fix, not yet implemented:** Gradio 5.x's `gr.Video`
-supports `streaming=True`, where a generator's chunks get appended into
-one continuous MSE (Media Source Extensions) buffer client-side instead of
-triggering a full element reload per chunk. Blocker: `encode_video()`
-(`ltx_pipelines/utils/media_io.py`, PyAV-based, shared by 3 call sites)
-currently writes a standard, non-fragmented MP4 per block. MSE append
-generally requires fragmented MP4 segments
-(`movflags: frag_keyframe+empty_moov` or similar) to concatenate cleanly --
-a real change to shared encoding code, not a flag flip on the Gradio
-component alone. Not attempted yet given the scope/risk of changing a
-shared encoder; flagging as the correct direction if the stutter needs to
-actually go away rather than just becoming less frequent (see item 0.5).
+**Attempted and reverted:** flipped `stream_video` to
+`gr.Video(streaming=True)` plus a `fragmented=True` option on
+`encode_video()` (`movflags: frag_keyframe+empty_moov`), assuming
+`streaming=True` does client-side MSE append of fragmented MP4 chunks.
+**Wrong assumption, confirmed by testing:** this Gradio version's
+`streaming=True` actually drives an **HLS** player (`hls.mjs`) that fetches
+a `playlist.m3u8` from `/gradio_api/stream/.../playlist.m3u8` -- i.e.
+Gradio expects to run its own server-side HLS segmentation, not receive
+already-fragmented MP4 files directly. Result: `HLS error: levelEmptyError
+-- No Segments found in Playlist`, fatal, video never played at all
+(strictly worse than the stutter it was meant to fix). Both changes fully
+reverted (`gradio_echo_wm.py`'s `stream_video`, and the `fragmented` param
+on `encode_video()` in `media_io.py` -- removed entirely since nothing
+uses it anymore, not left as unused dead code).
+
+**Still an open problem.** Whatever the actual fix is, it needs to work
+*with* Gradio's HLS-based streaming pipeline (or bypass Gradio's `Video`
+component's file-serving path entirely via a custom component), not just
+hand it a differently-encoded standalone file per block. Next step if
+revisited: find and read this installed Gradio version's actual
+`streaming=True` server-side handler (likely in `gradio/routes.py` /
+wherever `/gradio_api/stream/` is implemented) to learn its real input
+contract before attempting another fix.
 
 ## 0.5. Preview decode is redundant/slow -- partially mitigated
 
