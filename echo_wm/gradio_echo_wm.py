@@ -71,6 +71,12 @@ EXAMPLES_DIR = ROOT / "examples"
 OUTPUT_ROOT = ROOT / "outputs" / "gradio_app"
 VLM_MODEL = os.environ.get("VLM_MODEL", "Qwen/Qwen3-VL-8B-Instruct")
 
+# Make OUTPUT_ROOT Gradio's own upload/temp folder (gradio.utils.get_upload_folder()
+# reads this), so every file written under it lands in Gradio's unconditionally
+# trusted `created_paths` set — sidesteps allowed_paths string-matching, which was
+# 403ing on files served during a streaming generation.
+os.environ.setdefault("GRADIO_TEMP_DIR", str(OUTPUT_ROOT))
+
 NEGATIVE_PROMPT = (
     "worst quality, inconsistent motion, blurry, jittery, distorted, "
     "game UI, video game interface, HUD, heads-up display, menu, status bar, "
