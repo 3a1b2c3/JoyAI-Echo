@@ -31,7 +31,7 @@ import yaml
 # Setup paths
 ROOT = Path(__file__).resolve().parent
 REPO_ROOT = ROOT.parent
-for package in ("ltx-core/src", "ltx-pipelines/src"):
+for package in ("ltx-core/src", "ltx-causal/src", "ltx-pipelines/src"):
     sys.path.insert(0, str(ROOT / package))
 
 from ltx_core.components.guiders import MultiModalGuiderParams  # noqa: E402
