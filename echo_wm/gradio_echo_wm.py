@@ -77,6 +77,16 @@ VLM_MODEL = os.environ.get("VLM_MODEL", "Qwen/Qwen3-VL-8B-Instruct")
 # 403ing on files served during a streaming generation.
 os.environ.setdefault("GRADIO_TEMP_DIR", str(OUTPUT_ROOT))
 
+# gr.Video/gr.Image accept a URL string directly and just point the browser at
+# it — no is_allowed_file() check involved, unlike a raw filesystem path (which
+# goes through Gradio's /gradio_api/file= route and its allowed_paths check).
+# main() mounts OUTPUT_ROOT as a plain FastAPI StaticFiles route at MEDIA_URL_PREFIX.
+MEDIA_URL_PREFIX = "/media"
+
+
+def output_url(path: Path) -> str:
+    return f"{MEDIA_URL_PREFIX}/{path.resolve().relative_to(OUTPUT_ROOT.resolve()).as_posix()}"
+
 NEGATIVE_PROMPT = (
     "worst quality, inconsistent motion, blurry, jittery, distorted, "
     "game UI, video game interface, HUD, heads-up display, menu, status bar, "
@@ -546,7 +556,7 @@ def build_ui(engine: EchoWMEngine) -> gr.Blocks:
         msg = f"✅ Done in {time.time() - t0:.1f}s ({parts}).\n  video: {video_path.name}"
         if overlaid_path:
             msg += f"\n  overlay: {overlaid_path.name}"
-        yield msg, str(shown), str(video_path)
+        yield msg, output_url(shown), str(video_path)
 
     with gr.Blocks(title="Echo-WM World Model") as demo:
         gr.Markdown(
@@ -716,7 +726,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                     _, block_index, total_blocks, block_path = item
                     yield (
                         f"⏳ Block {block_index + 1}/{total_blocks} ({time.time() - t0:.1f}s elapsed)…"
-                    ), str(block_path), None, None
+                    ), output_url(block_path), None, None
                 else:
                     _, video_path, overlaid_path, timing = item
                     shown = overlaid_path or video_path
@@ -724,7 +734,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                     msg = f"✅ Done in {time.time() - t0:.1f}s ({parts}).\n  video: {video_path.name}"
                     if overlaid_path:
                         msg += f"\n  overlay: {overlaid_path.name}"
-                    yield msg, str(shown), str(shown), str(video_path)
+                    yield msg, output_url(shown), output_url(shown), str(video_path)
         except Exception as e:
             yield f"❌ Generation failed: {e}\n{traceback.format_exc()}", None, None, None
 
@@ -868,16 +878,31 @@ def main() -> None:
 
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
-    print(f"[server] Engine: {engine_kind}", flush=True)
-    print(f"[server] Serving on http://127.0.0.1:{args.port} "
-          f"(forward port {args.port} if you are on a remote host)", flush=True)
-    demo.queue().launch(
-        server_name=args.host,
-        server_port=args.port,
-        share=args.share,
+    if args.share:
+        print("[server] WARNING: --share is not supported when serving via a custom "
+              "FastAPI static mount (needed to work around Gradio's file-serving "
+              "403s during streaming) — ignoring.", flush=True)
+
+    # Serve OUTPUT_ROOT (block previews + final videos) as plain static files,
+    # bypassing Gradio's own /gradio_api/file= route and its is_allowed_file()
+    # check entirely — that route was returning 403 for files written during a
+    # streaming generation despite allowed_paths nominally covering them.
+    import uvicorn
+    from fastapi import FastAPI
+    from fastapi.staticfiles import StaticFiles
+
+    app = FastAPI()
+    app.mount(MEDIA_URL_PREFIX, StaticFiles(directory=str(OUTPUT_ROOT)), name="media")
+    app = gr.mount_gradio_app(
+        app, demo.queue(), path="/",
         allowed_paths=[str(OUTPUT_ROOT), str(EXAMPLES_DIR)],
         show_error=True,
     )
+
+    print(f"[server] Engine: {engine_kind}", flush=True)
+    print(f"[server] Serving on http://127.0.0.1:{args.port} "
+          f"(forward port {args.port} if you are on a remote host)", flush=True)
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
