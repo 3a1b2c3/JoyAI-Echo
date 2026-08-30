@@ -45,7 +45,8 @@ def _debug_is_allowed_file(path, blocked_paths, allowed_paths, created_paths):
     # Trust our own known-safe directories directly instead of delegating.
     try:
         resolved = Path(path).resolve()
-        print(f"[is_allowed_file] checking path={path!r} resolved={resolved!r} exists={resolved.exists()}", flush=True)
+        print(f"[is_allowed_file] checking path={path!r} resolved={resolved!r} "
+              f"path_exists={resolved.exists()} os_path_exists={os.path.exists(str(resolved))}", flush=True)
         for trusted_root in (OUTPUT_ROOT, EXAMPLES_DIR):
             resolved_root = trusted_root.resolve()
             match = resolved == resolved_root or resolved_root in resolved.parents
@@ -456,6 +457,9 @@ class EchoWMCausalEngine:
                 output_path=str(block_path),
                 video_chunks_number=1,
             )
+            print(f"[DEBUG on_block] wrote block_index={block_index}/{total_blocks} "
+                  f"path={block_path} exists={block_path.exists()} "
+                  f"size={block_path.stat().st_size if block_path.exists() else -1}", flush=True)
             frame_count["n"] += video_chunk.shape[0]
             result_queue.put(("block", block_index, total_blocks, block_path, frame_count["n"]))
 
@@ -752,6 +756,8 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
 
         run_counter["n"] += 1
         out_dir = OUTPUT_ROOT / f"run_causal_{run_counter['n']:04d}"
+        print(f"[DEBUG run] starting run_counter={run_counter['n']} out_dir={out_dir} "
+              f"out_dir_exists={out_dir.exists()}", flush=True)
 
         yield (
             f"⏳ Streaming generation started…\naction=[{action_str}] seed={int(seed)}"
