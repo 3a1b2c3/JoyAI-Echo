@@ -1,5 +1,29 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## 0. "Live preview only ever shows one block, then goes quiet until Done" (expected, not a bug)
+
+For short generations (e.g. `num_frames=241`, ~10s), the causal video
+decoder can decode the *entire* requested clip in its very first decode
+pass -- so the very first `on_block` callback already carries all the
+video content there is, and every callback after that legitimately has
+zero new frames (see item 1(b) below for why). The remaining internal
+rollout/denoising steps keep running for tens of seconds after that
+(confirmed via `nvidia-smi` staying busy, not idle) before the final
+`✅ Done` -- there's just nothing new to preview during that stretch. The
+final assembled video is unaffected and comes out correct. Longer
+generations (enough frames to exceed one decode window) would be expected
+to show genuine multi-block streaming instead of front-loading into one
+update.
+
+Since the UI going silent for tens of seconds during that stretch reads as
+"stuck" even though it isn't, added a heartbeat: `EchoWMCausalEngine.generate()`'s
+internal `result_queue.get()` (previously an unbounded blocking wait, with
+no path to ever emit an intermediate update) now uses a 2s timeout and
+yields a `("heartbeat", elapsed_seconds)` item on each empty wait;
+`on_generate` shows this as `⏳ Still generating... (Ns elapsed, no new
+preview chunk yet...)` in the Status textbox without touching the video
+outputs (`gr.update()` no-ops for those).
+
 ## 1. Block preview videos 403 (`File not allowed: .../blocks/block_NNN.mp4`)
 
 Two distinct, easily-conflated problems, both hit on `pmgb300ws-0304`:

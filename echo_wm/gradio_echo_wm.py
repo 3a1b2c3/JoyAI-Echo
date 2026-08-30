@@ -482,7 +482,15 @@ class EchoWMCausalEngine:
 
         video = audio = None
         while True:
-            item = result_queue.get()
+            try:
+                item = result_queue.get(timeout=2.0)
+            except queue.Empty:
+                # No new block/done from the pipeline in 2s -- still running
+                # (e.g. denoising/audio rollout steps between causal video
+                # decode chunks), just nothing new to show yet. Let the
+                # caller know it's still alive instead of going silent.
+                yield ("heartbeat", time.time() - t0)
+                continue
             if item[0] == "block":
                 yield item
             elif item[0] == "error":
@@ -785,6 +793,12 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                         f"{frames_so_far} frames so far, ~{fps_estimate:.2f} fps generated)…\n"
                         f"  last update: {time.strftime('%H:%M:%S')} -- {block_path.name}"
                     ), output_url(block_path), None, None
+                elif item[0] == "heartbeat":
+                    elapsed = item[1]
+                    yield (
+                        f"⏳ Still generating... ({elapsed:.1f}s elapsed, no new preview "
+                        f"chunk yet -- denoising/audio steps between video decodes)…"
+                    ), gr.update(), gr.update(), gr.update()
                 else:
                     _, video_path, overlaid_path, timing = item
                     shown = overlaid_path or video_path
