@@ -454,7 +454,6 @@ class EchoWMCausalEngine:
                 audio=audio_chunk if generate_audio else None,
                 output_path=str(block_path),
                 video_chunks_number=1,
-                fragmented=True,
             )
             print(f"[block] wrote block_index={block_index}/{total_blocks} "
                   f"path={block_path} frames={video_chunk.shape[0]}", flush=True)
@@ -972,8 +971,8 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
 
             with gr.Column(scale=1):
                 stream_video = gr.Video(
-                    label="Live preview (streams block-by-block, appended continuously)",
-                    height=300, autoplay=True, streaming=True,
+                    label="Live preview (updates block-by-block; each block replaces the last)",
+                    height=300, autoplay=True,
                 )
                 out_video = gr.Video(label="Result (final, full quality)", height=300)
                 status = gr.Textbox(label="Status", lines=6, interactive=False)

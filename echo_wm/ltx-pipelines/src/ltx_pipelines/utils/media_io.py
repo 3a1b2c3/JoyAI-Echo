@@ -193,13 +193,7 @@ def encode_video(
     audio: Audio | None,
     output_path: str,
     video_chunks_number: int,
-    fragmented: bool = False,
 ) -> None:
-    """`fragmented=True` writes a fragmented MP4 (moov at the start, movable
-    keyframe-aligned fragments) instead of a standard finalized MP4 -- needed
-    for MSE-based continuous append playback (e.g. gr.Video(streaming=True)).
-    A standard MP4's moov atom is written at the end on close(), which makes
-    it unsuitable for byte-range/append streaming."""
     if isinstance(video, torch.Tensor):
         video = iter([video])
 
@@ -207,8 +201,7 @@ def encode_video(
 
     _, height, width, _ = first_chunk.shape
 
-    open_options = {"movflags": "frag_keyframe+empty_moov"} if fragmented else {}
-    container = av.open(output_path, mode="w", options=open_options)
+    container = av.open(output_path, mode="w")
     stream = container.add_stream("libx264", rate=int(fps))
     stream.width = width
     stream.height = height
