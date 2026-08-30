@@ -1,28 +1,68 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
-## 0. "Live preview only ever shows one block, then goes quiet until Done" (expected, not a bug)
+## 0. "Live preview only ever shows one block, then nothing" (fixed -- root cause confirmed)
 
-For short generations (e.g. `num_frames=241`, ~10s), the causal video
-decoder can decode the *entire* requested clip in its very first decode
-pass -- so the very first `on_block` callback already carries all the
-video content there is, and every callback after that legitimately has
-zero new frames (see item 1(b) below for why). The remaining internal
-rollout/denoising steps keep running for tens of seconds after that
-(confirmed via `nvidia-smi` staying busy, not idle) before the final
-`✅ Done` -- there's just nothing new to preview during that stretch. The
-final assembled video is unaffected and comes out correct. Longer
-generations (enough frames to exceed one decode window) would be expected
-to show genuine multi-block streaming instead of front-loading into one
-update.
+**Symptom:** with `num_frames=241`, block 0's `on_block` callback carried
+all 241 frames; every callback after that carried `shape=(0, H, W, C)`
+(zero frames), correctly skipped by the zero-frame guard (see item 1(b))
+but meaning the preview never advanced past block 0. Initially suspected
+this was just because a short clip fits in "one decode window" -- **wrong**.
+Confirmed wrong by testing a much longer clip (`num_frames=961`): still
+only block 0 ever had content, and the whole run **OOM'd**
+(`torch.OutOfMemoryError: ... Tried to allocate 177.37 GiB`) trying to
+decode it.
 
-Since the UI going silent for tens of seconds during that stretch reads as
-"stuck" even though it isn't, added a heartbeat: `EchoWMCausalEngine.generate()`'s
-internal `result_queue.get()` (previously an unbounded blocking wait, with
-no path to ever emit an intermediate update) now uses a 2s timeout and
-yields a `("heartbeat", elapsed_seconds)` item on each empty wait;
-`on_generate` shows this as `⏳ Still generating... (Ns elapsed, no new
-preview chunk yet...)` in the Status textbox without touching the video
-outputs (`gr.update()` no-ops for those).
+**Actual root cause**, in `causal_ti2vid.py`'s `raw_on_block`: `rollout.py`
+allocates `buffers.video_output` **once**, sized for the entire clip, and
+each block writes into its own slice of it
+(`buffers.video_output[:, video_start*ppf:video_end*ppf] = video_sample`)
+-- the buffer's total length never grows. `raw_on_block` passed this
+*entire* buffer (including the still-zero, not-yet-denoised tail) to
+`vae_decode_video` on every single call. The VAE doesn't truncate its own
+output just because the tail is zero -- it decodes the whole thing and
+returns full-clip-length pixel output every time. So:
+- The `seen["video_frames"]` diffing logic (`decoded_video_so_far[seen:]`)
+  assumed the decoded length *grows* each call. It never did after the
+  first call, since the decoder always returns the same total length --
+  hence zero "new" frames on every callback after block 0.
+- Decoding the *entire* buffer (not just what's been denoised so far) on
+  every one of ~40 callbacks is why a 961-frame run OOM'd: decode cost
+  scales with total clip length, not progress-so-far, and compounds across
+  every callback.
+
+**Fix** (`causal_ti2vid.py`): use the `video_block` tuple already passed
+to the callback (previously received and discarded as `_video_block`) --
+its `video_end` (in latent frames) tells you exactly how far this block's
+denoising has actually progressed. Convert to a pixel-frame count with the
+same `(latent_frames - 1) * 8 + 1` formula the pipeline itself uses for
+`num_frames`, and truncate the decoded output to that range *before*
+diffing against what's already been shown:
+```python
+_, video_end = video_block
+pixel_end = (video_end - 1) * 8 + 1
+decoded_so_far_valid = decoded_video_so_far[:pixel_end]
+video_chunk = decoded_so_far_valid[seen["video_frames"]:].clone()
+seen["video_frames"] = decoded_so_far_valid.shape[0]
+```
+This fixes the "preview never advances" bug (later blocks now report real
+incremental content). It does **not** fix the OOM-at-long-clips issue --
+the full buffer is still decoded every call, just no longer *shown* past
+the valid range. A full fix for that would need to slice the *input*
+latent (and matching `positions`/`denoise_mask`/`clean_latent` fields) to
+`video_end` before decoding at all, not just the output -- not attempted
+here due to the risk of getting those coupled tensor shapes wrong in code
+shared with the real (non-preview) generation path.
+
+Separately, added a heartbeat so the UI doesn't look frozen during the
+internal denoising time between callbacks: `EchoWMCausalEngine.generate()`'s
+`result_queue.get()` (previously an unbounded blocking wait) now uses a 2s
+timeout and yields `("heartbeat", elapsed_seconds)` on each empty wait;
+`on_generate` shows this in the Status textbox without touching the video
+outputs. Note: this heartbeat's *text* was observed to stop rendering in
+the browser after the first tick even though the backend kept incrementing
+correctly (confirmed via server-side `nvidia-smi` + log timestamps) --
+a separate, still-unresolved Gradio frontend delivery issue, low priority
+since it doesn't affect the final result.
 
 ## 1. Block preview videos 403 (`File not allowed: .../blocks/block_NNN.mp4`)
 
