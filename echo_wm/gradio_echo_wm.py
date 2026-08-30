@@ -927,7 +927,8 @@ def _warmup(engine, engine_kind: str) -> None:
     print(f"[warmup] Starting warmup generation (image={image_path})...", flush=True)
     try:
         if engine_kind == "causal":
-            for _ in engine.generate(
+            print("[warmup] calling engine.generate() (causal, streaming)...", flush=True)
+            for item in engine.generate(
                 image_path=image_path,
                 prompt="warmup",
                 action_str="w-8",
@@ -944,8 +945,10 @@ def _warmup(engine, engine_kind: str) -> None:
                 overlay=False,
                 out_dir=out_dir,
             ):
-                pass
+                print(f"[warmup] yielded item kind={item[0]!r} at t={time.time() - t0:.1f}s", flush=True)
+            print(f"[warmup] generate() generator exhausted at t={time.time() - t0:.1f}s", flush=True)
         else:
+            print("[warmup] calling engine.generate() (base, blocking)...", flush=True)
             engine.generate(
                 image_path=image_path,
                 prompt="warmup",
