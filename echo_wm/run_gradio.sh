@@ -1,7 +1,7 @@
 #!/bin/bash
 # Launch Echo-WM Gradio interface
 
-set -e
+set -eo pipefail
 
 # Default paths (can be overridden by environment variables)
 CHECKPOINT="${CHECKPOINT:-checkpoints/echo-wm-base.safetensors}"
@@ -25,11 +25,14 @@ if [ ! -d "$GEMMA_PATH" ]; then
 fi
 
 # Launch
+LOG_FILE="gradio_debug.log"
+
 echo "Starting Echo-WM Gradio interface..."
 echo "  Checkpoint: $CHECKPOINT"
 echo "  Gemma: $GEMMA_PATH"
 echo "  Config: $CONFIG"
 echo "  Port: $PORT"
+echo "  Log: $LOG_FILE (full output, including [DEBUG ...] lines, also mirrored here)"
 echo ""
 echo "The server is ready once the '[server] Serving on ...' line appears below."
 echo ""
@@ -39,4 +42,4 @@ python gradio_echo_wm.py \
     --gemma-path "$GEMMA_PATH" \
     --config "$CONFIG" \
     --port "$PORT" \
-    "$@"
+    "$@" 2>&1 | tee "$LOG_FILE"
