@@ -457,6 +457,15 @@ class EchoWMCausalEngine:
                 output_path=str(block_path),
                 video_chunks_number=1,
             )
+            # encode_video() calls container.close() before returning, so the
+            # write is complete -- but on a network filesystem, exists()/stat()
+            # checked immediately after can still lag behind (client-side
+            # attribute-cache staleness) even in this same process. Poll
+            # briefly rather than notifying the UI about a file it can't see
+            # yet, which otherwise 403s at the Gradio file-serving layer.
+            deadline = time.time() + 2.0
+            while not block_path.exists() and time.time() < deadline:
+                time.sleep(0.02)
             print(f"[DEBUG on_block] wrote block_index={block_index}/{total_blocks} "
                   f"path={block_path} exists={block_path.exists()} "
                   f"size={block_path.stat().st_size if block_path.exists() else -1}", flush=True)
