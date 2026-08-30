@@ -49,7 +49,7 @@ def _debug_is_allowed_file(path, blocked_paths, allowed_paths, created_paths):
             resolved_root = trusted_root.resolve()
             if resolved == resolved_root or resolved_root in resolved.parents:
                 print(f"[is_allowed_file] TRUSTED {path!r} under {trusted_root}", flush=True)
-                return True
+                return True, "trusted output/example root"
     except OSError:
         pass
     result = _orig_is_allowed_file(path, blocked_paths, allowed_paths, created_paths)
