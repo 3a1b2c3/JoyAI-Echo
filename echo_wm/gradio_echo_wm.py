@@ -794,8 +794,8 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
 
             with gr.Column(scale=1):
                 stream_video = gr.Video(
-                    label="Live preview (streams block-by-block)",
-                    height=300, streaming=True, autoplay=True,
+                    label="Live preview (updates block-by-block; each block replaces the last)",
+                    height=300, autoplay=True,
                 )
                 out_video = gr.Video(label="Result (final, full quality)", height=300)
                 status = gr.Textbox(label="Status", lines=6, interactive=False)
