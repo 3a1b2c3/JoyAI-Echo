@@ -801,7 +801,59 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
         except Exception as e:
             yield f"❌ Generation failed: {e}\n{traceback.format_exc()}", None, None, None
 
-    with gr.Blocks(title="Echo-WM Flash Preview (Streaming)") as demo:
+    # Watches every <video> element's `src` attribute for changes and logs
+    # each one with a timestamp -- shows directly in the browser console
+    # whether Gradio's frontend ever actually applies a block update to the
+    # DOM, independent of whatever's happening server-side (queue/SSE
+    # delivery vs. the video element just not re-rendering).
+    _video_src_watch_js = """
+    <script>
+    (function() {
+      function watch(video) {
+        if (video.__srcWatched) return;
+        video.__srcWatched = true;
+        const obs = new MutationObserver((muts) => {
+          for (const m of muts) {
+            if (m.attributeName === "src") {
+              console.log("[video-watch]", new Date().toISOString(), "src changed:", video.currentSrc || video.src);
+            }
+          }
+        });
+        obs.observe(video, {attributes: true, attributeFilter: ["src"]});
+        console.log("[video-watch] now watching", video);
+      }
+      const scan = () => document.querySelectorAll("video").forEach(watch);
+      scan();
+      new MutationObserver(scan).observe(document.body, {childList: true, subtree: true});
+
+      // Also log Gradio's underlying queue traffic (SSE + fetch), so we can
+      // tell whether an update message ever reaches the browser at all,
+      // separate from whether the video element re-renders once it does.
+      const origFetch = window.fetch;
+      window.fetch = function(...args) {
+        const url = String(args[0]);
+        if (url.includes("queue") || url.includes("gradio_api")) {
+          console.log("[net-watch]", new Date().toISOString(), "fetch", url);
+        }
+        return origFetch.apply(this, args);
+      };
+      const OrigES = window.EventSource;
+      if (OrigES) {
+        window.EventSource = function(url, opts) {
+          console.log("[net-watch]", new Date().toISOString(), "EventSource opened", url);
+          const es = new OrigES(url, opts);
+          es.addEventListener("message", (ev) => {
+            console.log("[net-watch]", new Date().toISOString(), "SSE message", ev.data);
+          });
+          return es;
+        };
+        window.EventSource.prototype = OrigES.prototype;
+      }
+    })();
+    </script>
+    """
+
+    with gr.Blocks(title="Echo-WM Flash Preview (Streaming)", head=_video_src_watch_js) as demo:
         gr.Markdown(
             f"# Echo-WM Flash Preview: 4-Step Autoregressive, Streaming\n"
             f"Checkpoint: `{engine.checkpoint.name}` · Gemma: `{engine.gemma_path.name}`\n\n"
