@@ -141,7 +141,7 @@ class CausalTI2VidPipeline:
             def raw_on_block(
                 block_index: int,
                 total_blocks: int,
-                _video_block,
+                video_block,
                 video_output_so_far: torch.Tensor,
                 audio_output_so_far: torch.Tensor,
             ) -> None:
@@ -170,12 +170,27 @@ class CausalTI2VidPipeline:
                     preview_audio_state.latent, preview_audio_decoder, preview_vocoder
                 )
 
+                # video_output_so_far is a fixed-size buffer for the whole
+                # clip (rollout.py writes each block into its own slice, it
+                # never grows) -- everything past this block's end is still
+                # zero/undenoised placeholder. The VAE decodes the full
+                # buffer regardless (it doesn't truncate itself just because
+                # the tail is zero), so decoded_video_so_far's length never
+                # actually grows between calls the way the old diffing logic
+                # here assumed. Truncate to the pixel range this block
+                # actually covers before diffing, using the same
+                # latent<->pixel frame conversion the pipeline itself uses
+                # (num_frames = (latent_frames - 1) * 8 + 1).
+                _, video_end = video_block
+                pixel_end = (video_end - 1) * 8 + 1
+                decoded_so_far_valid = decoded_video_so_far[:pixel_end]
+
                 # .clone() strips the inference-tensor flag: these chunks get
                 # handed to a callback that runs later / on another thread
                 # (outside this function's inference_mode/no_grad scope), and
                 # inference tensors cannot be touched once that scope exits.
-                video_chunk = decoded_video_so_far[seen["video_frames"]:].clone()
-                seen["video_frames"] = decoded_video_so_far.shape[0]
+                video_chunk = decoded_so_far_valid[seen["video_frames"]:].clone()
+                seen["video_frames"] = decoded_so_far_valid.shape[0]
 
                 audio_chunk = None
                 waveform = decoded_audio_so_far.waveform
