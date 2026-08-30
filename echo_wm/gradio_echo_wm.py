@@ -430,6 +430,7 @@ class EchoWMCausalEngine:
         out_dir.mkdir(parents=True, exist_ok=True)
         blocks_dir = out_dir / "blocks"
         blocks_dir.mkdir(parents=True, exist_ok=True)
+        print(f"[DEBUG chunks] block .mp4 files for this run are written to: {blocks_dir}", flush=True)
 
         result_queue: queue.Queue = queue.Queue()
         frame_count = {"n": 0}
