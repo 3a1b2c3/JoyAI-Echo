@@ -138,15 +138,6 @@ class CausalTI2VidPipeline:
             # (still-zero) blocks are appended past them.
             seen = {"video_frames": 0, "audio_samples": 0}
 
-            # decode_video()/decode_audio() have no incremental/cached-state
-            # API -- every call re-decodes the whole accumulated prefix from
-            # scratch, so cost grows with how far generation has progressed.
-            # Doing that on every single block is redundant (re-decodes
-            # already-shown frames each time); skip most calls and only
-            # actually decode+preview every Nth block (plus always the last,
-            # so the final block-based update still lands promptly).
-            PREVIEW_DECODE_STRIDE = 3
-
             def raw_on_block(
                 block_index: int,
                 total_blocks: int,
@@ -154,10 +145,6 @@ class CausalTI2VidPipeline:
                 video_output_so_far: torch.Tensor,
                 audio_output_so_far: torch.Tensor,
             ) -> None:
-                is_last = block_index == total_blocks - 1
-                if block_index % PREVIEW_DECODE_STRIDE != 0 and not is_last:
-                    on_block(block_index, total_blocks, video_output_so_far.new_zeros(0), None)
-                    return
                 preview_video_state = video_tools.unpatchify(video_tools.clear_conditioning(
                     video_state.__class__(
                         latent=video_output_so_far,
