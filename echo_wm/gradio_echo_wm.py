@@ -45,13 +45,16 @@ def _debug_is_allowed_file(path, blocked_paths, allowed_paths, created_paths):
     # Trust our own known-safe directories directly instead of delegating.
     try:
         resolved = Path(path).resolve()
+        print(f"[is_allowed_file] checking path={path!r} resolved={resolved!r} exists={resolved.exists()}", flush=True)
         for trusted_root in (OUTPUT_ROOT, EXAMPLES_DIR):
             resolved_root = trusted_root.resolve()
-            if resolved == resolved_root or resolved_root in resolved.parents:
+            match = resolved == resolved_root or resolved_root in resolved.parents
+            print(f"[is_allowed_file]   vs trusted_root={trusted_root!r} resolved_root={resolved_root!r} match={match}", flush=True)
+            if match:
                 print(f"[is_allowed_file] TRUSTED {path!r} under {trusted_root}", flush=True)
                 return True, "trusted output/example root"
-    except OSError:
-        pass
+    except OSError as e:
+        print(f"[is_allowed_file] OSError resolving path={path!r}: {e!r}", flush=True)
     result = _orig_is_allowed_file(path, blocked_paths, allowed_paths, created_paths)
     print(
         f"[DEBUG is_allowed_file] path={path!r} result={result} "
