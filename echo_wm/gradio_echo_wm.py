@@ -782,7 +782,8 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                     fps_estimate = frames_so_far / elapsed if elapsed > 0 else 0.0
                     yield (
                         f"⏳ Block {block_index + 1}/{total_blocks} ({elapsed:.1f}s elapsed, "
-                        f"{frames_so_far} frames so far, ~{fps_estimate:.2f} fps generated)…"
+                        f"{frames_so_far} frames so far, ~{fps_estimate:.2f} fps generated)…\n"
+                        f"  last update: {time.strftime('%H:%M:%S')} -- {block_path.name}"
                     ), output_url(block_path), None, None
                 else:
                     _, video_path, overlaid_path, timing = item
