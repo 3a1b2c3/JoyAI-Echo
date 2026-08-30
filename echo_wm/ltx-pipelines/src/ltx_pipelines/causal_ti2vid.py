@@ -170,14 +170,18 @@ class CausalTI2VidPipeline:
                     preview_audio_state.latent, preview_audio_decoder, preview_vocoder
                 )
 
-                video_chunk = decoded_video_so_far[seen["video_frames"]:]
+                # .clone() strips the inference-tensor flag: these chunks get
+                # handed to a callback that runs later / on another thread
+                # (outside this function's inference_mode/no_grad scope), and
+                # inference tensors cannot be touched once that scope exits.
+                video_chunk = decoded_video_so_far[seen["video_frames"]:].clone()
                 seen["video_frames"] = decoded_video_so_far.shape[0]
 
                 audio_chunk = None
                 waveform = decoded_audio_so_far.waveform
                 if waveform.shape[-1] > seen["audio_samples"]:
                     audio_chunk = Audio(
-                        waveform=waveform[..., seen["audio_samples"]:],
+                        waveform=waveform[..., seen["audio_samples"]:].clone(),
                         sampling_rate=decoded_audio_so_far.sampling_rate,
                     )
                     seen["audio_samples"] = waveform.shape[-1]
