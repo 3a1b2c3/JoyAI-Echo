@@ -450,6 +450,9 @@ class EchoWMCausalEngine:
 
         def on_block(block_index: int, total_blocks: int, video_chunk, audio_chunk) -> None:
             block_path = blocks_dir / f"block_{block_index:03d}.mp4"
+            print(f"[DEBUG on_block] block_index={block_index} video_chunk "
+                  f"shape={tuple(video_chunk.shape)} dtype={video_chunk.dtype} "
+                  f"device={video_chunk.device} numel={video_chunk.numel()}", flush=True)
             encode_video(
                 video=video_chunk,
                 fps=int(fps),
