@@ -28,6 +28,31 @@ import gradio as gr
 import torch
 import yaml
 
+# --- TEMP DEBUG: log exactly what Gradio's real file-serving check compares,
+# on the actual running server, instead of guessing/simulating separately.
+# Remove once the 403-on-block-videos issue is resolved.
+import gradio.utils as _gr_utils  # noqa: E402
+
+_orig_is_allowed_file = _gr_utils.is_allowed_file
+
+
+def _debug_is_allowed_file(path, blocked_paths, allowed_paths, created_paths):
+    result = _orig_is_allowed_file(path, blocked_paths, allowed_paths, created_paths)
+    print(
+        f"[DEBUG is_allowed_file] path={path!r} result={result} "
+        f"allowed_paths={list(allowed_paths)!r} created_paths={list(created_paths)!r}",
+        flush=True,
+    )
+    return result
+
+
+_gr_utils.is_allowed_file = _debug_is_allowed_file
+try:
+    import gradio.route_utils as _gr_route_utils  # noqa: E402
+    _gr_route_utils.utils.is_allowed_file = _debug_is_allowed_file
+except Exception as _e:  # noqa: BLE001
+    print(f"[DEBUG] could not patch route_utils.utils.is_allowed_file: {_e}", flush=True)
+
 # Setup paths
 ROOT = Path(__file__).resolve().parent
 REPO_ROOT = ROOT.parent
