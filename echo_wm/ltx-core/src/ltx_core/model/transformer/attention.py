@@ -87,6 +87,9 @@ class AttentionCallable(Protocol):
     ) -> torch.Tensor: ...
 
 
+_sdpa_backend_logged = False
+
+
 class PytorchAttention(AttentionCallable):
     def __call__(
         self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, heads: int, mask: torch.Tensor | None = None
@@ -103,7 +106,31 @@ class PytorchAttention(AttentionCallable):
             if mask.ndim == 3:
                 mask = mask.unsqueeze(1)
 
-        out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
+        # SDPA has multiple backends (FLASH_ATTENTION, EFFICIENT_ATTENTION,
+        # MATH, CUDNN_ATTENTION). Flash's kernel often can't take an
+        # arbitrary (non-causal) bias tensor at all and PyTorch silently
+        # falls back to MATH -- the slowest backend, always correct but with
+        # no fast kernel, which is genuine per-call compute cost that no
+        # amount of caching or warmup fixes. Explicitly prefer
+        # EFFICIENT_ATTENTION/CUDNN_ATTENTION (both support a bias tensor)
+        # over letting PyTorch's default priority silently pick MATH.
+        global _sdpa_backend_logged
+        try:
+            from torch.nn.attention import SDPBackend, sdpa_kernel
+            with sdpa_kernel([SDPBackend.EFFICIENT_ATTENTION, SDPBackend.CUDNN_ATTENTION, SDPBackend.MATH]):
+                if not _sdpa_backend_logged:
+                    print("[attention] using SDPA with explicit backend priority "
+                          "[EFFICIENT_ATTENTION, CUDNN_ATTENTION, MATH] (skipping FLASH_ATTENTION, "
+                          "which can't take a non-causal bias tensor and would silently fall through "
+                          "to MATH -- the slow backend -- if left in the default priority order)", flush=True)
+                    _sdpa_backend_logged = True
+                out = torch.nn.functional.scaled_dot_product_attention(
+                    q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False
+                )
+        except ImportError:
+            # Older torch without torch.nn.attention.sdpa_kernel -- fall back
+            # to whatever the default backend priority picks.
+            out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
         out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
         return out
 
