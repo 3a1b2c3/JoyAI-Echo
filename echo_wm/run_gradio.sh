@@ -9,6 +9,14 @@ GEMMA_PATH="${GEMMA_PATH:-checkpoints/gemma-3}"
 CONFIG="${CONFIG:-configs/inference_wm.yaml}"
 PORT="${PORT:-7860}"
 
+# CUDA's own PTX->SASS JIT cache persists to disk across process restarts,
+# but the driver's default max size (1GB) is easily evicted by a model with
+# this many distinct kernel shapes -- leaving warmup paying the same one-time
+# JIT cost on every single startup instead of only the first. Enlarge it
+# (still overridable) so repeated startups actually get faster.
+export CUDA_CACHE_PATH="${CUDA_CACHE_PATH:-$HOME/.nv/ComputeCache}"
+export CUDA_CACHE_MAXSIZE="${CUDA_CACHE_MAXSIZE:-4294967296}"
+
 # Check if checkpoint exists
 if [ ! -f "$CHECKPOINT" ]; then
     echo "Error: Checkpoint not found at $CHECKPOINT"
