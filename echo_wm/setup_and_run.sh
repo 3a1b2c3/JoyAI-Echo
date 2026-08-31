@@ -11,19 +11,19 @@ echo "Echo-WM - Setup & Run"
 echo "================================================================================"
 echo ""
 
-# 1. Check uv
-echo "[1/5] Checking uv..."
-if ! command -v uv &>/dev/null; then
-    echo "ERROR: uv not found. Install it: https://docs.astral.sh/uv/"
+# 1. Check python3.11
+echo "[1/5] Checking python3.11..."
+if ! command -v python3.11 &>/dev/null; then
+    echo "ERROR: python3.11 not found. Install Python 3.11 first."
     exit 1
 fi
-echo "  uv: $(uv --version)"
+echo "  python3.11: $(python3.11 --version)"
 
 # 2. Create venv (separate from echo_longvideo — the two projects don't share an env)
 echo ""
 echo "[2/5] Setting up virtual environment..."
 if [ ! -d ".venv" ]; then
-    uv venv --python 3.11 .venv
+    python3.11 -m venv .venv
     echo "  ✓ Created .venv"
 else
     echo "  ✓ .venv already exists"
@@ -31,13 +31,14 @@ fi
 
 source .venv/bin/activate
 echo "  ✓ Activated .venv"
+pip install --upgrade pip
 
 # 3. Install dependencies
 echo ""
 echo "[3/5] Installing dependencies (CUDA 13.2)..."
 
 echo "  Installing PyTorch..."
-uv pip install --index-url https://download.pytorch.org/whl/cu130 \
+pip install --index-url https://download.pytorch.org/whl/cu130 \
     torch==2.9.1 torchvision==0.24.1 torchaudio==2.9.1
 
 ARCH="$(uname -m)"
@@ -45,11 +46,11 @@ if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
     echo "  Detected $ARCH (e.g. Grace/GB300) — xformers has no aarch64 wheel,"
     echo "  installing everything except it. Attention falls back to PyTorch SDPA."
     grep -v '^xformers' requirements.txt > /tmp/echo_wm_requirements.$$.txt
-    uv pip install -r /tmp/echo_wm_requirements.$$.txt
+    pip install -r /tmp/echo_wm_requirements.$$.txt
     rm -f /tmp/echo_wm_requirements.$$.txt
 else
     echo "  Installing requirements..."
-    uv pip install -r requirements.txt
+    pip install -r requirements.txt
 fi
 
 echo "  ✓ Dependencies installed"
