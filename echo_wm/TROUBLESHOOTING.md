@@ -48,11 +48,31 @@ uses it anymore, not left as unused dead code).
 **Still an open problem.** Whatever the actual fix is, it needs to work
 *with* Gradio's HLS-based streaming pipeline (or bypass Gradio's `Video`
 component's file-serving path entirely via a custom component), not just
-hand it a differently-encoded standalone file per block. Next step if
-revisited: find and read this installed Gradio version's actual
-`streaming=True` server-side handler (likely in `gradio/routes.py` /
-wherever `/gradio_api/stream/` is implemented) to learn its real input
-contract before attempting another fix.
+hand it a differently-encoded standalone file per block.
+
+**Investigation in progress -- exact commands to resume with:**
+```bash
+cd ~/JoyAI-Echo/echo_wm && source .venv/bin/activate
+GRADIO_DIR=$(python -c "import gradio, os; print(os.path.dirname(gradio.__file__))")
+# routes.py has two `sse_stream` functions (found via `grep -n "def.*stream" routes.py`,
+# neither matched the literal "gradio_api/stream" text -- route prefix is
+# likely added via an included router elsewhere) -- read both:
+sed -n '1420,1470p' "$GRADIO_DIR/routes.py"
+sed -n '1615,1670p' "$GRADIO_DIR/routes.py"
+# find the actual HLS/.m3u8 segmenter -- this is the real contract to learn:
+grep -rn "playlist.m3u8\|\.m3u8" "$GRADIO_DIR" 2>/dev/null | grep -v ".pyc"
+# separately, how the Video component's Python side treats streaming=True:
+grep -n "streaming" "$GRADIO_DIR/components/video.py" | head -40
+```
+Not yet run/read this session -- resume here rather than guessing again.
+
+**Alternative not requiring Gradio internals at all:** bypass `gr.Video`
+entirely with a custom WebSocket + MediaSource Extensions player, the same
+architecture `JoyAI-Video-Edit`'s UI already uses successfully (raw frames
+over a live WebSocket into a `<video>` fed by `MediaSource`, no per-chunk
+reload) -- more work (custom Gradio component or a raw HTML/JS panel via
+`gr.Blocks(head=...)`), but a proven pattern already working elsewhere in
+this environment, not a guess at Gradio's undocumented internals.
 
 ## 0.5. Preview decode is redundant/slow -- partially mitigated
 
