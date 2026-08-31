@@ -430,7 +430,6 @@ class EchoWMCausalEngine:
         out_dir.mkdir(parents=True, exist_ok=True)
         blocks_dir = out_dir / "blocks"
         blocks_dir.mkdir(parents=True, exist_ok=True)
-        print(f"[DEBUG chunks] block .mp4 files for this run are written to: {blocks_dir}", flush=True)
 
         result_queue: queue.Queue = queue.Queue()
         frame_count = {"n": 0}
@@ -443,8 +442,6 @@ class EchoWMCausalEngine:
             # frames) and pointing the UI at that file 403s at the Gradio
             # file-serving layer since it never exists.
             if video_chunk.shape[0] == 0:
-                print(f"[step3-skip] block_index={block_index}/{total_blocks} "
-                      f"zero frames -- nothing to encode/show", flush=True)
                 frame_count["n"] += 0
                 return
             block_path = blocks_dir / f"block_{block_index:03d}.mp4"
@@ -455,13 +452,10 @@ class EchoWMCausalEngine:
                 output_path=str(block_path),
                 video_chunks_number=1,
             )
-            print(f"[block] wrote block_index={block_index}/{total_blocks} "
-                  f"path={block_path} frames={video_chunk.shape[0]}", flush=True)
             frame_count["n"] += video_chunk.shape[0]
             result_queue.put(("block", block_index, total_blocks, block_path, frame_count["n"]))
 
         def worker() -> None:
-            print("[step2] worker thread starting self.pipeline(...)", flush=True)
             try:
                 video, audio = self.pipeline(
                     prompt=prompt,
@@ -476,11 +470,8 @@ class EchoWMCausalEngine:
                     video_tiling_config=TilingConfig.default(),
                     on_block=on_block,
                 )
-                print("[step6] self.pipeline(...) returned final video/audio "
-                      "(separate, complete generator -- independent of on_block previews)", flush=True)
                 result_queue.put(("final", video, audio))
             except Exception as exc:  # noqa: BLE001 - relay to the consumer thread
-                print(f"[step2-error] self.pipeline(...) raised: {exc!r}", flush=True)
                 result_queue.put(("error", exc))
 
         t0 = time.time()
@@ -508,11 +499,9 @@ class EchoWMCausalEngine:
                 break
         thread.join()
         timing["generate"] = time.time() - t0
-        print(f"[step6] generate stage done in {timing['generate']:.1f}s", flush=True)
 
         video_path = out_dir / "output.mp4"
         t0 = time.time()
-        print(f"[step7] encoding final video to {video_path}", flush=True)
         # `video` is a lazy generator (nothing decoded yet) returned by
         # self.pipeline(), whose own @torch.inference_mode() scope has
         # already closed by this point. Consuming it (inside encode_video,
@@ -528,12 +517,10 @@ class EchoWMCausalEngine:
                 video_chunks_number=get_video_chunks_number(num_frames, TilingConfig.default()),
             )
         timing["encode"] = time.time() - t0
-        print(f"[step7] final video encoded in {timing['encode']:.1f}s -> {video_path}", flush=True)
 
         overlaid_path = None
         if overlay:
             t0 = time.time()
-            print("[step7] overlay requested -- building action trajectory + rendering overlay", flush=True)
             trajectory = build_action_trajectory(
                 action_str,
                 num_frames=num_frames,
@@ -545,9 +532,7 @@ class EchoWMCausalEngine:
             overlaid_path = out_dir / "output_action.mp4"
             overlay_genie_on_video(video_path, trajectory, output_path=overlaid_path)
             timing["overlay"] = time.time() - t0
-            print(f"[step7] overlay done in {timing['overlay']:.1f}s -> {overlaid_path}", flush=True)
 
-        print(f"[step8] yielding final done tuple: {timing}", flush=True)
         yield ("done", video_path, overlaid_path, timing)
 
 
@@ -772,8 +757,6 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
 
         run_counter["n"] += 1
         out_dir = OUTPUT_ROOT / f"run_causal_{run_counter['n']:04d}"
-        print(f"[step1] on_generate() invoked -- run_counter={run_counter['n']} out_dir={out_dir} "
-              f"out_dir_exists={out_dir.exists()}", flush=True)
 
         yield (
             f"⏳ Streaming generation started…\naction=[{action_str}] seed={int(seed)}"
@@ -802,8 +785,6 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                     _, block_index, total_blocks, block_path, frames_so_far = item
                     elapsed = time.time() - t0
                     fps_estimate = frames_so_far / elapsed if elapsed > 0 else 0.0
-                    print(f"[step5] on_generate received block_index={block_index}/{total_blocks} "
-                          f"-- updating stream_video to {block_path}", flush=True)
                     yield (
                         f"⏳ Block {block_index + 1}/{total_blocks} ({elapsed:.1f}s elapsed, "
                         f"{frames_so_far} frames so far, ~{fps_estimate:.2f} fps generated)…\n"
@@ -817,8 +798,6 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                     ), gr.update(), gr.update(), gr.update()
                 else:
                     _, video_path, overlaid_path, timing = item
-                    print(f"[step9] on_generate received final done tuple -- "
-                          f"updating out_video/raw_file to {video_path}", flush=True)
                     shown = overlaid_path or video_path
                     parts = "  ".join(f"{k}={v:.1f}s" for k, v in timing.items())
                     generate_secs = timing.get("generate", 0.0)
