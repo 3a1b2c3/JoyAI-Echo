@@ -5,13 +5,17 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_DIR"
 
-# Which checkpoint to fetch. Override with:
-#   VARIANT=echo-wm-base ./download_models.sh   (Base, full multi-step diffusion, no streaming)
-VARIANT="${VARIANT:-echo-wm-flash}"
+# Which checkpoint(s) to fetch. Space-separated list. Override with:
+#   VARIANTS=echo-wm-base ./download_models.sh   (just Base, skip Flash)
+# Both variants are fetched by default -- run_gradio.sh/run_examples.sh/
+# setup_and_run.sh's example step default to base, while the causal/streaming
+# UI needs flash, so having only one downloaded silently breaks whichever
+# path wasn't fetched.
+VARIANTS="${VARIANTS:-echo-wm-base echo-wm-flash}"
 
 echo ""
 echo "================================================================================"
-echo "Echo-WM - Download Models (variant: $VARIANT)"
+echo "Echo-WM - Download Models (variants: $VARIANTS)"
 echo "================================================================================"
 echo ""
 
@@ -21,8 +25,10 @@ mkdir -p "$CKPT_DIR"
 echo "Checkpoints: $CKPT_DIR"
 echo ""
 echo "Files to download:"
-echo "  1. $VARIANT.safetensors                              ~47.8 GB"
-echo "  2. gemma-3-12b-it-qat-q4_0-unquantized (text encoder) (bfloat16 weights)"
+for VARIANT in $VARIANTS; do
+    echo "  - $VARIANT.safetensors                              ~47.8 GB"
+done
+echo "  - gemma-3-12b-it-qat-q4_0-unquantized (text encoder) (bfloat16 weights)"
 echo ""
 
 if ! python -c "import huggingface_hub" >/dev/null 2>&1; then
@@ -31,19 +37,20 @@ if ! python -c "import huggingface_hub" >/dev/null 2>&1; then
 fi
 
 # ============================================================================
-# 1. Echo-WM checkpoint variant from Echo-Team/Echo-WM
+# 1. Echo-WM checkpoint variant(s) from Echo-Team/Echo-WM
 # ============================================================================
-echo "[1/2] Echo-WM checkpoint ($VARIANT)"
-echo ""
+for VARIANT in $VARIANTS; do
+    echo "[1/2] Echo-WM checkpoint ($VARIANT)"
+    echo ""
 
-CKPT_FILE="$CKPT_DIR/$VARIANT.safetensors"
+    CKPT_FILE="$CKPT_DIR/$VARIANT.safetensors"
 
-if [ -f "$CKPT_FILE" ]; then
-    SIZE=$(du -h "$CKPT_FILE" | cut -f1)
-    echo "✓ Already exists ($SIZE)"
-else
-    echo "Downloading $VARIANT.safetensors (~47.8 GB, this will take a while)..."
-    if VARIANT="$VARIANT" CKPT_DIR="$CKPT_DIR" python -c "
+    if [ -f "$CKPT_FILE" ]; then
+        SIZE=$(du -h "$CKPT_FILE" | cut -f1)
+        echo "✓ Already exists ($SIZE)"
+    else
+        echo "Downloading $VARIANT.safetensors (~47.8 GB, this will take a while)..."
+        if VARIANT="$VARIANT" CKPT_DIR="$CKPT_DIR" python -c "
 import os
 from huggingface_hub import hf_hub_download
 hf_hub_download(
@@ -52,21 +59,23 @@ hf_hub_download(
     local_dir=os.environ['CKPT_DIR'],
 )
 "; then
-        SIZE=$(du -h "$CKPT_FILE" | cut -f1)
-        echo "✓ Downloaded ($SIZE)"
-    else
-        echo "✗ Download failed"
-        echo "  URL: https://huggingface.co/Echo-Team/Echo-WM"
-        exit 1
+            SIZE=$(du -h "$CKPT_FILE" | cut -f1)
+            echo "✓ Downloaded ($SIZE)"
+        else
+            echo "✗ Download failed"
+            echo "  URL: https://huggingface.co/Echo-Team/Echo-WM"
+            exit 1
+        fi
     fi
-fi
+    echo ""
+done
 
 # ============================================================================
 # 2. Gemma 3 text encoder (QAT, unquantized weights — NOT the same repo as
 #    echo_longvideo's gemma-3-12b; Echo-WM needs the bfloat16 QAT variant)
 # ============================================================================
 echo ""
-echo "[2/2] Text Encoder (Gemma 3 12B, QAT unquantized)"
+echo "[2] Text Encoder (Gemma 3 12B, QAT unquantized)"
 echo ""
 
 GEMMA_DIR="$CKPT_DIR/gemma-3"
