@@ -453,6 +453,7 @@ class EchoWMCausalEngine:
             # file-serving layer since it never exists.
             if video_chunk.shape[0] == 0:
                 frame_count["n"] += 0
+                result_queue.put(("progress", block_index, total_blocks))
                 return
             block_path = blocks_dir / f"block_{block_index:03d}.mp4"
             encode_video(
@@ -500,6 +501,8 @@ class EchoWMCausalEngine:
                 yield ("heartbeat", time.time() - t0)
                 continue
             if item[0] == "block":
+                yield item
+            elif item[0] == "progress":
                 yield item
             elif item[0] == "error":
                 thread.join()
@@ -800,6 +803,13 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                         f"{frames_so_far} frames so far, ~{fps_estimate:.2f} fps generated)…\n"
                         f"  last update: {time.strftime('%H:%M:%S')} -- {block_path.name}"
                     ), output_url(block_path), None, None
+                elif item[0] == "progress":
+                    _, block_index, total_blocks = item
+                    elapsed = time.time() - t0
+                    yield (
+                        f"⏳ Block {block_index + 1}/{total_blocks} ({elapsed:.1f}s elapsed) -- "
+                        f"no new video content this block (audio-only/bookkeeping step)…"
+                    ), gr.update(), gr.update(), gr.update()
                 elif item[0] == "heartbeat":
                     elapsed = item[1]
                     yield (
