@@ -24,9 +24,13 @@ import time
 import traceback
 from pathlib import Path
 
+print("[startup] script launched, importing gradio/torch/yaml...", flush=True)
+
 import gradio as gr
 import torch
 import yaml
+
+print("[startup] gradio/torch/yaml imported, CUDA available:", torch.cuda.is_available(), flush=True)
 
 # Gradio's own allowed_paths prefix-matching has repeatedly 403'd files that
 # are genuinely under OUTPUT_ROOT/EXAMPLES_DIR (symlink/realpath
@@ -64,6 +68,8 @@ REPO_ROOT = ROOT.parent
 for package in ("ltx-core/src", "ltx-causal/src", "ltx-pipelines/src"):
     sys.path.insert(0, str(ROOT / package))
 
+print("[startup] importing ltx_core/ltx_causal/ltx_pipelines...", flush=True)
+
 from ltx_core.components.guiders import MultiModalGuiderParams  # noqa: E402
 from ltx_core.types import Audio  # noqa: E402
 from ltx_causal import CausalCacheConfig, DEFAULT_CAUSAL_TIMESTEPS  # noqa: E402
@@ -73,6 +79,8 @@ from ltx_core.model.video_vae.tiling import TilingConfig  # noqa: E402
 from ltx_core.model.video_vae.video_vae import get_video_chunks_number  # noqa: E402
 from ltx_pipelines.utils.args import ImageConditioningInput  # noqa: E402
 from ltx_pipelines.utils.media_io import encode_video  # noqa: E402
+
+print("[startup] ltx_* imported, importing helpers...", flush=True)
 
 from helpers.action_condition import (  # noqa: E402
     action_config,
@@ -87,6 +95,8 @@ from helpers.action_camera import (  # noqa: E402
     parse_action_string,
 )
 from helpers.action_overlay import overlay_genie_on_video  # noqa: E402
+
+print("[startup] all imports done", flush=True)
 
 # Default paths (Base model — full multi-step diffusion, no live preview)
 DEFAULT_CONFIG = ROOT / "configs" / "inference_wm.yaml"
