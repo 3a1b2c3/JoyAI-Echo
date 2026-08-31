@@ -408,6 +408,7 @@ class EchoWMCausalEngine:
         generate_audio: bool,
         overlay: bool,
         out_dir: Path,
+        timesteps: tuple[int, ...] | None = None,
     ):
         """Generator. Yields ("block", index, total, block_video_path) as each
         block finishes, then a final ("done", video_path, overlaid_path_or_None,
@@ -416,9 +417,16 @@ class EchoWMCausalEngine:
         Runs the (blocking) pipeline call on a background thread and relays its
         on_block callbacks through a queue, since a callback fired from inside
         a blocking call cannot itself yield from this generator's frame.
+
+        `timesteps` overrides self.timesteps for this call only -- kernel
+        compilation/backend dispatch happens per tensor *shape*, not per
+        scalar timestep value, so a warmup call can safely use fewer steps
+        (cutting real per-step compute) while still exercising every kernel
+        a real generation would use.
         """
         timing: dict[str, float] = {}
         parse_action_string(action_str)
+        timesteps = timesteps if timesteps is not None else self.timesteps
 
         t0 = time.time()
         action_cond = build_causal_action_condition(
@@ -477,7 +485,7 @@ class EchoWMCausalEngine:
                     frame_rate=fps,
                     images=[ImageConditioningInput(str(image_path), 0, 1.0)],
                     action_cond=action_cond,
-                    timesteps=self.timesteps,
+                    timesteps=timesteps,
                     video_tiling_config=TilingConfig.default(),
                     on_block=on_block,
                 )
@@ -1027,6 +1035,11 @@ def _warmup(engine, engine_kind: str) -> None:
                 generate_audio=False,
                 overlay=False,
                 out_dir=out_dir,
+                # Kernel compilation/backend dispatch happens per tensor
+                # shape, not per scalar timestep value, so 1 step still
+                # exercises every kernel a real (4-step) generation would --
+                # just without paying for 3 extra redundant denoising passes.
+                timesteps=DEFAULT_CAUSAL_TIMESTEPS[:1],
             ):
                 print(f"[warmup] yielded item kind={item[0]!r} at t={time.time() - t0:.1f}s", flush=True)
             print(f"[warmup] generate() generator exhausted at t={time.time() - t0:.1f}s", flush=True)
