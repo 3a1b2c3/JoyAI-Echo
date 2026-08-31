@@ -17,7 +17,7 @@ source .venv/bin/activate
 CHECKPOINT=""
 ENGINE=""
 CONFIG=""
-for entry in "echo-wm-flash:causal:configs/inference_wm_causal.yaml" "echo-wm-base:base:configs/inference_wm.yaml"; do
+for entry in "echo-wm-flash:causal:configs/inference_wm_causal_fast.yaml" "echo-wm-base:base:configs/inference_wm.yaml"; do
     v="${entry%%:*}"
     rest="${entry#*:}"
     e="${rest%%:*}"
