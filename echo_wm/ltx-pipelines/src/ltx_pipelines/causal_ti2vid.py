@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import time
 from collections.abc import Callable, Iterator
 
 import torch
@@ -66,6 +68,20 @@ class CausalTI2VidPipeline:
         )
         self.pipeline_components = PipelineComponents(dtype=self.dtype, device=device)
 
+        # Opt-in (ECHO_WM_COMPILE=1, default off): ModelLedger.transformer()
+        # builds a brand-new model object from scratch on every __call__, so
+        # torch.compile-ing it naively would mean paying full graph-tracing
+        # cost on every single generation instead of once -- likely a net
+        # loss, the same failure mode as the CUDA-cache-size tuning that
+        # turned out not to help (see TROUBLESHOOTING.md). Caching the built
+        # (and, if enabled, compiled) model here per (width, height) --
+        # patches_per_frame and the action module are both derived from
+        # those -- is what makes compiling actually pay off: it's built (and
+        # compiled) once per resolution, then reused across every later
+        # generation at that resolution instead of rebuilt from scratch.
+        self._model_cache: dict[tuple[int, int], tuple] = {}
+        self._compile_enabled = os.environ.get("ECHO_WM_COMPILE", "0") == "1"
+
     @torch.inference_mode()
     def __call__(  # noqa: PLR0913
         self,
@@ -115,12 +131,29 @@ class CausalTI2VidPipeline:
             audio_tools, [], noiser, self.dtype, self.device
         )
 
-        x0_model = self.model_ledger.transformer(action_config=self.action_config)
-        wrapper = CausalModelWrapper(
-            x0_model.velocity_model,
-            patches_per_frame=(height // 32) * (width // 32),
-            cache=self.cache_config,
-        )
+        cache_key = (width, height)
+        cached = self._model_cache.get(cache_key)
+        if cached is not None:
+            x0_model, wrapper = cached
+        else:
+            x0_model = self.model_ledger.transformer(action_config=self.action_config)
+            if self._compile_enabled:
+                t_compile = time.time()
+                print(
+                    f"[compile] wrapping transformer in torch.compile() for {width}x{height} "
+                    f"(first call at this resolution only -- reused for every later generation "
+                    f"at the same resolution). Actual graph tracing happens lazily on the first "
+                    f"real forward call, not here, so this print returning fast is expected.",
+                    flush=True,
+                )
+                x0_model.velocity_model = torch.compile(x0_model.velocity_model)
+                print(f"[compile] torch.compile() wrap done in {time.time() - t_compile:.1f}s", flush=True)
+            wrapper = CausalModelWrapper(
+                x0_model.velocity_model,
+                patches_per_frame=(height // 32) * (width // 32),
+                cache=self.cache_config,
+            )
+            self._model_cache[cache_key] = (x0_model, wrapper)
 
         # Streaming preview (opt-in): build the decoders now so each block can
         # be decoded as soon as it's denoised, instead of only after the

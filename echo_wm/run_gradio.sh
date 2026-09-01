@@ -17,6 +17,12 @@ PORT="${PORT:-7860}"
 export CUDA_CACHE_PATH="${CUDA_CACHE_PATH:-$HOME/.nv/ComputeCache}"
 export CUDA_CACHE_MAXSIZE="${CUDA_CACHE_MAXSIZE:-4294967296}"
 
+# torch.compile the causal transformer (cached per-resolution, so only the
+# first generation at a given width/height pays compile cost -- see
+# TROUBLESHOOTING.md item -4). Not yet benchmarked on real hardware; set
+# ECHO_WM_COMPILE=0 to disable if it turns out to be a net loss.
+export ECHO_WM_COMPILE="${ECHO_WM_COMPILE:-1}"
+
 # Check if checkpoint exists
 if [ ! -f "$CHECKPOINT" ]; then
     echo "Error: Checkpoint not found at $CHECKPOINT"

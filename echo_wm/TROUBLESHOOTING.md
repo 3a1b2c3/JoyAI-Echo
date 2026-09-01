@@ -1,5 +1,31 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -4. `ECHO_WM_COMPILE=1`: opt-in torch.compile for the causal transformer (implemented, not yet benchmarked)
+
+`ModelLedger.transformer()` (`utils/model_ledger.py:219`) builds a
+brand-new model object from scratch on **every** `CausalTI2VidPipeline.__call__`
+-- naively wrapping that in `torch.compile()` would mean paying full
+graph-tracing cost on every single generation (same failure mode as the
+CUDA-cache-size tuning in item -3.6 that turned out not to help). Fixed the
+precondition for compiling to pay off at all: `causal_ti2vid.py` now caches
+the built model per `(width, height)` (`self._model_cache`) -- built once,
+reused across every later generation at that resolution -- and, only when
+`ECHO_WM_COMPILE=1` is set (default off), wraps `x0_model.velocity_model`
+in `torch.compile()` (default mode, deliberately **not**
+`reduce-overhead`/CUDA-graphs -- the KV-cache argument is a `list[dict]`
+with per-block-varying scalar start-frame ints, a much higher-risk
+combination for CUDA-graph capture than for plain graph compilation).
+
+**Not yet run on real hardware.** Expected real risk: the KV-cache
+structure and changing start-frame ints are classic `torch.compile`
+graph-break triggers -- if it breaks the graph every block (likely), most
+of the theoretical speedup is lost and this may land close to a wash. The
+*first* generation at a given resolution pays real compile time (the
+startup `_warmup()` run absorbs this automatically as long as later real
+generations use the same width/height as warmup); every later generation
+at that resolution should be pure win if the graph holds, since nothing
+rebuilds/recompiles after the first hit.
+
 ## -3. Blackwell consumer/workstation GPUs (RTX 5090, RTX PRO 6000 -- compute capability 12.0): xformers/SDPA gotchas (fixed)
 
 Hit on `kschmid-4vvboh` ("horde"), a compute-capability-**12.0** GPU
