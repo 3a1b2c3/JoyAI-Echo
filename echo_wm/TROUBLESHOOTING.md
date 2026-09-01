@@ -1,5 +1,46 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -16. Attention-backend investigation, final result: FlashInfer works but is slower than SDPA (disabled by default)
+
+Closing conclusion of the whole item -3/-10/-12/-13/-14 attention-backend
+saga. After the torch/CUDA environment recovery (item -15) landed on
+`torch==2.14`/cu132, `xformers`/`FlashAttention3`/`FlashAttention2` all
+came back as **NOT INSTALLED** (`test_attention_backend.py`'s per-backend
+check) -- the torch reinstall churn appears to have removed or broken
+their compiled extensions along the way (not investigated further; given
+the results below, not worth chasing back).
+
+**FlashInfer is the only accelerated backend actually available now, and
+it works correctly** -- `test_attention_backend.py` confirms
+`FlashInferAttention` succeeds with the right output shape. But measured
+through a real generation, it's **slower** than plain SDPA:
+~1.9-2.0s/block (one spike to 3.3s) vs. SDPA's previously-confirmed
+~1.6-1.7s/block. Plausible causes, not confirmed: `single_prefill_with_kv_cache`'s
+`backend="auto"` selection may pick a suboptimal kernel for this
+model's specific shape (1024 tokens, 32 heads, 128 dim_head), or the
+batch-dimension indexing/unsqueeze wrapping added around the call (this
+model's `[B, T, H*D]` convention vs. FlashInfer's per-request `[T, H, D]`
+API) adds enough overhead to erase any kernel-level gain.
+
+**Fixed**: `_flashinfer_enabled = False` added as an explicit local
+override in `AttentionFunction.DEFAULT`, gating the FlashInfer fallback
+stage off by default -- so `DEFAULT` now falls straight through to SDPA
+again (the confirmed-fastest option), rather than FlashInfer winning by
+default just because it happens to be the only accelerated library still
+installed. `FlashInferAttention` itself is left fully implemented (not
+deleted) in case a future shape/config change flips this tradeoff.
+
+**Overall conclusion for this GPU (GB300, compute capability 10.3) and
+this model's attention pattern**: none of xformers, FlashAttention (1-4),
+SageAttention, or FlashInfer currently beat plain PyTorch SDPA with
+explicit `EFFICIENT_ATTENTION`/`CUDNN_ATTENTION` backend priority (item
+-3b). This is the practical ceiling for attention-kernel-level speed on
+this hardware/model combination as of this session -- further speed work
+should focus on the levers that already showed real gains (denoising step
+count, attention *window* size -- a different axis from attention
+*kernel* choice, resolution, encode pipelining), not more attention-library
+swapping.
+
 ## -15. torch/CUDA environment corruption chasing FlashAttention-2 (fixed, new DGX-specific requirements file)
 
 Chasing item -12's FlashAttention-2 install (`pip install flash-attn

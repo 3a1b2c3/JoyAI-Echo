@@ -1,3 +1,4 @@
+import os
 from enum import Enum
 from typing import Protocol
 
@@ -429,13 +430,28 @@ class AttentionFunction(Enum):
                         flush=True,
                     )
 
-            # Fourth choice: FlashInfer. Confirmed importable and runnable
-            # on GB300 (compute capability 10.3) in a standalone test where
-            # xformers/FlashAttention-2/3 all failed for this hardware/torch
-            # build -- see TROUBLESHOOTING.md. Same call-specific-vs-
-            # permanent handling as the flash-attn variants above.
+            # Fourth choice: FlashInfer -- DISABLED by default (set
+            # ECHO_WM_FLASHINFER=1 to re-enable for testing). Confirmed
+            # working correctly on GB300 (real output, right shape) but
+            # confirmed SLOWER than PyTorch SDPA in a first-ever/cold
+            # generation (~1.9-2.0s/block vs. SDPA's ~1.6-1.7s, one block
+            # spiked to 3.3s) -- see TROUBLESHOOTING.md item -16. Not yet
+            # ruled out: FlashInfer's docs mention JIT compilation of
+            # kernels, so that measurement may include a one-time
+            # per-shape compile cost baked into the very first generation
+            # -- untested whether a *second* generation in the same
+            # process (same shapes, kernel already compiled) is actually
+            # faster than SDPA. Re-enable and compare a second run's block
+            # timing (not the first) against the SDPA baseline before
+            # concluding anything further.
+            _flashinfer_enabled = os.environ.get("ECHO_WM_FLASHINFER", "0") == "1"
             global _flashinfer_unusable
-            if flashinfer_single_prefill is not None and not _flashinfer_unusable and mask_arg is None:
+            if (
+                _flashinfer_enabled
+                and flashinfer_single_prefill is not None
+                and not _flashinfer_unusable
+                and mask_arg is None
+            ):
                 try:
                     return FlashInferAttention()(q, k, v, heads, mask_arg)
                 except RuntimeError as exc:
