@@ -7,8 +7,10 @@ from ltx_core.model.transformer.rope import LTXRopeType, apply_rotary_emb
 
 memory_efficient_attention = None
 flash_attn_interface = None
+flash_attn_func = None
 _xformers_unusable = False
 _flash_attn3_unusable = False
+_flash_attn2_unusable = False
 try:
     from xformers.ops import memory_efficient_attention
 except ImportError:
@@ -21,9 +23,20 @@ try:
     # AttentionFunction.DEFAULT below). Import unconditionally so flash-attn
     # is available as a fallback even when xformers "looks" installed but
     # doesn't actually work for this hardware.
+    #
+    # FlashAttention-3's module is `flash_attn_interface`, a *separate*
+    # package/build from the mainline `flash-attn` PyPI package (which is
+    # FlashAttention-2 and exposes `flash_attn` instead) -- confirmed on
+    # real hardware that `pip install flash-attn` gives the latter, not
+    # this one. Both are attempted independently below since either might
+    # be the one actually installed.
     import flash_attn_interface
 except ImportError:
     flash_attn_interface = None
+try:
+    from flash_attn import flash_attn_func
+except ImportError:
+    flash_attn_func = None
 
 
 def _slice_rope(
@@ -246,10 +259,42 @@ class FlashAttention3(AttentionCallable):
         return out
 
 
+class FlashAttention2(AttentionCallable):
+    """FlashAttention-2, from the mainline `flash-attn` PyPI package
+    (module `flash_attn`) -- a different package/module from
+    FlashAttention3's `flash_attn_interface` above. Same no-mask
+    limitation as FA3 (FA2's `flash_attn_func` has no general bias-tensor
+    argument either, only `causal`/`window_size`, neither used here)."""
+
+    def __call__(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        heads: int,
+        mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        if flash_attn_func is None:
+            raise RuntimeError("FlashAttention2 was selected but `flash-attn` is not installed.")
+
+        b, _, dim_head = q.shape
+        dim_head //= heads
+
+        q, k, v = (t.view(b, -1, heads, dim_head) for t in (q, k, v))
+
+        if mask is not None:
+            raise NotImplementedError("Mask is not supported for FlashAttention2")
+
+        out = flash_attn_func(q.to(v.dtype), k.to(v.dtype), v, causal=False)
+        out = out.reshape(b, -1, heads * dim_head)
+        return out
+
+
 class AttentionFunction(Enum):
     PYTORCH = "pytorch"
     XFORMERS = "xformers"
     FLASH_ATTENTION_3 = "flash_attention_3"
+    FLASH_ATTENTION_2 = "flash_attention_2"
     DEFAULT = "default"
 
     def __call__(
@@ -261,6 +306,8 @@ class AttentionFunction(Enum):
             return XFormersAttention()(q, k, v, heads, mask)
         elif self is AttentionFunction.FLASH_ATTENTION_3:
             return FlashAttention3()(q, k, v, heads, mask)
+        elif self is AttentionFunction.FLASH_ATTENTION_2:
+            return FlashAttention2()(q, k, v, heads, mask)
         else:
             # Default behavior: XFormers if installed else PyTorch. "Installed"
             # only means importable, not that it has a working kernel for this
@@ -308,6 +355,25 @@ class AttentionFunction(Enum):
                     _flash_attn3_unusable = True
                     print(
                         f"[attention] flash-attn (FlashAttention3) has no working kernel "
+                        f"for this GPU (falling back to PyTorch SDPA for the rest of this "
+                        f"process): {exc}",
+                        flush=True,
+                    )
+
+            # Third choice: FlashAttention-2 (mainline `flash-attn` PyPI
+            # package, module `flash_attn`) -- a different package from
+            # FlashAttention3's `flash_attn_interface` above, tried
+            # independently since either might be the one actually
+            # installed. Same call-specific-vs-permanent failure handling
+            # as FlashAttention3.
+            global _flash_attn2_unusable
+            if flash_attn_func is not None and not _flash_attn2_unusable and mask is None:
+                try:
+                    return FlashAttention2()(q, k, v, heads, mask)
+                except RuntimeError as exc:
+                    _flash_attn2_unusable = True
+                    print(
+                        f"[attention] flash-attn (FlashAttention2) has no working kernel "
                         f"for this GPU (falling back to PyTorch SDPA for the rest of this "
                         f"process): {exc}",
                         flush=True,

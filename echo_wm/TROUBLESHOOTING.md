@@ -40,13 +40,29 @@ Two real fixes needed to actually reach it:
    permanently disable it for the rest of the process, same
    try-once-remember-forever pattern as the existing xformers fallback.
 
-**Not yet tested on real hardware.** Requires `pip install flash-attn`
-(the base package -- not `flash-attn-4`, which is the separate,
-beta-only, SM100/103-specific package from item -10) on the GB300 box,
-then a restart. Watch for either
-`[attention] flash-attn (FlashAttention3) has no working kernel for this
-GPU...` (still no luck, falls back to SDPA same as before) or silence
-(meaning it's being used) plus a real speed change in `[rollout]` timing.
+**Update: FlashAttention-3 specifically is a dead end, but FlashAttention-2
+picked up the torch and is now wired in too.** `pip install flash-attn` on
+the GB300 box gave `flash_attn` 2.8.3.post1 -- **FlashAttention-2**, whose
+module is `flash_attn` (function `flash_attn_func`), not FlashAttention-3's
+`flash_attn_interface` (a separate package/build entirely, not what plain
+`pip install flash-attn` provides). The FA3 code path in `attention.py`
+correctly detected `flash_attn_interface` was unavailable and silently
+skipped it (confirmed via `grep -i "attention\]" gradio_debug.log` --
+only the SDPA fallback message appeared, no FA3-failure message either,
+meaning it was never attempted at all).
+
+Added a real `FlashAttention2` class (mirrors `FlashAttention3`'s
+structure, calls `flash_attn.flash_attn_func(q, k, v, causal=False)`) and
+a third fallback stage in `AttentionFunction.DEFAULT`: xformers ->
+FlashAttention3 -> **FlashAttention2** -> PyTorch SDPA. Same call-specific
+vs. permanent-failure handling as FA3 (`mask is not None` only skips that
+one call; a real `RuntimeError` permanently disables it for the rest of
+the process). **Not yet tested on real hardware as of this writing** --
+restart and check `grep -i "attention\]" gradio_debug.log`: either
+`[attention] flash-attn (FlashAttention2) has no working kernel for this
+GPU...` (dead end too, falls back to SDPA same as before) or no such
+message at all (meaning it's actually being used) plus a real speed
+change in `[rollout]` timing.
 
 ## -11. `ltx_core.loader` <-> `ltx_core.quantization` order-dependent circular import (fixed)
 
