@@ -1,5 +1,53 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -12. FlashAttention-3 re-opened as an option: masks are always None on the causal streaming path (implemented, not yet tested)
+
+Item -10's FlashAttention-4 investigation assumed every attention call in
+this model passes a real bias/mask tensor, based on the original xformers
+rejection log (`attn_bias: <class 'torch.Tensor'>`). **That assumption was
+wrong for the causal streaming path specifically.** Added a diagnostic to
+`PytorchAttention.__call__` (the backend actually running, since xformers
+has no working kernel here) logging any non-None mask it receives -- across
+20 real blocks (two full 10-block generations) on the GB300 box, **zero**
+non-None masks were observed. The original rejection log's real bias
+tensor almost certainly came from a different code path (likely the base/
+non-causal engine's CFG-batched bidirectional attention, never confirmed
+directly). Diagnostic removed after confirming this (was briefly in
+`transformer.py` at the wrong call site first -- self_attention_mask
+there is *also* always None for this path, the KV-cache windowing is done
+by physically truncating cache tensors in `update_kv_cache`, not by
+masking a full-length attention matrix).
+
+Since FlashAttention-3's only hard limitation in this codebase
+(`if mask is not None: raise NotImplementedError`) never triggers when
+mask is always None, **`FlashAttention3` -- already fully implemented in
+`attention.py`, previously just unreachable -- is now genuinely viable**
+for this GPU, pending only real kernel/hardware compatibility (separate
+question from xformers' bundled-kernel rejection).
+
+Two real fixes needed to actually reach it:
+1. **Import guard bug**: `flash_attn_interface` was only ever imported
+   `if memory_efficient_attention is None` -- i.e. only when xformers
+   failed to *import* at all. Wrong for GPUs where xformers imports fine
+   but fails at *call* time (exactly this GPU's situation) -- meant
+   flash-attn was never even attempted, regardless of whether it was
+   installed. Now imported unconditionally.
+2. **`AttentionFunction.DEFAULT` fallback chain extended**: xformers ->
+   FlashAttention3 (only when `mask is None`, since a masked call failing
+   is call-specific, not a hardware-incompatibility signal -- doesn't
+   permanently disable it) -> PyTorch SDPA. A genuine `RuntimeError` from
+   FlashAttention3 (real kernel/hardware incompatibility) *does*
+   permanently disable it for the rest of the process, same
+   try-once-remember-forever pattern as the existing xformers fallback.
+
+**Not yet tested on real hardware.** Requires `pip install flash-attn`
+(the base package -- not `flash-attn-4`, which is the separate,
+beta-only, SM100/103-specific package from item -10) on the GB300 box,
+then a restart. Watch for either
+`[attention] flash-attn (FlashAttention3) has no working kernel for this
+GPU...` (still no luck, falls back to SDPA same as before) or silence
+(meaning it's being used) plus a real speed change in `[rollout]` timing.
+
 ## -11. `ltx_core.loader` <-> `ltx_core.quantization` order-dependent circular import (fixed)
 
 Hit when adding the `ECHO_WM_FP8` import (item -9):

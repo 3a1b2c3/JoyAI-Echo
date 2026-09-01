@@ -8,14 +8,20 @@ from ltx_core.model.transformer.rope import LTXRopeType, apply_rotary_emb
 memory_efficient_attention = None
 flash_attn_interface = None
 _xformers_unusable = False
+_flash_attn3_unusable = False
 try:
     from xformers.ops import memory_efficient_attention
 except ImportError:
     memory_efficient_attention = None
 try:
-    # FlashAttention3 and XFormersAttention cannot be used together
-    if memory_efficient_attention is None:
-        import flash_attn_interface
+    # Previously gated on `if memory_efficient_attention is None`, i.e. only
+    # attempted when xformers wasn't importable at all -- wrong assumption
+    # for GPUs (like compute capability 10.3/12.0 Blackwell) where xformers
+    # *imports* fine but has no working kernel and fails at call time (see
+    # AttentionFunction.DEFAULT below). Import unconditionally so flash-attn
+    # is available as a fallback even when xformers "looks" installed but
+    # doesn't actually work for this hardware.
+    import flash_attn_interface
 except ImportError:
     flash_attn_interface = None
 
@@ -279,6 +285,34 @@ class AttentionFunction(Enum):
                         f"(falling back to PyTorch SDPA for the rest of this process): {exc}",
                         flush=True,
                     )
+
+            # Second choice, tried only after xformers is confirmed unusable
+            # (or never installed): flash-attn's own kernels are a separate
+            # question from xformers' bundled fa3/cutlassF kernels -- xformers
+            # rejecting this GPU doesn't mean flash-attn does too.
+            #
+            # Two different failure modes need different handling here:
+            # - mask is not None: FlashAttention3.__call__ always rejects
+            #   this (NotImplementedError), but it's specific to *this call*
+            #   -- other (unmasked) calls elsewhere in the model may still
+            #   work fine, so this must NOT permanently disable flash-attn.
+            # - Anything else (RuntimeError etc.): a genuine hardware/kernel
+            #   incompatibility, which -- like xformers -- will fail every
+            #   future call the same way. Remember it, same
+            #   try-once-remember-forever pattern as xformers above.
+            global _flash_attn3_unusable
+            if flash_attn_interface is not None and not _flash_attn3_unusable and mask is None:
+                try:
+                    return FlashAttention3()(q, k, v, heads, mask)
+                except RuntimeError as exc:
+                    _flash_attn3_unusable = True
+                    print(
+                        f"[attention] flash-attn (FlashAttention3) has no working kernel "
+                        f"for this GPU (falling back to PyTorch SDPA for the rest of this "
+                        f"process): {exc}",
+                        flush=True,
+                    )
+
             return PytorchAttention()(q, k, v, heads, mask)
 
 
