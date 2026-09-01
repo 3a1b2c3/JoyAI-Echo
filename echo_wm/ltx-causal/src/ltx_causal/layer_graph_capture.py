@@ -91,6 +91,13 @@ class LayerPhaseGraphCapture:
 
     def __init__(self) -> None:
         self._regions: dict[tuple[object, tuple[int, ...] | None, tuple[int, ...] | None], _CapturedRegion] = {}
+        # Every captured region shares one memory pool -- without this, each
+        # of the (2 per layer * num_layers) independently-captured
+        # CUDAGraph objects gets its own private pool, and multiple
+        # concurrently-live graphs without a shared pool is a known real
+        # cause of CUDA memory conflicts between them (see
+        # TROUBLESHOOTING.md item -1.1's "illegal memory access" crash).
+        self._pool = torch.cuda.graph_pool_handle()
 
     def run(
         self,
@@ -99,14 +106,27 @@ class LayerPhaseGraphCapture:
         vx: torch.Tensor | None,
         ax: torch.Tensor | None,
         warmup: int = 3,
+        warmup_phase_fn: Callable[[torch.Tensor | None, torch.Tensor | None], tuple[torch.Tensor | None, torch.Tensor | None]] | None = None,
     ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+        """`warmup_phase_fn`, if given, MUST close over a SCRATCH copy of
+        any mutable state `phase_fn` also closes over (e.g. a deep-copied
+        kv_cache dict) -- not the same real object `phase_fn` uses.
+        Required whenever `phase_fn` has side effects on state that must
+        only genuinely transition ONCE per real call (e.g. cache position
+        bookkeeping): repeating warmup against the REAL state consumes that
+        one real transition before the actual capture-trace call runs,
+        capturing the wrong branch forever (TROUBLESHOOTING.md item -1.1's
+        third bug). If `phase_fn` is side-effect-free w.r.t. anything
+        outside its returned vx/ax, `warmup_phase_fn` can be omitted (falls
+        back to reusing `phase_fn` for warmup too, the original behavior).
+        """
         vx_shape = tuple(vx.shape) if vx is not None else None
         ax_shape = tuple(ax.shape) if ax is not None else None
         key = (region_key, vx_shape, ax_shape)
 
         region = self._regions.get(key)
         if region is None:
-            region = self._capture(phase_fn, vx, ax, warmup)
+            region = self._capture(phase_fn, warmup_phase_fn or phase_fn, vx, ax, warmup)
             self._regions[key] = region
 
         if region.static_vx_in is not None:
@@ -124,22 +144,29 @@ class LayerPhaseGraphCapture:
     def _capture(
         self,
         phase_fn: Callable[[torch.Tensor | None, torch.Tensor | None], tuple[torch.Tensor | None, torch.Tensor | None]],
+        warmup_phase_fn: Callable[[torch.Tensor | None, torch.Tensor | None], tuple[torch.Tensor | None, torch.Tensor | None]],
         vx: torch.Tensor | None,
         ax: torch.Tensor | None,
         warmup: int,
     ) -> _CapturedRegion:
         static_vx_in = vx.clone() if vx is not None else None
         static_ax_in = ax.clone() if ax is not None else None
+        # Warmup runs against warmup_phase_fn's SCRATCH state (if given) on
+        # a throwaway clone of the input tensors too -- static_vx_in/
+        # static_ax_in must stay untouched by warmup so the single capture
+        # trace below is the first and only call to see the real transition.
+        warmup_vx = static_vx_in.clone() if static_vx_in is not None else None
+        warmup_ax = static_ax_in.clone() if static_ax_in is not None else None
 
         s = torch.cuda.Stream()
         s.wait_stream(torch.cuda.current_stream())
         with torch.cuda.stream(s):
             for _ in range(warmup):
-                phase_fn(static_vx_in, static_ax_in)
+                warmup_phase_fn(warmup_vx, warmup_ax)
         torch.cuda.current_stream().wait_stream(s)
 
         graph = torch.cuda.CUDAGraph()
-        with torch.cuda.graph(graph):
+        with torch.cuda.graph(graph, pool=self._pool):
             static_vx_out, static_ax_out = phase_fn(static_vx_in, static_ax_in)
 
         return _CapturedRegion(

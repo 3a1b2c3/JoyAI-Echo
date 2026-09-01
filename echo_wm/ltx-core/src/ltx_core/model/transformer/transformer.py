@@ -43,6 +43,34 @@ class ActionBlockConfig:
         return self.enabled and self.ucpe and block_idx in self.block_indices
 
 
+def compute_layer_phase_flags(
+    video: "TransformerArgs | None",
+    audio: "TransformerArgs | None",
+    perturbations: "BatchedPerturbationConfig | None",
+) -> "_LayerPhaseFlags":
+    """Pure, side-effect-free -- computes exactly what
+    _forward_self_attn_phase's early lines compute, WITHOUT running any
+    attention/cache-write logic. Single source of truth for both that real
+    phase method and model.py's graph-capture wiring, which needs `flags`
+    without triggering a real (mutating) call -- see TROUBLESHOOTING.md
+    item -1.1: an earlier version called the real phase method just to get
+    flags, which itself consumed the cache's one genuine advance transition
+    before graph capture's own warmup/trace even ran.
+    """
+    batch_size = (video or audio).x.shape[0]
+    if perturbations is None:
+        perturbations = BatchedPerturbationConfig.empty(batch_size)
+    vx = video.x if video is not None else None
+    ax = audio.x if audio is not None else None
+    run_vx = video is not None and video.enabled and vx.numel() > 0
+    run_ax = audio is not None and audio.enabled and ax.numel() > 0
+    run_a2v = run_vx and (audio is not None and ax.numel() > 0)
+    run_v2a = run_ax and (video is not None and vx.numel() > 0)
+    return _LayerPhaseFlags(
+        perturbations=perturbations, run_vx=run_vx, run_ax=run_ax, run_a2v=run_a2v, run_v2a=run_v2a,
+    )
+
+
 @dataclass
 class _LayerPhaseFlags:
     """Threaded between TransformerLayer's three forward phases (see
@@ -415,19 +443,12 @@ class BasicAVTransformerBlock(torch.nn.Module):
         Graph-capturable: no Python dict lookups keyed on a per-block-
         varying int (unlike the cross-modal phase, see item -0.7) -- only
         shape-derived slicing and in-place cache buffer writes."""
-        batch_size = (video or audio).x.shape[0]
-
-        if perturbations is None:
-            perturbations = BatchedPerturbationConfig.empty(batch_size)
-
+        flags = compute_layer_phase_flags(video, audio, perturbations)
+        perturbations, run_vx, run_ax, run_a2v, run_v2a = (
+            flags.perturbations, flags.run_vx, flags.run_ax, flags.run_a2v, flags.run_v2a,
+        )
         vx = video.x if video is not None else None
         ax = audio.x if audio is not None else None
-
-        run_vx = video is not None and video.enabled and vx.numel() > 0
-        run_ax = audio is not None and audio.enabled and ax.numel() > 0
-
-        run_a2v = run_vx and (audio is not None and ax.numel() > 0)
-        run_v2a = run_ax and (video is not None and vx.numel() > 0)
 
         if run_vx:
             vshift_msa, vscale_msa, vgate_msa = self.get_ada_values(
@@ -517,9 +538,7 @@ class BasicAVTransformerBlock(torch.nn.Module):
                 crossattn_cache=kv_cache.get("audio_text") if kv_cache else None,
             )
 
-        return vx, ax, _LayerPhaseFlags(
-            perturbations=perturbations, run_vx=run_vx, run_ax=run_ax, run_a2v=run_a2v, run_v2a=run_v2a,
-        )
+        return vx, ax, flags
 
     def _forward_cross_modal_phase(
         self,

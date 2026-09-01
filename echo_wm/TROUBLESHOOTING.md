@@ -1,18 +1,155 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
-## -1.0. Item -0.7's graph-capture blocker: scoped concretely; reordering ruled out, only per-layer split is valid; feasibility CONFIRMED, real integration not started
+## -1.1. `ECHO_WM_GRAPH_CAPTURE_LAYERS=1`: CONFIRMED BROKEN on real hardware -- cache position bookkeeping frozen at capture time, do not use
+
+Ran end-to-end on `pmgb300ws-0304`. Speed numbers looked spectacular
+(`denoise` 1.05-1.07s -> 0.12s, `cache` 0.55s -> 0.09s, block total
+~1.8s -> ~0.41s, i.e. *faster than real-time*) -- and that was the first red
+flag, not a win: every replayed block's timing was suspiciously
+bit-identical (0.120-0.121s denoise, 0.089-0.090s cache across 9 different
+blocks -- real varying computation doesn't do that). User confirmed: no
+real video output.
+
+**Root cause, now understood precisely**: `torch.cuda.graph()` capture only
+records GPU kernel launches -- it does NOT replay plain Python statements.
+`update_kv_cache` (attention.py) mutates the cache dict's Python-side
+bookkeeping as ordinary assignments: `cache["_prev_start"] = start`,
+`cache["_prev_chunk"] = chunk`, `cache["length"] = active`. Those execute
+**once**, during the capture trace (warmup + one capture call, both using
+block 0's `start=0`), and are then **frozen** -- every subsequent
+`graph.replay()` reruns the same captured GPU ops with new `vx`/`ax`
+tensor *values* copied in, but `kv_cache_start` itself (also a plain
+Python int, baked into the closure) stays `0` on every replay, and
+`cache["_prev_start"]` never updates past its frozen value either. Result:
+`is_repeat = (start == cache["_prev_start"])` evaluates `True` on every
+single replay (baked `0` == frozen `0`), so `_update_kv_cache_fixed_chunk`
+takes the "same-range redo" branch every time -- overwriting the exact same
+cache slot with each new block's K/V instead of advancing the sink+FIFO
+window forward. The model never sees a real, advancing generation
+sequence; it re-processes quasi-block-0 forever. That explains the
+identical-every-block timing (same captured op sequence, no real growth),
+the impossible speedup (skipping the real incremental work), and "no
+output" (nothing coherent to decode).
+
+**This reveals a real gap in item -1.0's scoping, not just a wiring bug.**
+Item -1.0 correctly confirmed self-attn's RoPE math (`_slice_rope(local_pe,
+active - q_len, active)`) doesn't depend on captured Python-side state --
+`active` is shape-derived, constant in steady state. But it wrongly
+extended that safety to `update_kv_cache`'s cache-*position* bookkeeping,
+which is a different piece of state with the same problem class item -0.7
+already found for a2v/v2a's `query_slice` dict lookup -- just one level
+deeper (inside the self-attn phase's own cache write, not the cross-modal
+branch).
+
+**Why `test_graph_capture_per_layer_split.py` said CONFIRMED FEASIBLE
+without catching this**: that test only exercised ONE capture-then-replay
+against a FRESH cache for the "block 1" comparison (both the split-capture
+path and its eager reference started from an empty cache), so `active`
+happened to equal `CHUNK` in both cases regardless of `start`'s value --
+the test's RoPE-output diff passed correctly, but it never tested a
+*sequence* of many replays against ONE persistently-advancing cache, which
+is the real production pattern and exactly where the frozen-bookkeeping bug
+lives. The test wasn't wrong about what it checked; it checked too narrow a
+scenario.
+
+**Second, more severe symptom, same broken integration**: a later run hit a
+hard crash instead of silent corruption -- `torch.AcceleratorError: CUDA
+error: an illegal memory access was encountered`, raised at
+`LayerPhaseGraphCapture.run`'s `torch.cuda.synchronize()` call, inside
+`_generate_audio_prefix`'s call to `forward()` (rollout.py) -- a different
+call site than the main per-block loop, likely a different `vx`/`ax` shape
+or a `video=None` pattern for audio-prefix generation. Suspected
+contributing cause, on top of the frozen-bookkeeping bug above:
+`LayerPhaseGraphCapture` creates a separate `torch.cuda.CUDAGraph()` per
+`(region_key, shape)` with no shared memory pool
+(`torch.cuda.graph_pool_handle()` was never used) -- multiple independently
+-captured graphs can conflict over CUDA memory addresses without one, a
+known real gotcha with `torch.cuda.graph()`. Combined with garbage cache
+indices from the bookkeeping bug, this plausibly explains an out-of-bounds
+access. Not confirmed -- no GPU access to reproduce or root-cause further.
+An illegal memory access can poison the whole CUDA context (same class of
+danger noted in TROUBLESHOOTING.md's other CUDA-graph items) -- restart the
+server process after hitting this, don't assume subsequent runs on the same
+process are unaffected even with the flag off.
+
+**Fourth bug found while fixing the third**: the "get `flags`" call at the
+top of the graph-capture branch (`model.py`) called the REAL
+`_forward_self_attn_phase` just to read `run_vx`/`run_ax`/etc. -- itself a
+real, mutating call against the live cache, executed BEFORE
+`LayerPhaseGraphCapture.run()`'s warmup/capture even started. It would have
+consumed the real advance transition on its own, independent of bug three.
+
+**All four bugs now have real fixes implemented (NOT yet verified on real
+hardware)**:
+1. `_self_attn_caches_at_capacity()` (`model.py`) gates the graph-capture
+   branch on the cache already being full -- blocks during the fill phase
+   fall through to the plain eager `block(...)` call.
+2. `LayerPhaseGraphCapture.__init__` now creates one shared
+   `torch.cuda.graph_pool_handle()`, passed to every `torch.cuda.graph(...,
+   pool=...)` call -- addresses the suspected illegal-memory-access cause.
+3. `LayerPhaseGraphCapture.run()`/`_capture()` gained a `warmup_phase_fn`
+   parameter: warmup now runs against a caller-supplied SCRATCH closure
+   (built from `_clone_layer_cache_for_warmup()` in `model.py`, deep-
+   copying `video_self`/`audio_self`/`video_ucpe`'s k/v/positions/length),
+   while the real capture-trace call is the only one touching the real
+   cache -- fixes the "warmup consumes the real transition" bug.
+4. `compute_layer_phase_flags()` (`transformer.py`) extracted as a pure,
+   side-effect-free function -- `_forward_self_attn_phase` now delegates to
+   it (confirmed via `git diff`: identical logic, just relocated) instead
+   of duplicating it, and `model.py`'s flags lookup calls this instead of
+   the real (mutating) phase method.
+
+**Status: `ECHO_WM_GRAPH_CAPTURE_LAYERS` still must not be trusted without
+a fresh real-hardware test.** All four found bugs have reasoned, code-
+reviewed fixes now in place (git diffs checked for correctness), but NONE
+of this has run on a GPU yet -- every fix so far in this saga has revealed
+a further bug on the next real run, so treat this as "ready for another
+careful test," not "fixed." Before trusting it: run the same silent-
+corruption check (compare real generated video against a flag-off run,
+same seed/prompt/image) AND the same crash check
+(`_generate_audio_prefix`'s call path, the one that previously hit the
+illegal-memory-access error) -- both, not just one. If either fails again,
+that's a fifth bug, not a reason to revert the first four fixes blindly. If
+this route keeps failing, flashdreams' actual `BlockKVCache` (item -21) --
+which avoids this whole bug class by using `torch.sym_min`/`sym_max`-style
+symbolic bounds and an explicit before_update/update/after_update lifecycle
+instead of ad-hoc Python dict mutation -- remains the structurally sound
+fallback, at the cost of the full 1-2+ week integration already scoped
+there.
+
+## -1.0. Item -0.7's graph-capture blocker: scoped concretely; reordering ruled out, only per-layer split is valid; feasibility CONFIRMED (narrower than first thought -- see item -1.1), real integration wired but BROKEN
 
 Follow-up scoping on item -0.7's cross-modal-RoPE graph-capture bug, done
 before attempting any fix.
 
-**Denoise and cache are the same underlying cost.** `_denoise_av_block`
-(profiled by `ECHO_WM_PROFILE_DENOISE`) calls `forward()` once per
-denoising step (2 steps in the current default preset); `ECHO_WM_PROFILE_CACHE`
-profiles exactly one `forward()` call (`rollout.py` line ~422). Their
-measured costs confirm this: denoise (~1.02s) / cache (~0.53s) ≈ 1.9, close
-to the step count. **This means fixing item -0.7's graph-capture blocker
-would speed up both** -- combined they're ~1.55s of the ~1.78s block total
-(~87%), not just cache's ~30% as item -0.9 scoped it.
+**Denoise and cache are both dispatch-bound on the same `forward()` code
+path -- but the "N-steps-of-forward()" explanation below was WRONG,
+corrected after actually running `ECHO_WM_PROFILE_DENOISE`.** Originally
+assumed (from the ~1.9x timing ratio matching the 2-step preset) that
+`_denoise_av_block` calls `forward()` twice per block while
+`ECHO_WM_PROFILE_CACHE` profiles one call. The real profiler data
+contradicts that: `ECHO_WM_PROFILE_DENOISE`'s trace shows `aten::linear` at
+exactly **1756** calls -- identical to cache's single-`forward()` count,
+not doubled. Totals: `Self CPU time total: 795.286ms`, `Self CUDA time
+total: 81.964ms` (~9.7x ratio, same dispatch-bound pattern as cache).
+
+Initially suspected denoise vs. cache route through different attention
+backends (denoise's trace shows `aten::scaled_dot_product_attention` /
+cudnn kernels; the earlier cache profile showed `FlashAttnFunc`/cutlass
+kernels instead) -- **retracted**: those two profiles were captured in
+different sessions under different `ECHO_WM_FLASH_ATTENTION_4` settings
+(cache profile: FA4 enabled; this denoise profile: captured after
+switching to SDPA-only per user request). Not a real per-call discrepancy
+within one run -- just an artifact of comparing profiles taken under
+different flags. Not a lead worth pursuing.
+
+Both are still dispatch-bound in the sense that matters for item -1.0/-1.1's
+graph-capture work: fixing that blocker would still speed up both denoise
+and cache, since they both go through the same `forward()`/layer-loop code
+path -- just not via the specific "2x calls" mechanism originally claimed.
+Combined they're still the large majority of block time (~1.86s of ~2.2s
+in the run that produced this profile, hardware/load-dependent -- see the
+run's own `[rollout] block` lines), not just cache's ~30% alone.
 
 **The existing `ECHO_WM_GRAPH_CAPTURE_TEST=1` test** (`rollout.py` lines
 434-468) wraps the *entire* multi-layer `forward()` call in one
@@ -153,7 +290,7 @@ total: 73.392ms` (~10.6x CPU:CUDA ratio) -- same order of magnitude as item
    around ~1.3-1.35s -- under the 1.5s real-time budget, not just closer to
    it.
 
-## -0.8. `ECHO_WM_VAE_CHANNELS_LAST=1`: opt-in channels_last_3d VAE decoder (implemented, not yet benchmarked)
+## -0.8. `ECHO_WM_VAE_CHANNELS_LAST=1`: opt-in channels_last_3d VAE decoder (implemented, BENCHMARKED: net negative, default off)
 
 `ECHO_WM_PROFILE_CALLBACK=1` traces of the `on_block` streaming-preview
 callback (VAE-decodes the accumulated video/audio buffers so far) showed
@@ -177,6 +314,17 @@ on and diffing the trace:
 ECHO_WM_PROFILE_CALLBACK=1 ECHO_WM_VAE_CHANNELS_LAST=1 bash run_gradio.sh 2>&1 | tee /tmp/profile_callback_cl.log
 grep -A 30 '\[profile\] on_block' /tmp/profile_callback_cl.log
 ```
+
+**Benchmarked on real hardware: net negative.** `ECHO_WM_VAE_CHANNELS_LAST=1`
+run measured `callback` at ~0.26-0.28s steady-state, vs. the ~0.2s baseline
+-- worse, not better, roughly +30-40%. Likely `channels_last_3d` isn't
+actually a faster cuDNN conv3d path for this decoder's specific
+shape/dtype/GPU combination, so the one-time format conversion just adds
+overhead with no runtime payoff -- same verdict pattern as item -9's FP8
+result. Leave `ECHO_WM_VAE_CHANNELS_LAST=0`. (Note: this benchmark run
+produced 6 blocks, not the usual 10 -- same run-type ambiguity noted
+elsewhere in this doc; the relative callback comparison should still hold
+regardless, since it's a within-run steady-state number.)
 
 Compare the `nchwToNhwcKernel` line and overall CUDA total against a
 baseline trace (flag off). Not yet run on real hardware as of this entry --

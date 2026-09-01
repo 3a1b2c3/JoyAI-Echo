@@ -9,13 +9,71 @@ from ltx_core.model.transformer.adaln import AdaLayerNormSingle, adaln_embedding
 from ltx_core.model.transformer.attention import AttentionCallable, AttentionFunction
 from ltx_core.model.transformer.modality import Modality
 from ltx_core.model.transformer.rope import LTXRopeType
-from ltx_core.model.transformer.transformer import BasicAVTransformerBlock, TransformerConfig
+from ltx_core.model.transformer.transformer import (
+    BasicAVTransformerBlock,
+    TransformerConfig,
+    compute_layer_phase_flags,
+)
 from ltx_core.model.transformer.transformer_args import (
     MultiModalTransformerArgsPreprocessor,
     TransformerArgs,
     TransformerArgsPreprocessor,
 )
 from ltx_core.utils import to_denoised
+
+
+def _self_attn_caches_at_capacity(layer_cache: dict | None) -> bool:
+    """True once every update_kv_cache-backed sub-cache in this layer
+    (video_self/audio_self/video_ucpe -- NOT video_text/audio_text, which
+    use a separate is_init-based crossattn cache that's already capture-
+    safe since it caches the fixed text context once and never advances)
+    has filled to its sink+window capacity.
+
+    Graph capture (TROUBLESHOOTING.md item -1.1) must not engage before
+    this is True: `update_kv_cache`'s fixed-chunk write/roll bounds only
+    become position-independent (safe to bake into a captured graph,
+    replayed forever with the same structural op sequence) once the cache
+    is genuinely full. Capturing during the fill phase bakes in the
+    general/searchsorted branch instead, which depends on the specific
+    (frozen, never-advancing-on-replay) absolute position -- the root cause
+    of item -1.1's silent-corruption bug.
+    """
+    if layer_cache is None:
+        return True
+    for key in ("video_self", "audio_self", "video_ucpe"):
+        sub = layer_cache.get(key)
+        if sub is None:
+            continue
+        capacity = sub["k"].shape[1]
+        if int(sub.get("length", 0)) < capacity:
+            return False
+    return True
+
+
+def _clone_layer_cache_for_warmup(layer_cache: dict | None) -> dict | None:
+    """Deep-copy the update_kv_cache-backed sub-caches (video_self/
+    audio_self/video_ucpe) so LayerPhaseGraphCapture's warmup calls can
+    repeat against scratch state without consuming the REAL cache's one
+    genuine advance transition (see TROUBLESHOOTING.md item -1.1's third
+    bug and layer_graph_capture.py's `warmup_phase_fn`). video_text/
+    audio_text (crossattn caches) are shared by reference, not copied --
+    they use a separate is_init-once flag and are read-only after their
+    first real call, so warmup repeating against the real one is harmless.
+    """
+    if layer_cache is None:
+        return None
+    cloned = dict(layer_cache)
+    for key in ("video_self", "audio_self", "video_ucpe"):
+        sub = layer_cache.get(key)
+        if sub is None:
+            continue
+        cloned_sub = dict(sub)
+        cloned_sub["k"] = sub["k"].clone()
+        cloned_sub["v"] = sub["v"].clone()
+        if "positions" in sub:
+            cloned_sub["positions"] = sub["positions"].clone()
+        cloned[key] = cloned_sub
+    return cloned
 
 
 class LTXModelType(Enum):
@@ -400,19 +458,31 @@ class LTXModel(torch.nn.Module):
                     current_audio_token_start,
                     use_reentrant=False,
                 )
-            elif self._layer_graph_capture is not None and not self.training:
+            elif (
+                self._layer_graph_capture is not None
+                and not self.training
+                and _self_attn_caches_at_capacity(layer_cache)
+            ):
                 # Per-layer split graph capture (TROUBLESHOOTING.md item
-                # -1.0): self-attn and MLP phases captured/replayed per
+                # -1.0/-1.1): self-attn and MLP phases captured/replayed per
                 # (layer_index, shape); cross-modal (a2v/v2a) stays eager
                 # every call -- item -0.7 proved capturing it is unsafe.
-                # UNTESTED on real hardware end-to-end; only the isolated
-                # 2-toy-layer feasibility test has been run so far.
+                # Gated on _self_attn_caches_at_capacity: capturing before
+                # the cache is full bakes in frozen, never-advancing
+                # position bookkeeping (item -1.1's root-caused
+                # silent-corruption bug) -- blocks before the cache fills
+                # fall through to the plain eager `block(...)` call below,
+                # same as flag-off behavior.
+                # Pure/side-effect-free -- does NOT call the real phase
+                # method, so it cannot consume the cache's one genuine
+                # advance transition (item -1.1's second bug: an earlier
+                # version called the real phase method just to get flags,
+                # itself mutating the cache before capture's own
+                # warmup/trace even ran).
                 if layer_index not in self._layer_graph_capture_flags:
-                    _, _, flags = block._forward_self_attn_phase(
-                        video, audio, perturbations, ucpe_viewmats, ucpe_Ks, layer_cache,
-                        current_video_token_start, current_audio_token_start,
+                    self._layer_graph_capture_flags[layer_index] = compute_layer_phase_flags(
+                        video, audio, perturbations,
                     )
-                    self._layer_graph_capture_flags[layer_index] = flags
                 flags = self._layer_graph_capture_flags[layer_index]
 
                 def self_attn_phase_fn(
@@ -428,9 +498,32 @@ class LTXModel(torch.nn.Module):
                     )
                     return vx_out, ax_out
 
+                # Warmup closes over a SCRATCH copy of layer_cache -- must
+                # NOT touch the real one, or repeated warmup calls consume
+                # the real cache's one genuine advance transition before
+                # the actual (single) capture-trace call ever runs, baking
+                # in the wrong branch forever (item -1.1's third bug).
+                scratch_layer_cache = _clone_layer_cache_for_warmup(layer_cache)
+
+                def self_attn_warmup_phase_fn(
+                    vx_in, ax_in,
+                    _video=video, _audio=audio, _block=block, _perturbations=perturbations,
+                    _ucpe_viewmats=ucpe_viewmats, _ucpe_Ks=ucpe_Ks, _layer_cache=scratch_layer_cache,
+                    _cvt=current_video_token_start, _cat=current_audio_token_start,
+                ):
+                    v = replace(_video, x=vx_in) if _video is not None else None
+                    a = replace(_audio, x=ax_in) if _audio is not None else None
+                    vx_out, ax_out, _ = _block._forward_self_attn_phase(
+                        v, a, _perturbations, _ucpe_viewmats, _ucpe_Ks, _layer_cache, _cvt, _cat,
+                    )
+                    return vx_out, ax_out
+
                 vx_in = video.x if video is not None else None
                 ax_in = audio.x if audio is not None else None
-                vx, ax = self._layer_graph_capture.run(f"L{layer_index}_self_attn", self_attn_phase_fn, vx_in, ax_in)
+                vx, ax = self._layer_graph_capture.run(
+                    f"L{layer_index}_self_attn", self_attn_phase_fn, vx_in, ax_in,
+                    warmup_phase_fn=self_attn_warmup_phase_fn,
+                )
 
                 vx, ax = block._forward_cross_modal_phase(
                     vx, ax, video, audio, flags.perturbations, layer_cache,
