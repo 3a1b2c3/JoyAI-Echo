@@ -472,6 +472,7 @@ class EchoWMCausalEngine:
             quantization=quantization,
         )
         print("[engine] Ready (weights load on first generation, streaming enabled).", flush=True)
+        _log_attention_backend_status()
 
     def generate(
         self,
