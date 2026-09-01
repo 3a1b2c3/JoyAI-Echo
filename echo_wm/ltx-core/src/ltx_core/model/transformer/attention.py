@@ -55,6 +55,21 @@ try:
 except ImportError:
     flashinfer_single_prefill = None
 
+sageattn = None
+_sageattention_unusable = False
+try:
+    # Earlier research this session (see TROUBLESHOOTING.md) found an open
+    # GitHub issue suggesting no sm_100/103 kernel existed for
+    # SageAttention -- confirmed WRONG on real hardware tonight:
+    # `sageattn(q, k, v, is_causal=False)` succeeds with correct output
+    # shape/dtype on this exact GB300 (compute capability 10.3) box. Like
+    # FlashAttention2/3, no mask/bias argument is supported, which is fine
+    # since this model's causal streaming attention calls never pass a
+    # real (non-no-op) mask.
+    from sageattention import sageattn
+except ImportError:
+    sageattn = None
+
 
 def _slice_rope(
     pe: tuple[torch.Tensor, torch.Tensor], start: int, end: int
@@ -499,12 +514,46 @@ class FlashInferAttention(AttentionCallable):
         return out
 
 
+class SageAttention(AttentionCallable):
+    """SageAttention's `sageattn` -- confirmed working on GB300 (compute
+    capability 10.3) on real hardware tonight, contradicting earlier
+    research (GitHub issue #237) that suggested no kernel existed for this
+    architecture yet. Expects [B, H, T, D] layout (unlike FlashInfer's
+    batch-dropped [T, H, D], or this file's usual [B, T, H*D] -- confirmed
+    via a standalone real-kernel-call test, see test_sageattention_backend.py),
+    no mask/bias argument support, same as FlashAttention2/3."""
+
+    def __call__(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        heads: int,
+        mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        if sageattn is None:
+            raise RuntimeError("SageAttention was selected but `sageattention` is not installed.")
+
+        b, _, dim_head = q.shape
+        dim_head //= heads
+
+        if mask is not None:
+            raise NotImplementedError("Mask is not supported by this SageAttention wiring")
+
+        # [B, T, H*D] -> [B, H, T, D]
+        q, k, v = (t.view(b, -1, heads, dim_head).transpose(1, 2) for t in (q, k, v))
+        out = sageattn(q.to(v.dtype), k.to(v.dtype), v, is_causal=False)
+        out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+        return out
+
+
 class AttentionFunction(Enum):
     PYTORCH = "pytorch"
     XFORMERS = "xformers"
     FLASH_ATTENTION_3 = "flash_attention_3"
     FLASH_ATTENTION_2 = "flash_attention_2"
     FLASH_INFER = "flash_infer"
+    SAGE_ATTENTION = "sage_attention"
     DEFAULT = "default"
 
     def __call__(
@@ -520,6 +569,8 @@ class AttentionFunction(Enum):
             return FlashAttention2()(q, k, v, heads, mask)
         elif self is AttentionFunction.FLASH_INFER:
             return FlashInferAttention()(q, k, v, heads, mask)
+        elif self is AttentionFunction.SAGE_ATTENTION:
+            return SageAttention()(q, k, v, heads, mask)
         else:
             # Strip masks that are real tensors but a complete no-op (all
             # zeros -- see _mask_is_effectively_none) down to None before
@@ -548,6 +599,29 @@ class AttentionFunction(Enum):
                 if not mask_arg_cache:
                     mask_arg_cache.append(None if _mask_is_effectively_none(mask) else mask)
                 return mask_arg_cache[0]
+
+            # First choice: SageAttention -- confirmed working on real
+            # hardware tonight (GB300, compute capability 10.3), unlike
+            # xformers/FlashAttention2/3 below, which are confirmed
+            # unusable on this GPU (see TROUBLESHOOTING.md). Not yet
+            # benchmarked against the SDPA baseline for real speed, only
+            # confirmed to produce correct-shaped output -- tried first
+            # since it's the only fast-path library actually known to run
+            # here at all; same try-once-remember-forever pattern as the
+            # others below if it turns out not to be usable for some
+            # call shapes.
+            global _sageattention_unusable
+            if sageattn is not None and not _sageattention_unusable and _mask_arg() is None:
+                try:
+                    return SageAttention()(q, k, v, heads, _mask_arg())
+                except Exception as exc:  # noqa: BLE001 - report whatever a real kernel call raises
+                    _sageattention_unusable = True
+                    print(
+                        f"[attention] SageAttention failed on a real call "
+                        f"(falling back to PyTorch SDPA for the rest of this process): "
+                        f"{type(exc).__name__}: {exc}",
+                        flush=True,
+                    )
 
             # Default behavior: XFormers if installed else PyTorch. "Installed"
             # only means importable, not that it has a working kernel for this
