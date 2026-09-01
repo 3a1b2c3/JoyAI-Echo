@@ -1,4 +1,5 @@
 import os
+import weakref
 from enum import Enum
 from typing import Protocol
 
@@ -228,6 +229,9 @@ class AttentionCallable(Protocol):
 _sdpa_backend_logged = False
 
 
+_mask_is_effectively_none_cache: dict[int, bool] = {}
+
+
 def _mask_is_effectively_none(mask: torch.Tensor | None) -> bool:
     """True if mask is None, or a real tensor that's a complete no-op (all
     zeros -- adds zero bias everywhere, restricts nothing). Confirmed on
@@ -237,10 +241,41 @@ def _mask_is_effectively_none(mask: torch.Tensor | None) -> bool:
     `if mask is not None: raise` checks were treating these as "has a mask"
     and skipping the fast path even though the mask has zero actual effect;
     this lets AttentionFunction.DEFAULT correctly recognize them as safe to
-    fast-path too."""
+    fast-path too.
+
+    `bool(torch.all(mask == 0.0))` reads a value back from the GPU -- fine
+    normally, but CUDA hard-forbids any such read while a
+    torch.cuda.graph() capture is in progress (`cudaErrorStreamCapture
+    Unsupported`), confirmed on real hardware. Cached by tensor identity
+    (mirrors rope.py's _freq_grid_device_cache fix for the same class of
+    bug): the real check still runs the first time any given mask object is
+    seen -- during the warmup passes that already run before capture starts
+    -- so every later call, including ones inside the captured region, is a
+    plain Python dict lookup with no GPU read. Not a blanket constant: a
+    mask tensor this has never seen before still gets genuinely checked, so
+    a real (non-zero) mask -- if one is ever passed by a future config or
+    model variant -- is still caught correctly instead of silently assumed
+    away.
+
+    id() is a memory address, not a stable identity -- once a mask tensor
+    is garbage-collected, CPython can and does reuse its id() for an
+    unrelated later object (each block builds its own mask, per
+    transformer_args.py::_prepare_self_attention_mask, so this isn't
+    hypothetical). A stale cache hit from a reused id() would happen to
+    still be correct today (every mask in this pipeline really is
+    all-zero, confirmed), but would silently misclassify a real mask the
+    moment that stops being true. A weakref finalizer removes this entry
+    the instant the actual tensor is freed, so no id() can ever be reused
+    while a (now-invalid) cache entry for it still exists."""
     if mask is None:
         return True
-    return bool(torch.all(mask == 0.0))
+    cached = _mask_is_effectively_none_cache.get(id(mask))
+    if cached is None:
+        cached = bool(torch.all(mask == 0.0))
+        _mask_is_effectively_none_cache[id(mask)] = cached
+        mask_id = id(mask)
+        weakref.finalize(mask, _mask_is_effectively_none_cache.pop, mask_id, None)
+    return cached
 
 
 def _pytorch_attention_core(
