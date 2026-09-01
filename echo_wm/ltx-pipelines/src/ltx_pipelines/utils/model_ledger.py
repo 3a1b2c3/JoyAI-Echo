@@ -1,6 +1,15 @@
+import os
 from dataclasses import replace
 
 import torch
+
+# Opt-in (ECHO_WM_VAE_CHANNELS_LAST=1): converts the VAE decoder's weights to
+# channels_last_3d once at load time, instead of paying a per-call
+# nchwToNhwcKernel layout conversion inside the conv stack on every block
+# (seen in ECHO_WM_PROFILE_CALLBACK=1 traces). Opt-in because it only
+# actually helps if cuDNN picks faster channels_last conv3d kernels for this
+# specific shape/dtype -- verify with the same profiler before relying on it.
+_VAE_CHANNELS_LAST = os.environ.get("ECHO_WM_VAE_CHANNELS_LAST", "0") == "1"
 
 from ltx_core.loader import SDOps
 from ltx_core.loader.module_ops import ModuleOps
@@ -259,7 +268,10 @@ class ModelLedger:
                 "Video decoder not initialized. Please provide a checkpoint path to the ModelLedger constructor."
             )
 
-        return self.vae_decoder_builder.build(device=self._target_device(), dtype=self.dtype).to(self.device).eval()
+        decoder = self.vae_decoder_builder.build(device=self._target_device(), dtype=self.dtype).to(self.device).eval()
+        if _VAE_CHANNELS_LAST:
+            decoder = decoder.to(memory_format=torch.channels_last_3d)
+        return decoder
 
     def video_encoder(self) -> VideoEncoder:
         if not hasattr(self, "vae_encoder_builder"):
