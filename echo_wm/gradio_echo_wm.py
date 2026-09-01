@@ -579,6 +579,28 @@ class EchoWMCausalEngine:
                 )
             frame_count["n"] += video_chunk.shape[0]
             if stream_encoder is not None:
+                audio_for_stream = audio_chunk if generate_audio else None
+                if generate_audio and audio_for_stream is None:
+                    # Video and audio decode on independent cadences in this
+                    # pipeline (see causal_ti2vid.py's raw_on_block -- video
+                    # and audio "newly available" checks are separate) --
+                    # some blocks carry real new video frames but no new
+                    # audio yet (it catches up in a later block). Since
+                    # StreamingEncoder only muxes audio when given a real
+                    # chunk, skipping it here would leave a genuine gap in
+                    # the audio track's timeline while video keeps
+                    # advancing -- audible as a drop-out/silence, and a
+                    # click/pop when audio resumes later with a jumped
+                    # timestamp. Mux silence for this block's exact duration
+                    # instead, so both tracks' timelines stay continuous;
+                    # the real audio (once available) still arrives with
+                    # correct absolute timing on a later call.
+                    duration_s = video_chunk.shape[0] / float(fps)
+                    silence_samples = max(int(round(duration_s * 48000)), 1)
+                    audio_for_stream = Audio(
+                        waveform=torch.zeros(silence_samples, 2, dtype=torch.float32),
+                        sampling_rate=48000,
+                    )
                 # Non-blocking hand-off -- the actual encode+push happens on
                 # _encode_worker's thread, concurrently with whatever this
                 # (rollout) thread does next (cache-update forward(), then
@@ -586,7 +608,7 @@ class EchoWMCausalEngine:
                 # already .clone()'d by the caller (raw_on_block in
                 # causal_ti2vid.py), so they're safe to hand to another
                 # thread.
-                encode_queue.put((video_chunk, audio_chunk if generate_audio else None))
+                encode_queue.put((video_chunk, audio_for_stream))
             result_queue.put(("block", block_index, total_blocks, block_path, frame_count["n"]))
 
         def worker() -> None:
