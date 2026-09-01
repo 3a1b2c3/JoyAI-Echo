@@ -26,6 +26,20 @@ _PROFILE_CACHE_UPDATE = os.environ.get("ECHO_WM_PROFILE_CACHE", "0") == "1"
 _PROFILE_BLOCK_INDEX = 3
 _cache_profiled = False
 
+# Opt-in (ECHO_WM_PROFILE_CALLBACK=1): same idea as ECHO_WM_PROFILE_CACHE
+# above, but for the on_block callback (VAE-decodes the accumulated
+# video/audio buffers so far for streaming preview) -- costs ~0.1-0.2s/block,
+# get a real operator-level breakdown instead of guessing what's expensive.
+_PROFILE_CALLBACK = os.environ.get("ECHO_WM_PROFILE_CALLBACK", "0") == "1"
+_callback_profiled = False
+
+# Opt-in (ECHO_WM_PROFILE_DENOISE=1): same idea, for _denoise_av_block --
+# the largest single chunk of per-block time (~1.0s), still worth a real
+# operator-level breakdown rather than assuming it's all irreducible
+# model compute.
+_PROFILE_DENOISE = os.environ.get("ECHO_WM_PROFILE_DENOISE", "0") == "1"
+_denoise_profiled = False
+
 # Opt-in (ECHO_WM_GRAPH_CAPTURE_TEST=1): feasibility-only check -- does
 # torch.cuda.graph() capture even succeed for one real cache-update
 # forward() call, at a later (steady-state windowing) block? Diagnostic
@@ -336,15 +350,39 @@ def _generate_av_blocks(
         zip(video_blocks[1:], audio_blocks[1:], strict=True)
     ):
         t_block_start = time.time()
-        video_sample, audio_sample = _denoise_av_block(
-            forward,
-            buffers.initial_video,
-            buffers.initial_audio,
-            video_block,
-            audio_block,
-            sigmas,
-            generator,
-        )
+        global _denoise_profiled
+        if _PROFILE_DENOISE and block_index == _PROFILE_BLOCK_INDEX and not _denoise_profiled:
+            _denoise_profiled = True
+            with torch.profiler.profile(
+                activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
+                record_shapes=True,
+            ) as prof:
+                video_sample, audio_sample = _denoise_av_block(
+                    forward,
+                    buffers.initial_video,
+                    buffers.initial_audio,
+                    video_block,
+                    audio_block,
+                    sigmas,
+                    generator,
+                )
+            print(f"\n[profile] denoise _denoise_av_block() at block {block_index}, "
+                  f"top ops by CUDA time:\n", flush=True)
+            print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=25), flush=True)
+            trace_path = "denoise_profile.json"
+            prof.export_chrome_trace(trace_path)
+            print(f"[profile] full trace exported to {trace_path} "
+                  f"(open in chrome://tracing or https://ui.perfetto.dev for details)\n", flush=True)
+        else:
+            video_sample, audio_sample = _denoise_av_block(
+                forward,
+                buffers.initial_video,
+                buffers.initial_audio,
+                video_block,
+                audio_block,
+                sigmas,
+                generator,
+            )
         t_denoise = time.time() - t_block_start
         video_start, video_end = video_block
         audio_start, audio_end = audio_block
@@ -355,7 +393,23 @@ def _generate_av_blocks(
         t_callback = 0.0
         if on_block is not None:
             t_callback_start = time.time()
-            on_block(block_index, total_blocks, video_block, buffers.video_output, buffers.audio_output)
+            global _callback_profiled
+            if _PROFILE_CALLBACK and block_index == _PROFILE_BLOCK_INDEX and not _callback_profiled:
+                _callback_profiled = True
+                with torch.profiler.profile(
+                    activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
+                    record_shapes=True,
+                ) as prof:
+                    on_block(block_index, total_blocks, video_block, buffers.video_output, buffers.audio_output)
+                print(f"\n[profile] on_block callback at block {block_index}, "
+                      f"top ops by CUDA time:\n", flush=True)
+                print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=25), flush=True)
+                trace_path = "callback_profile.json"
+                prof.export_chrome_trace(trace_path)
+                print(f"[profile] full trace exported to {trace_path} "
+                      f"(open in chrome://tracing or https://ui.perfetto.dev for details)\n", flush=True)
+            else:
+                on_block(block_index, total_blocks, video_block, buffers.video_output, buffers.audio_output)
             t_callback = time.time() - t_callback_start
         t_cache_start = time.time()
         global _cache_profiled
