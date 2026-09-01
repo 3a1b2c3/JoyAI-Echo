@@ -1,6 +1,26 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
-## -1.1. `ECHO_WM_GRAPH_CAPTURE_LAYERS=1`: CONFIRMED BROKEN on real hardware -- cache position bookkeeping frozen at capture time, do not use
+## -1.1. `ECHO_WM_GRAPH_CAPTURE_LAYERS=1`: CONFIRMED BROKEN on real hardware -- ENTIRE EFFORT ROLLED BACK (see item -8.5)
+
+**Final outcome, superseding everything below**: after four found-and-fixed
+bugs (frozen cache bookkeeping, likely unpooled-graph CUDA crash, warmup-
+consumes-real-transition, flags-call-also-mutates-cache), a *fifth* bug
+(stale captured graphs replayed across separate generation calls, causing
+`cudaErrorIllegalAddress`) was still unconfirmed-fixed when a SIXTH,
+unrelated-seeming issue -- live-preview audio totally broken -- was
+bisected back to this same body of work (item -8.5), including the
+`transformer.py` phase-split that runs even with the feature flag off.
+Given graph capture never had one clean, fully-verified end-to-end run
+across this many rounds, the whole effort (items -1.0 and -1.1, all of
+`layer_graph_capture.py`, the `model.py`/`transformer.py`/`causal_ti2vid.py`
+changes) was rolled back via `git checkout a68ed6e -- <files>` rather than
+patching a sixth time. `ECHO_WM_GRAPH_CAPTURE_LAYERS` no longer exists in
+the codebase as of this rollback -- if revisited, start over from this
+doc's accumulated findings (especially item -21's note that flashdreams'
+actual `BlockKVCache` avoids the whole bug class structurally) rather than
+resuming the hand-rolled approach where it left off.
+
+Original (superseded) findings preserved below for reference.
 
 Ran end-to-end on `pmgb300ws-0304`. Speed numbers looked spectacular
 (`denoise` 1.05-1.07s -> 0.12s, `cache` 0.55s -> 0.09s, block total
@@ -1198,6 +1218,125 @@ item -7's suspicion: the bottleneck is dispatch/op-count overhead (items
 upcast-before-every-matmul step (see above) adds an extra op per matmul
 without removing anything -- pure overhead here, not a tradeoff. Leave
 `ECHO_WM_FP8=0`.
+
+## -8.5. Live preview has NO audio at all (total demuxer failure) -- CORRECTION: caused by the graph-capture work after all, rolled back
+
+**Retracting this item's original "confirmed unrelated" conclusion.** That
+was based on a report of "broken with `ECHO_WM_GRAPH_CAPTURE_LAYERS` unset"
+-- but that test ran against a commit that already had the phase-split
+refactor present (just with the *feature flag* off), not the actual
+pre-session code. A real bisection settled it: `git checkout a68ed6e`
+(the commit immediately before any of tonight's graph-capture work) had
+**working** live-preview audio; the current HEAD (with the phase-split +
+graph-capture work, flag off) has it **broken**. `git diff --stat a68ed6e
+HEAD` confirms only 6 files changed between them, all from tonight's
+session (`layer_graph_capture.py`, `model.py`, `transformer.py`,
+`causal_ti2vid.py`, this doc, and the new VAE-lookback test script) -- no
+other change is a candidate.
+
+**Leading theory, NOT confirmed**: this is likely not a computation bug in
+the reverted files at all, but a pre-existing timing-sensitive race in the
+live-stream connect logic (`gradio_echo_wm.py`), exposed rather than
+caused by the phase-split -- graph capture's real (measured, in the runs
+before this was found) ~2x speedup could shrink total generation time
+enough that the browser's 200ms-interval `poll()` loop no longer reliably
+calls `connect()` before generation finishes, so the WebSocket connects
+straight into an already-finished stream.
+
+Two specific mechanisms checked and RULED OUT by reading the real code
+(not guessed):
+1. **Chunks discarded before a client connects**: `_register_stream(run_id)`
+   creates the per-run `asyncio.Queue()` server-side BEFORE the browser
+   even receives the `stream_trigger` value that would make it try to
+   connect (`gradio_echo_wm.py` ~line 1078, called before the trigger is
+   yielded ~line 1090). `_push_stream_chunk` pushes into that queue
+   unconditionally, and the WS handler (`stream_ws`, ~line 1706) uses
+   `_stream_queues.setdefault(run_id, ...)` to drain the SAME queue from
+   wherever it's at, including anything buffered before connecting. A late
+   connect should still receive every chunk, in order -- this mechanism is
+   NOT the bug.
+2. **Premature `mediaSource.endOfStream()` from a rapid chunk burst**:
+   `maybeEndStream()` (~line 1263) guards on
+   `!sourceBuffer.updating && pendingChunks.length === 0`, and is driven by
+   the `sourceBuffer`'s own `updateend` event -- on close reading this
+   correctly sequences even a burst of chunks (each `appendBuffer()` call
+   blocks further processing via `sourceBuffer.updating` until its
+   `updateend` fires) before ever calling `endOfStream()`. Also NOT
+   confirmed as the bug.
+
+**Real root cause still unknown.** Both structurally plausible JS-side
+explanations were checked against the actual code and ruled out -- the
+remaining candidates (a genuine ordering bug elsewhere in `connect()`'s
+setup, something in the FastAPI WS route itself, or a browser/MSE quirk
+specific to very-short streams) haven't been identified. Next real step,
+if this is revisited: reproduce with a plain baseline run using a very
+short/fast clip (no graph capture needed to trigger it, per the "faster
+generation exposes a latent race" theory) and get full browser console
+output from connect() through the error, not just the two lines already
+captured.
+
+**Real (if not fully understood) cause**: `transformer.py`'s
+`BasicAVTransformerBlock.forward()` phase-split (item -1.0) runs
+UNCONDITIONALLY on every call, regardless of the `ECHO_WM_GRAPH_CAPTURE_LAYERS`
+flag -- `forward()` is now a thin wrapper always calling the three phase
+methods in sequence. The `git diff`-based "pure mechanical extraction"
+verification (item -1.0) checked that no *lines* of logic changed, but
+that doesn't rule out a subtler behavioral difference in how `video`/
+`audio`/`vx`/`ax` actually flow between the now-separate methods vs. the
+original single-function scope -- evidently something there affects the
+live-preview audio path specifically, not yet isolated to a specific line.
+Final downloaded `output.mp4` audio was unaffected in earlier testing,
+suggesting whatever's wrong is specific to the live-streaming path's
+particular calling pattern, not the core forward-pass computation -- but
+this is a hypothesis, not confirmed.
+
+**Action taken**: rolled back `model.py`, `transformer.py`, and
+`causal_ti2vid.py` to their `a68ed6e` versions via `git checkout a68ed6e --
+<files>`; removed `layer_graph_capture.py` and
+`test_vae_decode_lookback_window.py` (no longer referenced). This reverts
+ALL of tonight's graph-capture work (items -1.0/-1.1), not just the audio
+bug -- given graph capture itself never had a fully clean end-to-end
+verified run anyway (bug #5, stale-graphs-across-generations, was still
+unconfirmed-fixed when this audio regression was found), full rollback was
+the safer call over trying to isolate just the audio-causing piece.
+Rollback applied to the codebase; **real-hardware confirmation that audio
+preview works again post-rollback is still pending** as of this writing --
+run `bash run_gradio.sh` and check the live preview before considering this
+item closed.
+
+Distinct from item -8 (partial audio gaps between blocks, fixed): this was
+the whole live-preview stream failing to play at all. Browser console:
+`connect()`'s `"WebSocket connected"` and `"stream done"`/`"endOfStream()"`
+fired at the same millisecond timestamp, followed by
+`MediaError {code: 4, message: 'PipelineStatus::DEMUXER_ERROR_COULD_NOT_OPEN...
+before HAVE_METADATA.'}` -- the MSE demuxer never even reached metadata
+before the stream was declared done. Final downloaded `output.mp4` had
+correct audio; only the live
+`<video>` preview element is affected.
+
+**Two hypotheses checked and ruled out by reading the real code** (not
+guessed):
+1. Browser-side `hasAudio` MIME-type flag (`gradio_echo_wm.py`'s
+   `connect()`, ~line 1297) is driven by the `gen_audio` checkbox value at
+   stream-trigger time, not by whether the first real block happened to
+   have audio -- ruled out as a source of a declared-vs-actual track-count
+   mismatch.
+2. `StreamingEncoder.__init__` (`media_io.py`) creates the audio stream
+   upfront if `include_audio=True`, explicitly "never added lazily on
+   first seeing a real audio chunk" (per its own comment) -- so the
+   fragmented MP4's init segment should always have declared the audio
+   track correctly from the very first fragment, matching the browser's
+   `hasAudio=1` expectation. Also ruled out.
+
+**Leading (unconfirmed) theory**: the identical-timestamp
+connect/stream-done pattern suggests this specific browser connection
+happened AFTER the generation had already finished (e.g. a page
+reload/stale tab reconnecting to a stream with nothing left to send) --
+not a live in-generation bug. Not yet confirmed with a clean from-the-start
+test (browser tab open and watching continuously from before clicking
+Generate through to completion). Next step if this resurfaces: get that
+clean repro, or a browser console log from a session where the tab was
+never reloaded/re-navigated during generation.
 
 ## -8. Live-preview audio drop-outs between blocks (fixed, second attempt)
 

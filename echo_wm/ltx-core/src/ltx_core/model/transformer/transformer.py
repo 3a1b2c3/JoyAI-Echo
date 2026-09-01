@@ -43,48 +43,6 @@ class ActionBlockConfig:
         return self.enabled and self.ucpe and block_idx in self.block_indices
 
 
-def compute_layer_phase_flags(
-    video: "TransformerArgs | None",
-    audio: "TransformerArgs | None",
-    perturbations: "BatchedPerturbationConfig | None",
-) -> "_LayerPhaseFlags":
-    """Pure, side-effect-free -- computes exactly what
-    _forward_self_attn_phase's early lines compute, WITHOUT running any
-    attention/cache-write logic. Single source of truth for both that real
-    phase method and model.py's graph-capture wiring, which needs `flags`
-    without triggering a real (mutating) call -- see TROUBLESHOOTING.md
-    item -1.1: an earlier version called the real phase method just to get
-    flags, which itself consumed the cache's one genuine advance transition
-    before graph capture's own warmup/trace even ran.
-    """
-    batch_size = (video or audio).x.shape[0]
-    if perturbations is None:
-        perturbations = BatchedPerturbationConfig.empty(batch_size)
-    vx = video.x if video is not None else None
-    ax = audio.x if audio is not None else None
-    run_vx = video is not None and video.enabled and vx.numel() > 0
-    run_ax = audio is not None and audio.enabled and ax.numel() > 0
-    run_a2v = run_vx and (audio is not None and ax.numel() > 0)
-    run_v2a = run_ax and (video is not None and vx.numel() > 0)
-    return _LayerPhaseFlags(
-        perturbations=perturbations, run_vx=run_vx, run_ax=run_ax, run_a2v=run_a2v, run_v2a=run_v2a,
-    )
-
-
-@dataclass
-class _LayerPhaseFlags:
-    """Threaded between TransformerLayer's three forward phases (see
-    TROUBLESHOOTING.md item -1.0) -- resolved once in the self-attn phase
-    from state that doesn't change within one forward() call, reused as-is
-    by the cross-modal and MLP phases instead of being recomputed."""
-
-    perturbations: "BatchedPerturbationConfig"
-    run_vx: bool
-    run_ax: bool
-    run_a2v: bool
-    run_v2a: bool
-
-
 def active_sink_fifo_indices(
     current_end: int, local_size: int, sink_size: int, device: torch.device
 ) -> tuple[torch.Tensor, int]:
@@ -403,52 +361,22 @@ class BasicAVTransformerBlock(torch.nn.Module):
         current_video_token_start: int = 0,
         current_audio_token_start: int = 0,
     ) -> tuple[TransformerArgs | None, TransformerArgs | None]:
-        """Thin wrapper: runs the three phases in sequence, unchanged
-        behavior from before the phase split (see TROUBLESHOOTING.md item
-        -1.0). Split into _forward_self_attn_phase (graph-capturable) ->
-        _forward_cross_modal_phase (NOT graph-capturable as-is, see item
-        -0.7) -> _forward_mlp_phase (graph-capturable, no kv_cache
-        dependency) so a future capture-region wrapper can call the three
-        phases separately instead of this method, without duplicating any
-        of this logic. This method itself is unchanged for every existing
-        caller.
-        """
         if video is None and audio is None:
             raise ValueError("At least one of video or audio must be provided")
 
-        vx, ax, flags = self._forward_self_attn_phase(
-            video, audio, perturbations, ucpe_viewmats, ucpe_Ks, kv_cache,
-            current_video_token_start, current_audio_token_start,
-        )
-        vx, ax = self._forward_cross_modal_phase(
-            vx, ax, video, audio, flags.perturbations, kv_cache,
-            current_video_token_start, current_audio_token_start, flags,
-        )
-        vx, ax = self._forward_mlp_phase(vx, ax, video, audio, flags)
+        batch_size = (video or audio).x.shape[0]
 
-        return replace(video, x=vx) if video is not None else None, replace(audio, x=ax) if audio is not None else None
+        if perturbations is None:
+            perturbations = BatchedPerturbationConfig.empty(batch_size)
 
-    def _forward_self_attn_phase(
-        self,
-        video: TransformerArgs | None,
-        audio: TransformerArgs | None,
-        perturbations: BatchedPerturbationConfig | None,
-        ucpe_viewmats: torch.Tensor | None,
-        ucpe_Ks: torch.Tensor | None,
-        kv_cache: dict | None,
-        current_video_token_start: int,
-        current_audio_token_start: int,
-    ) -> tuple[torch.Tensor | None, torch.Tensor | None, "_LayerPhaseFlags"]:
-        """video_self/audio_self attention + video_ucpe + text cross-attn.
-        Graph-capturable: no Python dict lookups keyed on a per-block-
-        varying int (unlike the cross-modal phase, see item -0.7) -- only
-        shape-derived slicing and in-place cache buffer writes."""
-        flags = compute_layer_phase_flags(video, audio, perturbations)
-        perturbations, run_vx, run_ax, run_a2v, run_v2a = (
-            flags.perturbations, flags.run_vx, flags.run_ax, flags.run_a2v, flags.run_v2a,
-        )
         vx = video.x if video is not None else None
         ax = audio.x if audio is not None else None
+
+        run_vx = video is not None and video.enabled and vx.numel() > 0
+        run_ax = audio is not None and audio.enabled and ax.numel() > 0
+
+        run_a2v = run_vx and (audio is not None and ax.numel() > 0)
+        run_v2a = run_ax and (video is not None and vx.numel() > 0)
 
         if run_vx:
             vshift_msa, vscale_msa, vgate_msa = self.get_ada_values(
@@ -538,26 +466,6 @@ class BasicAVTransformerBlock(torch.nn.Module):
                 crossattn_cache=kv_cache.get("audio_text") if kv_cache else None,
             )
 
-        return vx, ax, flags
-
-    def _forward_cross_modal_phase(
-        self,
-        vx: torch.Tensor | None,
-        ax: torch.Tensor | None,
-        video: TransformerArgs | None,
-        audio: TransformerArgs | None,
-        perturbations: BatchedPerturbationConfig,
-        kv_cache: dict | None,
-        current_video_token_start: int,
-        current_audio_token_start: int,
-        flags: "_LayerPhaseFlags",
-    ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
-        """a2v/v2a cross-modal attention. NOT graph-capturable as-is (see
-        TROUBLESHOOTING.md item -0.7): the query_slice lookup is keyed on a
-        plain Python int that's different every block, so capture bakes in
-        whichever slice was live at capture time. Must run eagerly until
-        that's fixed (item -1.0)."""
-        run_a2v, run_v2a = flags.run_a2v, flags.run_v2a
         # Audio - Video cross attention.
         if run_a2v or run_v2a:
             vx_norm3 = rms_norm(vx, eps=self.norm_eps)
@@ -658,21 +566,6 @@ class BasicAVTransformerBlock(torch.nn.Module):
 
             del vx_norm3, ax_norm3
 
-        return vx, ax
-
-    def _forward_mlp_phase(
-        self,
-        vx: torch.Tensor | None,
-        ax: torch.Tensor | None,
-        video: TransformerArgs | None,
-        audio: TransformerArgs | None,
-        flags: "_LayerPhaseFlags",
-    ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
-        """Feed-forward/MLP block. Graph-capturable: no kv_cache dependency
-        at all -- could be merged with the NEXT layer's self-attn phase into
-        one continuous capture region (item -1.0), since there's no eager
-        code needed between this phase and the next layer's start."""
-        run_vx, run_ax = flags.run_vx, flags.run_ax
         if run_vx:
             vshift_mlp, vscale_mlp, vgate_mlp = self.get_ada_values(
                 self.scale_shift_table, vx.shape[0], video.timesteps, slice(3, 6)
@@ -691,7 +584,7 @@ class BasicAVTransformerBlock(torch.nn.Module):
 
             del ashift_mlp, ascale_mlp, agate_mlp, ax_scaled
 
-        return vx, ax
+        return replace(video, x=vx) if video is not None else None, replace(audio, x=ax) if audio is not None else None
 
 
 def apply_cross_attention_adaln(
