@@ -10,11 +10,14 @@ video:
   seed: 42
 
 causal:
-  # 3 steps instead of the model's native 4 (evenly resampled across the
-  # same 1000->250 range) -- a speed/quality trade, not a documented-correct
-  # distillation schedule for 3 steps specifically. Revert to
-  # [1000, 750, 500, 250] if output quality visibly suffers.
-  timesteps: [1000, 625, 250]
+  # 2 steps instead of the model's native 4 -- a further speed/quality
+  # trade. NOTE: going 4->3 barely changed measured denoise time
+  # (~2.0s -> ~1.9-2.2s), which suggests per-step fixed overhead (kernel
+  # launch/attention setup), not step count, dominates at this scale --
+  # this cut may buy little too. Revert to [1000, 750, 500, 250] (native
+  # 4-step) if output quality visibly suffers and speed doesn't improve
+  # enough to justify it.
+  timesteps: [1000, 500]
   video_local_attn_size: 19
   video_sink_size: 7
   video_chunk_size: 3
