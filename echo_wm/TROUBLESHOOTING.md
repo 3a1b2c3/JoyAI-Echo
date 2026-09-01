@@ -82,18 +82,41 @@ interleaved between them, replayed for a different block than captured,
 produced correct results -- the interleaved-capture-regions risk this test
 targeted is not a blocker.
 
-**Next real step: integrate the per-layer split into `transformer.py`'s
-actual layer loop** (not another isolated test) -- wrap each layer's
-self-attn + cache-update calls in their own `torch.cuda.graph()` region,
-leave the a2v/v2a block eager, repeated once per layer. This is real
-production-code surgery, not scoping -- needs careful handling of
-`torch.cuda.graph()` region lifecycle across N real layers (not 2 toy
-ones), warmup-call requirements per region, and the existing
-`is_repeat`/`is_advance` cache semantics `update_kv_cache` relies on.
-Still unmeasured what fraction of the ~87% denoise+cache cost this
-actually recovers once implemented (see -0.9/-1.0's revised, lower-than-
-item-21 estimate) -- that number only exists after this is built and
-benchmarked, same as everything else on this list.
+**Real integration DONE (not yet benchmarked, not yet run end-to-end)**:
+1. `transformer.py`'s `BasicAVTransformerBlock.forward()` split into three
+   phase methods (`_forward_self_attn_phase` / `_forward_cross_modal_phase`
+   / `_forward_mlp_phase`), called in sequence by a thin `forward()`
+   wrapper -- confirmed via `git diff` to be a pure mechanical extraction,
+   zero logic changes, so every existing (non-graph-capture) caller is
+   unaffected.
+2. `ltx_causal/layer_graph_capture.py`'s `LayerPhaseGraphCapture` -- generic
+   per-`(region_key, shape)` capture/replay manager for `vx`/`ax`.
+3. Wired into `model.py`'s `LTXModel._process_transformer_blocks` loop: a
+   new `elif self._layer_graph_capture is not None` branch runs
+   `_forward_self_attn_phase` and `_forward_mlp_phase` through
+   `LayerPhaseGraphCapture` (keyed `f"L{layer_index}_self_attn"` /
+   `f"L{layer_index}_mlp"`), `_forward_cross_modal_phase` eagerly in
+   between, exactly matching the per-layer-split design confirmed feasible
+   above.
+4. Gated behind `ECHO_WM_GRAPH_CAPTURE_LAYERS=1` in `CausalTI2VidPipeline.__call__`
+   (`causal_ti2vid.py`), default off, applied once per newly-built
+   `x0_model` (same place/pattern as `ECHO_WM_COMPILE`).
+
+**NOT yet run on real hardware end-to-end.** Only the isolated 2-toy-layer
+feasibility test has actually executed on a GPU -- the real `model.py`
+integration (N real layers, real `TransformerArgs`, real `kv_cache` dicts)
+has not. Test with:
+```bash
+ECHO_WM_GRAPH_CAPTURE_LAYERS=1 bash run_gradio.sh 2>&1 | tee /tmp/graph_capture_test.log
+```
+**Watch closely for wrong/corrupted output, not just crashes/exceptions** --
+per item -0.7, the dangerous failure mode here is silently wrong generation,
+not a loud error. Compare output against a plain (flag-off) run of the same
+seed/prompt/image before trusting this. If output diverges or generation
+looks wrong, that's a real correctness bug in this integration, not
+something to dismiss as "probably fine." Once confirmed correct, the
+`[rollout] block ...` timing line gives the real (not estimated) speedup
+number against the ~1.76-1.8s/block baseline.
 
 ## -0.9. `ECHO_WM_PROFILE_CACHE=1` re-run: reconfirms item -21's dispatch-bound finding; next steps
 

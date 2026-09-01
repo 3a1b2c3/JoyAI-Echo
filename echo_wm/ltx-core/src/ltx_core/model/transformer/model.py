@@ -1,5 +1,7 @@
 from enum import Enum
 
+from dataclasses import replace
+
 import torch
 
 from ltx_core.guidance.perturbations import BatchedPerturbationConfig
@@ -66,6 +68,8 @@ class LTXModel(torch.nn.Module):
     ):
         super().__init__()
         self._enable_gradient_checkpointing = False
+        self._layer_graph_capture = None  # LayerPhaseGraphCapture | None, see set_layer_graph_capture
+        self._layer_graph_capture_flags: dict[int, object] = {}
         self.cross_attention_adaln = cross_attention_adaln
         self.use_middle_indices_grid = use_middle_indices_grid
         self.rope_type = rope_type
@@ -354,6 +358,16 @@ class LTXModel(torch.nn.Module):
         """
         self._enable_gradient_checkpointing = enable
 
+    def set_layer_graph_capture(self, capture) -> None:
+        """Opt-in per-layer CUDA graph capture for the self-attn+MLP phases
+        of every transformer block (see TROUBLESHOOTING.md item -1.0 and
+        ltx_causal.layer_graph_capture.LayerPhaseGraphCapture). `capture`
+        must be a LayerPhaseGraphCapture instance or None to disable
+        (default). UNTESTED on real hardware -- default is None/disabled,
+        and stays that way unless the caller explicitly opts in.
+        """
+        self._layer_graph_capture = capture
+
     def _process_transformer_blocks(
         self,
         video: TransformerArgs | None,
@@ -386,6 +400,50 @@ class LTXModel(torch.nn.Module):
                     current_audio_token_start,
                     use_reentrant=False,
                 )
+            elif self._layer_graph_capture is not None and not self.training:
+                # Per-layer split graph capture (TROUBLESHOOTING.md item
+                # -1.0): self-attn and MLP phases captured/replayed per
+                # (layer_index, shape); cross-modal (a2v/v2a) stays eager
+                # every call -- item -0.7 proved capturing it is unsafe.
+                # UNTESTED on real hardware end-to-end; only the isolated
+                # 2-toy-layer feasibility test has been run so far.
+                if layer_index not in self._layer_graph_capture_flags:
+                    _, _, flags = block._forward_self_attn_phase(
+                        video, audio, perturbations, ucpe_viewmats, ucpe_Ks, layer_cache,
+                        current_video_token_start, current_audio_token_start,
+                    )
+                    self._layer_graph_capture_flags[layer_index] = flags
+                flags = self._layer_graph_capture_flags[layer_index]
+
+                def self_attn_phase_fn(
+                    vx_in, ax_in,
+                    _video=video, _audio=audio, _block=block, _perturbations=perturbations,
+                    _ucpe_viewmats=ucpe_viewmats, _ucpe_Ks=ucpe_Ks, _layer_cache=layer_cache,
+                    _cvt=current_video_token_start, _cat=current_audio_token_start,
+                ):
+                    v = replace(_video, x=vx_in) if _video is not None else None
+                    a = replace(_audio, x=ax_in) if _audio is not None else None
+                    vx_out, ax_out, _ = _block._forward_self_attn_phase(
+                        v, a, _perturbations, _ucpe_viewmats, _ucpe_Ks, _layer_cache, _cvt, _cat,
+                    )
+                    return vx_out, ax_out
+
+                vx_in = video.x if video is not None else None
+                ax_in = audio.x if audio is not None else None
+                vx, ax = self._layer_graph_capture.run(f"L{layer_index}_self_attn", self_attn_phase_fn, vx_in, ax_in)
+
+                vx, ax = block._forward_cross_modal_phase(
+                    vx, ax, video, audio, flags.perturbations, layer_cache,
+                    current_video_token_start, current_audio_token_start, flags,
+                )
+
+                def mlp_phase_fn(vx_in, ax_in, _video=video, _audio=audio, _block=block, _flags=flags):
+                    return _block._forward_mlp_phase(vx_in, ax_in, _video, _audio, _flags)
+
+                vx, ax = self._layer_graph_capture.run(f"L{layer_index}_mlp", mlp_phase_fn, vx, ax)
+
+                video = replace(video, x=vx) if video is not None else None
+                audio = replace(audio, x=ax) if audio is not None else None
             else:
                 video, audio = block(
                     video=video,

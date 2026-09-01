@@ -82,6 +82,13 @@ class CausalTI2VidPipeline:
         self._model_cache: dict[tuple[int, int, int, int], tuple] = {}
         self._compile_enabled = os.environ.get("ECHO_WM_COMPILE", "0") == "1"
 
+        # Opt-in (ECHO_WM_GRAPH_CAPTURE_LAYERS=1, default off): per-layer
+        # CUDA graph capture of the self-attn+MLP phases (TROUBLESHOOTING.md
+        # item -1.0), cross-modal stays eager. Untested end-to-end on real
+        # hardware -- only the isolated 2-toy-layer feasibility test
+        # (test_graph_capture_per_layer_split.py) has been run so far.
+        self._graph_capture_enabled = os.environ.get("ECHO_WM_GRAPH_CAPTURE_LAYERS", "0") == "1"
+
     @torch.inference_mode()
     def __call__(  # noqa: PLR0913
         self,
@@ -189,6 +196,16 @@ class CausalTI2VidPipeline:
                 _dynamo.config.allow_unspec_int_on_nn_module = True
                 x0_model.velocity_model = torch.compile(x0_model.velocity_model)
                 print(f"[compile] torch.compile() wrap done in {time.time() - t_compile:.1f}s", flush=True)
+            if self._graph_capture_enabled:
+                from ltx_causal.layer_graph_capture import LayerPhaseGraphCapture  # noqa: PLC0415
+
+                print(
+                    f"[graph-capture] ECHO_WM_GRAPH_CAPTURE_LAYERS=1: enabling per-layer "
+                    f"self-attn+MLP graph capture for {width}x{height} "
+                    f"(untested end-to-end -- watch closely for wrong/corrupted output)",
+                    flush=True,
+                )
+                x0_model.velocity_model.set_layer_graph_capture(LayerPhaseGraphCapture())
             wrapper = CausalModelWrapper(
                 x0_model.velocity_model,
                 patches_per_frame=(height // 32) * (width // 32),
