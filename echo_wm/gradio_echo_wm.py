@@ -1463,11 +1463,11 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                         seed = gr.Number(label="Seed", value=default_seed, precision=0)
                         denoise_steps = gr.Dropdown(
                             list(STEP_PRESETS), label="Denoising steps",
-                            value="(config default)",
+                            value="2 (fastest, most quality risk)",
                         )
                     attn_window = gr.Dropdown(
                         list(ATTENTION_PRESETS), label="Attention window (local_attn/sink)",
-                        value="(config default)",
+                        value="19/7 (native, most coherent)",
                     )
 
                 with gr.Accordion("Action Settings", open=False):

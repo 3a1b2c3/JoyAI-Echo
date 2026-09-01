@@ -1,5 +1,141 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -1.0. Item -0.7's graph-capture blocker: scoped concretely; reordering ruled out, only per-layer split is valid (not started)
+
+Follow-up scoping on item -0.7's cross-modal-RoPE graph-capture bug, done
+before attempting any fix.
+
+**Denoise and cache are the same underlying cost.** `_denoise_av_block`
+(profiled by `ECHO_WM_PROFILE_DENOISE`) calls `forward()` once per
+denoising step (2 steps in the current default preset); `ECHO_WM_PROFILE_CACHE`
+profiles exactly one `forward()` call (`rollout.py` line ~422). Their
+measured costs confirm this: denoise (~1.02s) / cache (~0.53s) ≈ 1.9, close
+to the step count. **This means fixing item -0.7's graph-capture blocker
+would speed up both** -- combined they're ~1.55s of the ~1.78s block total
+(~87%), not just cache's ~30% as item -0.9 scoped it.
+
+**The existing `ECHO_WM_GRAPH_CAPTURE_TEST=1` test** (`rollout.py` lines
+434-468) wraps the *entire* multi-layer `forward()` call in one
+`torch.cuda.graph()` region -- confirmed by reading it, not assumed. That
+whole-model capture is what item -0.7 found fails.
+
+**Fix (a) (data-driven `query_slice`) is bigger than it looked.**
+`kv_cache_start` (the Python int whose dict lookup gets baked as a graph
+constant, see item -0.7) is threaded through the entire KV-cache system as
+a plain int, not just this one call site. Making the lookup tensor-driven
+means making `kv_cache_start` itself graph-traceable everywhere -- closer
+in scope to the full `BlockKVCache` integration (item -21) than a
+standalone fix.
+
+**Fix (b) (exclude a2v/v2a from the captured region) requires a per-layer
+split, confirmed necessary by reading `transformer.py`'s actual layer
+loop**: each layer runs self-attention (video_self ~line 401, audio_self
+~line 447) *before* its a2v/v2a cross-modal block (~line 470), and that
+cross-modal block reads `vx`/`ax` -- the *same* layer's post-self-attention
+hidden states, not the previous layer's. Those updated `vx`/`ax` become the
+residual-stream input to the *next* layer's self-attention. So the real
+computation is strictly interleaved per layer: self-attn(N) ->
+cross-modal(N) -> self-attn(N+1) -> ...
+
+**This rules out "capture all self-attn across all layers, then all
+cross-modal after"** -- it would silently compute something different from
+the real model (a correctness bug, not just a missed optimization), not a
+viable reordering. The only architecturally valid version of fix (b) is a
+**per-layer split**: capture self-attn+cache-update, break to eager Python
+for that layer's a2v/v2a, re-enter capture for the next layer's self-attn --
+repeated once per layer. This reintroduces real dispatch/launch overhead at
+every layer boundary, which is exactly the cost graph capture exists to
+remove.
+
+**Revised speedup expectation: likely well under item -21's ~80-90%
+estimate.** That estimate assumed one clean whole-`forward()` capture. Per-
+layer boundaries eat into it -- rough unmeasured guess, capturing maybe
+~60% of the ops (self-attn/cache-update; a2v/v2a stays eager) minus
+re-entry overhead at each boundary. No real number exists until this is
+implemented and measured.
+
+**Feasibility test written, not yet run**: `test_graph_capture_per_layer_split.py`
+(repo root) -- simulates a 2-"layer" stack (self-attn capture -> real eager
+cross-modal -> self-attn capture again), using the real
+`update_kv_cache`/`apply_rotary_emb`/`_slice_rope` from `attention.py`,
+captured at one block and replayed at a different block, diffed against a
+fully eager reference. Tests the specific open risk this fix introduces:
+whether two independent `torch.cuda.graph()` regions with real eager work
+interleaved between them (re-entering capture, memory pool reuse) stay
+correct -- a different risk from item -0.7's single-region bug, and not
+covered by the existing `ECHO_WM_GRAPH_CAPTURE_TEST`. Needs a real GPU
+(`torch.cuda.graph()` capture doesn't work on CPU) -- run on the GB300 box:
+```bash
+python test_graph_capture_per_layer_split.py
+```
+If it reports CONFIRMED FEASIBLE, real integration into `transformer.py`'s
+layer loop is the next step. If BLOCKED, root-cause before attempting
+integration -- do not proceed on the assumption it'll probably work.
+
+## -0.9. `ECHO_WM_PROFILE_CACHE=1` re-run: reconfirms item -21's dispatch-bound finding; next steps
+
+Re-ran `ECHO_WM_PROFILE_CACHE=1` (see item -21 for the original finding) to
+check whether it still holds on current code. It does -- the op-count
+signature matches almost call-for-call: `aten::linear` x1756, `aten::mul`
+x3886, `aten::add` x3802, `aten::copy_` ~4259, same top offenders, same
+shape (many small kernels, no single dominant Self CUDA% -- `aten::addmm`
+tops out around 24%, most rows single digits). Still dispatch-bound, not
+compute-bound, on this exact codebase as of this re-check.
+
+**Totals confirmed**: `Self CPU time total: 777.676ms`, `Self CUDA time
+total: 73.392ms` (~10.6x CPU:CUDA ratio) -- same order of magnitude as item
+-21's original 828ms/86ms (~9.6x). Still solidly dispatch-bound.
+
+**Next steps, in order of effort** (none started):
+1. ~~Confirm the totals line~~ -- done, see above.
+2. **Scope-only, 1-3 days**: cherry-pick just
+   `KVCacheRelativeRotaryPositionEmbedding3D` (`flashdreams/core/attention/rope.py`)
+   -- precomputed, device-resident RoPE frequencies, no per-call CPU-GPU
+   copy. Smallest real piece of item -21's proposal; doesn't by itself fix
+   the dispatch-count problem (still one Python op per tensor), but
+   removes one class of overhead cleanly and independently.
+3. **Full integration, 1-2+ weeks**: `BlockKVCache` + its paired
+   `CUDAGraphWrapper` from `flashdreams/core/attention/kvcache.py`, which is
+   what actually collapses the ~4000+ individually-dispatched small ops
+   into one graph replay -- the only lever expected to meaningfully move
+   the 828ms CPU dispatch number. Blocked on item -0.7 (full-block graph
+   capture silently corrupts cross-modal RoPE) being solved first, via
+   either of its two proposed fixes (data-driven `query_slice` instead of a
+   dict lookup, or excluding the a2v/v2a branch from the captured region).
+   Estimated (theoretical, unmeasured) payoff: up to ~80-90% off
+   cache-update's ~0.53s/block cost, which would land total block time
+   around ~1.3-1.35s -- under the 1.5s real-time budget, not just closer to
+   it.
+
+## -0.8. `ECHO_WM_VAE_CHANNELS_LAST=1`: opt-in channels_last_3d VAE decoder (implemented, not yet benchmarked)
+
+`ECHO_WM_PROFILE_CALLBACK=1` traces of the `on_block` streaming-preview
+callback (VAE-decodes the accumulated video/audio buffers so far) showed
+the decoder's conv stack dominating cost as expected (`conv3d`,
+`conv_transpose1d`, `conv1d`, depthwise conv -- ~96ms CUDA total across 685
+`aten::convolution` calls in one sample trace), but also a
+`nchwToNhwcKernel` layout-conversion kernel firing 495 times (~8.6ms) --
+evidence the decoder isn't running in a consistent memory format and is
+paying a per-call NCHW->NHWC conversion inside the conv path.
+
+Added `ModelLedger.video_decoder()`
+(`ltx-pipelines/src/ltx_pipelines/utils/model_ledger.py`): behind
+`ECHO_WM_VAE_CHANNELS_LAST=1`, converts the built decoder to
+`torch.channels_last_3d` once at load time instead of per-call. Opt-in,
+default off -- whether this actually helps depends on whether cuDNN has a
+faster `channels_last_3d` conv3d kernel for this exact shape/dtype on this
+GPU, which is only knowable by re-running the same profiler with the flag
+on and diffing the trace:
+
+```bash
+ECHO_WM_PROFILE_CALLBACK=1 ECHO_WM_VAE_CHANNELS_LAST=1 bash run_gradio.sh 2>&1 | tee /tmp/profile_callback_cl.log
+grep -A 30 '\[profile\] on_block' /tmp/profile_callback_cl.log
+```
+
+Compare the `nchwToNhwcKernel` line and overall CUDA total against a
+baseline trace (flag off). Not yet run on real hardware as of this entry --
+mark this RESOLVED or REVERTED once that comparison happens either way.
+
 ## -0.7. CONFIRMED: full-block CUDA graph capture would silently corrupt cross-modal RoPE (empirically proven, not yet fixed)
 
 Item -23's proposed full block-forward graph integration (never started)
