@@ -112,6 +112,56 @@ from helpers.action_overlay import overlay_genie_on_video  # noqa: E402
 
 print("[startup] all imports done", flush=True)
 
+
+def _log_attention_backend_status() -> None:
+    """Real-kernel self-check for every attention backend this repo knows
+    about, printed once at engine startup -- so confirming what's actually
+    installed/working doesn't need a separate manual test script or
+    console session (see TROUBLESHOOTING.md items -16/-0.6: importable
+    doesn't mean working, and working doesn't mean fast, so this checks
+    both explicitly with a real call, not just an import check). Runs a
+    tiny real forward call for each backend that's importable; anything
+    not installed is skipped, not treated as a failure."""
+    import torch as _torch
+
+    from ltx_core.model.transformer import attention as _attn
+
+    if not _torch.cuda.is_available():
+        print("[attention-check] No CUDA device -- skipping backend self-check.", flush=True)
+        return
+
+    device = _torch.device("cuda")
+    b, heads, seq_len, head_dim = 1, 8, 256, 64
+    q = _torch.randn(b, seq_len, heads * head_dim, device=device, dtype=_torch.bfloat16)
+    k = _torch.randn(b, seq_len, heads * head_dim, device=device, dtype=_torch.bfloat16)
+    v = _torch.randn(b, seq_len, heads * head_dim, device=device, dtype=_torch.bfloat16)
+
+    checks = [
+        ("SDPA", lambda: _attn.PytorchAttention()(q, k, v, heads)),
+        ("xformers", lambda: _attn.XFormersAttention()(q, k, v, heads)) if _attn.memory_efficient_attention is not None else None,
+        ("FlashAttention3", lambda: _attn.FlashAttention3()(q, k, v, heads)) if _attn.flash_attn_interface is not None else None,
+        ("FlashAttention2", lambda: _attn.FlashAttention2()(q, k, v, heads)) if _attn.flash_attn_func is not None else None,
+        ("FlashInfer", lambda: _attn.FlashInferAttention()(q, k, v, heads)) if _attn.flashinfer_single_prefill is not None else None,
+        ("SageAttention", lambda: _attn.SageAttention()(q, k, v, heads)) if _attn.sageattn is not None else None,
+    ]
+    print("[attention-check] Real-kernel self-check for every installed attention backend:", flush=True)
+    for name, fn in checks:
+        if fn is None:
+            print(f"[attention-check]   {name}: not installed, skipped", flush=True)
+            continue
+        try:
+            out = fn()
+            _torch.cuda.synchronize()
+            print(f"[attention-check]   {name}: OK, output shape {tuple(out.shape)}", flush=True)
+        except Exception as exc:  # noqa: BLE001 - report whatever a real kernel call raises
+            print(f"[attention-check]   {name}: FAILED -- {type(exc).__name__}: {exc}", flush=True)
+    _sage_on = os.environ.get("ECHO_WM_SAGEATTENTION", "0") == "1"
+    _fi_on = os.environ.get("ECHO_WM_FLASHINFER", "0") == "1"
+    print(f"[attention-check] Actual default in use: SDPA (SageAttention/FlashInfer both "
+          f"confirmed slower tonight, gated off unless explicitly enabled -- "
+          f"ECHO_WM_SAGEATTENTION={'1' if _sage_on else '0'}, ECHO_WM_FLASHINFER={'1' if _fi_on else '0'}).",
+          flush=True)
+
 # Default paths (Base model — full multi-step diffusion, no live preview)
 DEFAULT_CONFIG = ROOT / "configs" / "inference_wm.yaml"
 DEFAULT_CHECKPOINT = ROOT / "checkpoints" / "echo-wm-base.safetensors"
