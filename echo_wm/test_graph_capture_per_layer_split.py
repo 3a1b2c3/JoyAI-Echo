@@ -74,6 +74,8 @@ def make_self_attn_cache(capacity: int, local_pe) -> dict:
     return {
         "k": torch.zeros(1, capacity, DIM, device=device),
         "v": torch.zeros(1, capacity, DIM, device=device),
+        "positions": torch.full((capacity,), -1, device=device, dtype=torch.long),
+        "length": 0,
         "local_attn_size": capacity,
         "sink_tokens": 0,
         "local_rope_pe": local_pe,
@@ -84,6 +86,8 @@ def make_cross_modal_cache(capacity: int, local_q_pe, local_k_pe, q_slices: dict
     return {
         "k": torch.zeros(1, capacity, DIM, device=device),
         "v": torch.zeros(1, capacity, DIM, device=device),
+        "positions": torch.full((capacity,), -1, device=device, dtype=torch.long),
+        "length": 0,
         "local_attn_size": capacity,
         "sink_tokens": 0,
         "local_cross_q_rope_pe": local_q_pe,
