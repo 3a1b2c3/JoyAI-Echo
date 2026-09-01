@@ -1,5 +1,91 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -19. `torch.profiler` on cache-update: real bottleneck is CPU dispatch overhead, not GPU compute
+
+`ECHO_WM_PROFILE_CACHE=1` (`rollout.py`) profiles one real cache-update
+`forward()` call (block 3) with `torch.profiler`. Real finding: **Self CUDA
+time total: 86ms, Self CPU time total: 828ms** -- the GPU itself is doing
+almost no work; nearly all wall-clock cost is Python/kernel-launch
+dispatch overhead from a huge number of small individually-dispatched ops
+(`aten::linear` x1756, `aten::cat` x2134, `aten::copy_` x4263,
+`aten::mul` x3886, `aten::add` x3802). This directly explains why
+attention-window/resolution changes never moved cache-update's flat
+~0.5-0.6s (item -14/-16): those levers touch *compute*, but this cost is
+*dispatch*, a different axis entirely.
+
+**Concrete finding, fixed**: `aten::nonzero` -- 720 calls, paired 1:1 with
+`aten::index` (also 720). `nonzero()` forces a CPU-GPU sync every call
+(has to wait to learn the output size before allocating it) and is a
+well-known PyTorch anti-pattern. Traced to `update_kv_cache`'s
+boolean-mask indexing (`old_k[:, keep_old]` etc., `attention.py`) --
+`positions` is always sorted ascending (tokens appended in increasing
+order), so these masks are always contiguous prefix/suffix selections,
+not scattered ones. Rewrote using `torch.searchsorted` + direct slicing
+instead of boolean masks -- eliminates `nonzero()` entirely, needs only
+one small `.item()` sync per rewritten selection instead of nonzero's
+sync-and-gather per masked index.
+
+**Correctness verified before trusting it**: `test_kv_cache_correctness.py`
+(new, CPU-only, no GPU/model needed) compares the old boolean-mask
+implementation against the new searchsorted one across 7 realistic
+scenarios (every attention-window config used this session: 19/7, 10/4,
+7/1, 4/1; with and without repeated/redone denoising-step overwrites of
+the same block). **All 7 matched byte-identical.**
+
+**Measured impact: not detectable at the `[rollout]` print's 0.1s
+precision** (`cache=0.6s`, unchanged). Consistent with the honest
+pre-estimate (nonzero+index's *directly reported* cost was only
+~135ms CPU/~12ms CUDA out of the 828ms/86ms totals -- ~10-20% of
+cache-update, i.e. maybe 50-100ms, below what the coarse block-timer can
+show). The bulk of the 828ms CPU overhead is still the thousands of
+*other* small ops this fix doesn't touch -- real further progress on this
+axis needs the bigger CUDA-graph-capture approach (item -20), not more
+targeted op-level fixes like this one. Kept the fix regardless -- it's a
+genuine, verified-correct cleanup with no downside, even if its
+measured impact is small.
+
+## -20. CUDA graph capture: feasibility-only test added (not yet run)
+
+Following from item -19's finding (CPU dispatch overhead, not GPU
+compute, dominates) -- CUDA graphs are the architectural answer to
+*that* specific problem (capture the whole op sequence once, replay with
+near-zero per-op dispatch cost). Real engineering, not attempted as a
+production integration tonight: requires fixed/pre-allocated buffers
+(graphs freeze memory addresses, not just shapes), shapes that only
+stabilize *after* the KV cache window fills (first few blocks differ
+structurally from steady-state), and touches the same inference-critical
+code just verified correct in item -19 -- a rushed version risks silently
+wrong output, not just a crash.
+
+**What was actually added**: `ECHO_WM_GRAPH_CAPTURE_TEST=1`
+(`rollout.py`) -- a feasibility-only diagnostic. At block 5 (steady-state
+windowing, not the variable-shape fill-up blocks), attempts a real
+`torch.cuda.graph()` capture + replay of the actual cache-update
+`forward()` call (warmup on a side stream first, per `torch.cuda.graph`'s
+own recommendation, then capture, then one replay). Safe to run
+repeatedly against the real production KV cache: `update_kv_cache` is
+deliberately idempotent for repeated same-range writes (designed to
+handle repeated denoising-step overwrites of the same block -- see its
+docstring), so the extra warmup/capture/replay calls converge to the same
+final cache state as the one real call already made this block, not
+corrupt it. Doesn't change real generation output or speed either way --
+purely diagnostic.
+
+**Expected likely blocker, not yet confirmed**: item -19's own
+`searchsorted(...).item()` fix is itself a CPU-GPU sync point, which
+CUDA graph capture forbids entirely inside the captured region -- the
+capture attempt may fail because of the very fix that was just added.
+There's a deeper fix available for this specific problem (precompute all
+cache-windowing math in pure Python ahead of time, since causal block
+boundaries are fully known before the rollout loop starts -- no tensor
+ops or GPU sync needed at all, faster than even the searchsorted version
+and graph-capture-friendly), but implementing that is a bigger refactor
+than fit in tonight's time -- noted for later, not attempted.
+
+**Not yet run.** Whatever the actual capture error (or success) turns out
+to be will tell us definitively whether pursuing real CUDA graph
+integration is worth the multi-hour effort, instead of guessing.
+
 ## -17. "Radical config stack" for max speed -- tried, reverted ("slow and awful")
 
 After fp8 (item -9) was confirmed a clean net loss (2.0-2.1s/block vs.

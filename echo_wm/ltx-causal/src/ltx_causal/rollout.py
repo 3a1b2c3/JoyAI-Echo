@@ -406,8 +406,8 @@ def _generate_av_blocks(
                 print(f"[graph-test] CAPTURE/REPLAY FAILED: {type(exc).__name__}: {exc}", flush=True)
                 print("[graph-test] Diagnostic only -- real generation is unaffected by "
                       "this failure (extra calls above were discarded/idempotent).", flush=True)
-        print(f"[rollout] block {block_index}/{total_blocks}: denoise={t_denoise:.1f}s "
-              f"callback={t_callback:.1f}s cache={t_cache:.1f}s total={time.time() - t_block_start:.1f}s",
+        print(f"[rollout] block {block_index}/{total_blocks}: denoise={t_denoise:.3f}s "
+              f"callback={t_callback:.3f}s cache={t_cache:.3f}s total={time.time() - t_block_start:.3f}s",
               flush=True)
 
 
