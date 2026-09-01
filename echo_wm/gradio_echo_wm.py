@@ -519,6 +519,19 @@ class EchoWMCausalEngine:
 
         result_queue: queue.Queue = queue.Queue()
         frame_count = {"n": 0}
+        # Tracks the most recent real audio chunk (waveform + its *actual*
+        # sampling_rate) so a video-only block (no new audio decoded yet --
+        # see the on_block comment below) can fill the gap by looping it,
+        # instead of leaving a real silence gap in the audio track.
+        last_audio: dict = {"waveform": None, "sampling_rate": None}
+
+        def _tile_to_length(waveform: torch.Tensor, target_len: int) -> torch.Tensor:
+            cur_len = waveform.shape[-1]
+            if cur_len == 0:
+                return waveform
+            reps = (target_len + cur_len - 1) // cur_len
+            tiled = waveform.repeat(*([1] * (waveform.ndim - 1)), reps)
+            return tiled[..., :target_len]
 
         # A typical GOP (~0.5s at the configured fps) -- doesn't need to
         # line up with the pipeline's own block boundaries. write_chunk()
@@ -594,6 +607,35 @@ class EchoWMCausalEngine:
                 )
             frame_count["n"] += video_chunk.shape[0]
             if stream_encoder is not None:
+                real_audio = audio_chunk if generate_audio else None
+                if real_audio is not None and real_audio.waveform.shape[-1] > 0:
+                    last_audio["waveform"] = real_audio.waveform
+                    last_audio["sampling_rate"] = real_audio.sampling_rate
+                    audio_for_stream = real_audio
+                elif generate_audio and last_audio["waveform"] is not None:
+                    # Video and audio decode on independent cadences in this
+                    # pipeline -- this block has real new video but no new
+                    # audio yet (it catches up in a later block). Loop the
+                    # last real chunk to fill this block's exact duration,
+                    # at its *actual* sampling_rate (not a guessed/hardcoded
+                    # one -- a mismatched declared rate fed into
+                    # StreamingEncoder's persistent AudioResampler corrupted
+                    # audio for the rest of the stream the first time this
+                    # was tried with hardcoded silence). Sounds like a brief
+                    # loop/stutter rather than true silence, but keeps the
+                    # audio track's timeline continuous with video instead
+                    # of leaving a real gap.
+                    duration_s = video_chunk.shape[0] / float(fps)
+                    needed_samples = max(int(round(duration_s * last_audio["sampling_rate"])), 1)
+                    audio_for_stream = Audio(
+                        waveform=_tile_to_length(last_audio["waveform"], needed_samples),
+                        sampling_rate=last_audio["sampling_rate"],
+                    )
+                else:
+                    # No real audio has arrived yet at all (e.g. very first
+                    # block) -- nothing to loop, skip audio for this block
+                    # only.
+                    audio_for_stream = None
                 # Non-blocking hand-off -- the actual encode+push happens on
                 # _encode_worker's thread, concurrently with whatever this
                 # (rollout) thread does next (cache-update forward(), then
@@ -601,7 +643,7 @@ class EchoWMCausalEngine:
                 # already .clone()'d by the caller (raw_on_block in
                 # causal_ti2vid.py), so they're safe to hand to another
                 # thread.
-                encode_queue.put((video_chunk, audio_chunk if generate_audio else None))
+                encode_queue.put((video_chunk, audio_for_stream))
             result_queue.put(("block", block_index, total_blocks, block_path, frame_count["n"]))
 
         def worker() -> None:

@@ -1,6 +1,80 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
-## -6. Encode work pipelined off the rollout thread (implemented, not yet benchmarked)
+## -8. Live-preview audio drop-outs between blocks (fixed, second attempt)
+
+Video and audio decode on independent cadences in this pipeline (separate
+"newly available" checks in `causal_ti2vid.py`'s `raw_on_block`) -- some
+blocks carry real new video frames but no new audio yet (it catches up in
+a later block). `StreamingEncoder.write_chunk()` only muxes audio when
+given a real chunk, so those video-only blocks left a genuine gap in the
+audio track's timeline while video kept advancing -- audible as
+silence/drop-outs, confirmed by the reporting user as "silence" specifically
+(not clicks/pops), which ruled out a timestamp-continuity/artifact
+explanation in favor of a real missing-content one.
+
+**First attempt (reverted, broke audio entirely):** filled gaps with
+hardcoded digital silence at a guessed 48000 Hz sample rate. Broke audio
+completely, not just left it gap-y. Root cause (inferred, not directly
+confirmed): `StreamingEncoder` uses one **persistent** `AudioResampler`
+across the whole generation; feeding it real chunks at their actual rate
+and silence chunks declared at a different, mismatched rate on the same
+stateful resampler instance very likely corrupted its internal state
+(`libswresample`, which PyAV's resampler wraps, isn't built to handle the
+declared input rate changing mid-stream cleanly).
+
+**Second attempt (current):** instead of synthesizing silence, loop the
+most recent *real* audio chunk (`last_audio` dict: waveform + its actual
+`sampling_rate`, updated whenever a real chunk arrives) to fill a
+video-only block's exact duration, always using that chunk's real,
+already-consistent sampling rate -- never a guessed one. Falls back to
+skipping audio only when no real chunk has arrived yet at all (e.g. the
+very first block). Trades a possibly-audible loop/stutter during gaps for
+guaranteed timeline continuity and no resampler-rate-mismatch risk. Not
+yet confirmed working on real hardware as of this writing.
+
+## -7. Speed tuning summary + step-count/attention-window exposed as live UI dropdowns
+
+Cumulative result of this session's speed work (measured via `[rollout]`
+per-block timing and the Status panel's "avg generation speed"):
+**~6.88fps -> ~9.80fps** average generation speed, and steady-state
+per-block time **~3.5s -> 1.5s** -- landing almost exactly on the ~1.5s
+real-time budget at 512x288/16fps. In order of real, confirmed impact:
+1. Attention window `video_local_attn_size`/`video_sink_size` 19/7 -> 10/4
+   -> **4/1** (the minimum `CausalCacheConfig.validate()` allows -- see
+   its constraints: `0 < sink < local_attn`, `local_attn - sink >=
+   video_chunk_size`, both `1 + n*video_chunk_size`). Confirmed real (not
+   a `torch.compile`-bug artifact like the step-count numbers initially
+   were): denoise dropped ~1.0-1.1s -> ~0.9s across these three cuts.
+2. Denoising steps 4 (native) -> 2 -- see item -4 for how this was
+   initially miscalibrated by the `torch.compile` recompilation bug and
+   only became trustworthy once that was fixed.
+3. Encode work pipelined off the rollout thread (item -6).
+4. Warmup resolution fix (item -5) -- doesn't affect steady-state speed,
+   but stops the cold-start cost from landing on a real user's first
+   request.
+
+**Curious, unexplained data point:** cache-update `forward()`'s ~0.5s cost
+did not move at all across the 19/7 -> 10/4 -> 4/1 attention-window cuts,
+even though it uses the same attention machinery as denoise (which did
+drop). Not investigated further -- either cache-update genuinely doesn't
+scale with window size for some structural reason, or there's an
+unexploited saving being left on the table here.
+
+**UI exposure:** both step count and attention window are now live
+dropdowns in the causal UI's "Video Settings" (`STEP_PRESETS`/
+`ATTENTION_PRESETS` in `gradio_echo_wm.py`, "(config default)" plus a few
+presets each) instead of only being editable via `configs/*.yaml` +
+restart. Attention window required extending `CausalTI2VidPipeline`'s
+per-resolution model cache (`self._model_cache`, added in item -4) to key
+on `(width, height, video_local_attn_size, video_sink_size)` instead of
+just `(width, height)` -- different windows need different-sized KV-cache
+tensors (see `CausalModelWrapper.init_caches`), so they can't share a
+cached model instance. `CausalTI2VidPipeline.__call__` gained an
+`attn_window: tuple[int, int] | None` param that, when given, builds a
+one-off `CausalCacheConfig` for that call instead of using
+`self.cache_config` (validated the same way).
+
+## -6. Encode work pipelined off the rollout thread (confirmed working)
 
 Measured steady-state per-block breakdown (once the `torch.compile` bug in
 item -4 was ruled out): `denoise (~1.0-1.1s) -> on_block callback (~0.4s)
@@ -25,14 +99,12 @@ encode thread is joined *before* calling `stream_encoder.close()` --
 otherwise `close()`'s flush could race ahead of a still-pending block's
 `write_chunk()`.
 
-**Expected**, not yet confirmed: cutting ~0.4s/block (the previously
-serialized callback time) off the ~1.9s total, landing near or under the
-~1.5s real-time budget at 512x288/16fps. Real risk: if the CPU-bound
-encode work contends for the GIL badly enough with the rollout thread's
-Python-side orchestration (issuing the next CUDA kernels), the overlap
-might not be as clean as expected -- PyAV's C-level encode should release
-the GIL during the actual libx264 work, but this hasn't been verified
-empirically.
+**Confirmed on real hardware.** `on_block callback returned` time dropped
+from ~0.4s to ~0.1-0.2s (not fully to ~0s -- the overlap isn't perfect,
+some GIL/scheduling contention as flagged as a risk below, but still a
+real, substantial win). Combined with the other changes in item -7,
+steady-state total block time reached ~1.5-1.6s, at or very near the
+~1.5s real-time budget.
 
 ## -5. Warmup used a different resolution than the real config, so it didn't actually warm anything (fixed)
 
