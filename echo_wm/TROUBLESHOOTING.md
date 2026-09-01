@@ -775,6 +775,20 @@ recompilation bug) in case this is revisited later with a fix for the
 per dynamo's own hint, or restructuring that comparison to avoid a
 per-layer Python-int guard entirely) -- not attempted this session.
 
+**Update, later same session: the dynamo-hinted fix was attempted.**
+`causal_ti2vid.py` now sets `torch._dynamo.config.allow_unspec_int_on_nn_module = True`
+right before the `torch.compile()` call, still gated behind
+`ECHO_WM_COMPILE=1` (default remains off). Not yet cleanly confirmed
+whether it actually resolves the recompilation storm -- test by watching
+warmup closely for a stuck/repeating heartbeat pattern (the original
+failure mode) vs. a normal ~30-35s completion, then compare resulting
+block timing against the ~1.82-1.87s clean baseline. If warmup completes
+normally but timing doesn't improve over baseline, that confirms the
+storm is fixed but compile still isn't a speed win here (plausible given
+item -19's finding that dispatch overhead is spread across the whole
+model, not concentrated where compile can easily help) -- still useful
+information, not a wasted test either way.
+
 ## -3. Blackwell consumer/workstation GPUs (RTX 5090, RTX PRO 6000 -- compute capability 12.0): xformers/SDPA gotchas (fixed)
 
 Hit on `kschmid-4vvboh` ("horde"), a compute-capability-**12.0** GPU

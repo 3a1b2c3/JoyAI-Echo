@@ -176,8 +176,17 @@ class CausalTI2VidPipeline:
                 # (warmup got stuck >100s on a single ~2s block). This is
                 # dynamo's own suggested fix, per its error output --
                 # untested whether it actually resolves the storm.
-                import torch._dynamo  # noqa: PLC0415
-                torch._dynamo.config.allow_unspec_int_on_nn_module = True
+                # `import torch._dynamo` here (instead of `from torch import
+                # _dynamo`) would bind the name `torch` locally -- Python's
+                # `import a.b` binds `a`, not `a.b` -- making the whole
+                # function treat `torch` as a local variable and breaking
+                # every other `torch.*` use above this point in the function
+                # (confirmed on real hardware: `UnboundLocalError: cannot
+                # access local variable 'torch'` at the earlier
+                # `torch.cuda.synchronize()` call). Import only the
+                # submodule name instead.
+                from torch import _dynamo  # noqa: PLC0415
+                _dynamo.config.allow_unspec_int_on_nn_module = True
                 x0_model.velocity_model = torch.compile(x0_model.velocity_model)
                 print(f"[compile] torch.compile() wrap done in {time.time() - t_compile:.1f}s", flush=True)
             wrapper = CausalModelWrapper(
