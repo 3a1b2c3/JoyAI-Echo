@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
 import torch
+
+# Opt-in (ECHO_WM_PROFILE_CACHE=1): profile exactly one cache-update
+# forward() call (see the bottom of _generate_av_blocks below) with
+# torch.profiler, to find out what's actually expensive in it -- this call
+# costs the same ~0.5-0.6s regardless of attention-window size or
+# resolution changes (see TROUBLESHOOTING.md item -14/-16 area), meaning
+# whatever's expensive isn't the windowed self-attention those levers
+# touch. Rather than guess again, get a real operator-level breakdown.
+# Profiling block 3 (not block 0, which pays extra one-time warmup-ish
+# cost) once, not every block, to keep this cheap when disabled and
+# low-overhead for the one profiled call.
+_PROFILE_CACHE_UPDATE = os.environ.get("ECHO_WM_PROFILE_CACHE", "0") == "1"
+_PROFILE_BLOCK_INDEX = 3
+_cache_profiled = False
 
 from ltx_core.model.transformer.modality import Modality
 
@@ -326,7 +341,23 @@ def _generate_av_blocks(
             on_block(block_index, total_blocks, video_block, buffers.video_output, buffers.audio_output)
             t_callback = time.time() - t_callback_start
         t_cache_start = time.time()
-        forward(video_sample, video_block, 0.0, audio_sample, audio_block, 0.0)
+        global _cache_profiled
+        if _PROFILE_CACHE_UPDATE and block_index == _PROFILE_BLOCK_INDEX and not _cache_profiled:
+            _cache_profiled = True
+            with torch.profiler.profile(
+                activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
+                record_shapes=True,
+            ) as prof:
+                forward(video_sample, video_block, 0.0, audio_sample, audio_block, 0.0)
+            print(f"\n[profile] cache-update forward() at block {block_index}, "
+                  f"top ops by CUDA time:\n", flush=True)
+            print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=25), flush=True)
+            trace_path = "cache_update_profile.json"
+            prof.export_chrome_trace(trace_path)
+            print(f"[profile] full trace exported to {trace_path} "
+                  f"(open in chrome://tracing or https://ui.perfetto.dev for details)\n", flush=True)
+        else:
+            forward(video_sample, video_block, 0.0, audio_sample, audio_block, 0.0)
         t_cache = time.time() - t_cache_start
         print(f"[rollout] block {block_index}/{total_blocks}: denoise={t_denoise:.1f}s "
               f"callback={t_callback:.1f}s cache={t_cache:.1f}s total={time.time() - t_block_start:.1f}s",
