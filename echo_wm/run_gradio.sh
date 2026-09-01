@@ -4,9 +4,9 @@
 set -eo pipefail
 
 # Default paths (can be overridden by environment variables)
-CHECKPOINT="${CHECKPOINT:-checkpoints/echo-wm-base.safetensors}"
+CHECKPOINT="${CHECKPOINT:-checkpoints/echo-wm-flash.safetensors}"
 GEMMA_PATH="${GEMMA_PATH:-checkpoints/gemma-3}"
-CONFIG="${CONFIG:-configs/inference_wm.yaml}"
+CONFIG="${CONFIG:-configs/inference_wm_causal.yaml}"
 PORT="${PORT:-7860}"
 
 # CUDA's own PTX->SASS JIT cache persists to disk across process restarts,
