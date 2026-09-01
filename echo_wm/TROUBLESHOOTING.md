@@ -1,5 +1,42 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -0.7. CONFIRMED: full-block CUDA graph capture would silently corrupt cross-modal RoPE (empirically proven, not yet fixed)
+
+Item -23's proposed full block-forward graph integration (never started)
+was paused over a traced-but-unproven concern: the a2v/v2a cross-modal
+attention branch in `Attention.forward()` (`attention.py`) does
+```python
+query_slice = kv_cache["local_cross_q_slices"].get((kv_cache_start, kv_cache_start + new_keys))
+q = apply_rotary_emb(q, _slice_rope(local_q_pe, *query_slice), self.rope_type)
+```
+`kv_cache_start` is a plain Python int, different every block -- under
+`torch.cuda.graph()` capture, this dict lookup runs once at capture time
+and its result is baked into the recorded op sequence.
+
+**Empirically confirmed with a standalone real-GPU repro**
+(`test_graph_capture_cross_modal_rope.py`, isolates exactly this branch
+with tiny synthetic tensors, importing the real `apply_rotary_emb`/
+`_slice_rope`/`update_kv_cache` from `attention.py`): captured this
+branch at block A's `kv_cache_start`, replayed the same graph with block
+B's real data swapped into the static input buffers (but `kv_cache_start`
+still baked as A, since that can't change post-capture) -- output
+**MISMATCHED** block B's honest eager-run reference by a wide margin
+(not a rounding difference: `[-0.296, 2.676, -0.141, -0.844]` replayed vs.
+`[-2.143, 1.630, 0.514, -0.684]` expected). This is silent, not a crash --
+exactly the dangerous failure mode: plausible-looking but wrong output,
+which is why it was worth a dedicated correctness test instead of trusting
+a guess before ever touching real generation.
+
+**Conclusion: any future full-block-forward graph capture must NOT
+naively include this branch as-is.** Two paths forward, neither attempted:
+(a) compute `query_slice` from a tensor value (e.g. `torch.searchsorted`
+against a precomputed boundary tensor) instead of a Python dict lookup, so
+it's traced as data rather than baked as a constant, or (b) exclude the
+a2v/v2a cross-modal path from the captured region entirely and run it
+eagerly alongside the captured graph each block. Full block-forward graph
+integration (item -23's plan) remains not started, and now has a known,
+scoped blocker instead of an unverified guess.
+
 ## -0.6. SageAttention: confirmed working on this GPU (contradicts earlier research), but confirmed SLOWER than SDPA -- disabled by default
 
 Earlier this session (see -16 below), research suggested no sm_100/103
