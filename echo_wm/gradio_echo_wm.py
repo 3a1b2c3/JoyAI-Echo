@@ -150,6 +150,19 @@ ACTION_PRESETS = {
     "strafe scan": "w-40,d-50,a-100,d-50",
 }
 
+# Denoising-step presets for the causal (Flash Preview) engine -- lets speed/
+# quality be A/B'd live in the UI instead of editing configs/*.yaml and
+# restarting the server for every step-count test. "(config default)" defers
+# to whatever configs/inference_wm_causal*.yaml actually has set (passes
+# timesteps=None, so EchoWMCausalEngine.generate() falls back to
+# self.timesteps), rather than silently overriding it.
+STEP_PRESETS: dict[str, tuple[int, ...] | None] = {
+    "(config default)": None,
+    "4 (native)": (1000, 750, 500, 250),
+    "3": (1000, 625, 250),
+    "2 (fastest, most quality risk)": (1000, 500),
+}
+
 ACTION_HELP = (
     "**Action DSL** — segments `<keys>-<frames>` joined by commas; keys held simultaneously.\n"
     "`w`/`s` forward/back · `a`/`d` strafe left/right · `i`/`k` pitch up/down · `j`/`l` yaw (pan) left/right · "
@@ -887,7 +900,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
     def on_generate(
         image_path, prompt, action_str, seed, num_frames, fps, width, height,
         fov_deg, translation_speed, rotation_speed, pitch_limit,
-        gen_audio, overlay,
+        gen_audio, overlay, denoise_steps_choice,
     ):
         if not image_path:
             yield "❌ Pick or upload an image first.", None, None, None
@@ -942,6 +955,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                 overlay=bool(overlay),
                 out_dir=out_dir,
                 on_stream_chunk=on_stream_chunk,
+                timesteps=STEP_PRESETS.get(denoise_steps_choice),
             ):
                 if item[0] == "block":
                     _, block_index, total_blocks, block_path, frames_so_far = item
@@ -1291,7 +1305,12 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                             label="Frames (must be 1 + 8n)", value=default_num_frames, precision=0
                         )
                         fps = gr.Number(label="FPS", value=default_fps, precision=1)
-                    seed = gr.Number(label="Seed", value=default_seed, precision=0)
+                    with gr.Row():
+                        seed = gr.Number(label="Seed", value=default_seed, precision=0)
+                        denoise_steps = gr.Dropdown(
+                            list(STEP_PRESETS), label="Denoising steps",
+                            value="(config default)",
+                        )
 
                 with gr.Accordion("Action Settings", open=False):
                     fov_deg = gr.Slider(
@@ -1350,7 +1369,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
             inputs=[
                 image, prompt, action, seed, num_frames, fps, width, height,
                 fov_deg, translation_speed, rotation_speed, pitch_limit,
-                gen_audio, overlay,
+                gen_audio, overlay, denoise_steps,
             ],
             outputs=[status, stream_trigger, out_video, raw_file],
             concurrency_limit=1,

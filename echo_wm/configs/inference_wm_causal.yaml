@@ -22,8 +22,14 @@ causal:
   # linear. Revert to [1000, 750, 500, 250] (native 4-step) if output
   # quality visibly suffers.
   timesteps: [1000, 500]
-  video_local_attn_size: 19
-  video_sink_size: 7
+  # Halved from 19/7 for more speed -- smaller attention window means less
+  # per-step/per-cache-update compute, at the cost of temporal
+  # coherence/motion consistency (less context each block can attend to).
+  # Must satisfy CausalCacheConfig.validate(): 0 < sink < local_attn,
+  # local_attn - sink >= video_chunk_size (3), and both values must be
+  # 1 + n*video_chunk_size. Revert to 19/7 if motion looks visibly worse.
+  video_local_attn_size: 10
+  video_sink_size: 4
   video_chunk_size: 3
 
 action:
