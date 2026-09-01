@@ -304,8 +304,6 @@ def _generate_av_blocks(
         zip(video_blocks[1:], audio_blocks[1:], strict=True)
     ):
         t_block_start = time.time()
-        print(f"[rollout] block {block_index}/{total_blocks} starting "
-              f"_denoise_av_block (video_block={video_block}, audio_block={audio_block})", flush=True)
         video_sample, audio_sample = _denoise_av_block(
             forward,
             buffers.initial_video,
@@ -315,25 +313,24 @@ def _generate_av_blocks(
             sigmas,
             generator,
         )
-        print(f"[rollout] block {block_index}/{total_blocks} _denoise_av_block done "
-              f"in {time.time() - t_block_start:.1f}s", flush=True)
+        t_denoise = time.time() - t_block_start
         video_start, video_end = video_block
         audio_start, audio_end = audio_block
         buffers.video_output[
             :, video_start * patches_per_frame : video_end * patches_per_frame
         ] = video_sample
         buffers.audio_output[:, audio_start:audio_end] = audio_sample
+        t_callback = 0.0
         if on_block is not None:
             t_callback_start = time.time()
-            print(f"[rollout] block {block_index}/{total_blocks} calling on_block callback", flush=True)
             on_block(block_index, total_blocks, video_block, buffers.video_output, buffers.audio_output)
-            print(f"[rollout] block {block_index}/{total_blocks} on_block callback returned "
-                  f"in {time.time() - t_callback_start:.1f}s", flush=True)
+            t_callback = time.time() - t_callback_start
         t_cache_start = time.time()
         forward(video_sample, video_block, 0.0, audio_sample, audio_block, 0.0)
-        print(f"[rollout] block {block_index}/{total_blocks} cache update (forward()) done "
-              f"in {time.time() - t_cache_start:.1f}s, total block time "
-              f"{time.time() - t_block_start:.1f}s", flush=True)
+        t_cache = time.time() - t_cache_start
+        print(f"[rollout] block {block_index}/{total_blocks}: denoise={t_denoise:.1f}s "
+              f"callback={t_callback:.1f}s cache={t_cache:.1f}s total={time.time() - t_block_start:.1f}s",
+              flush=True)
 
 
 @torch.no_grad()
