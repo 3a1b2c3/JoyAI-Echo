@@ -789,6 +789,32 @@ item -19's finding that dispatch overhead is spread across the whole
 model, not concentrated where compile can easily help) -- still useful
 information, not a wasted test either way.
 
+**Final outcome: fatal inductor crash, whole-model compile abandoned.**
+The `allow_unspec_int_on_nn_module` fix did resolve the recompilation
+storm -- warmup progressed normally (clean ~2s heartbeat cadence,
+`torch.compile()` wrap itself done in 0.6s) instead of the old stuck
+pattern. But tracing hit two `Tensor.item()`/`bool()` graph breaks (one
+in `update_kv_cache`'s `searchsorted(...).item()`, one in this session's
+own `_mask_is_effectively_none()` -> `bool(torch.all(mask == 0.0))` in
+`attention.py:411`) -- individually non-fatal, graph breaks just mean
+more separately-traced/compiled subgraphs. But the resumed trace after
+one of these breaks then crashed **inductor itself**, not dynamo:
+```
+torch._dynamo.exc.BackendCompilerFailed: backend='inductor' raised:
+RuntimeError: Expected !size_bytes_is_heap_allocated_ to be true, but got false.
+```
+An internal inductor storage-tracking invariant violation, most likely
+tripped by the in-place `addcmul_` calls on tensor views in
+`apply_split_rotary_emb` (`rope.py:59-60`) combined with the
+graph-broken partial trace -- not fixable from our side without
+patching PyTorch/inductor. **Whole-model `torch.compile` is now
+conclusively closed out for this session/hardware combo** (`torch==2.14+cu132`).
+`ECHO_WM_COMPILE` stays default `0`. If revisited later: try
+`TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1` (dynamo's own suggestion, folds
+the `.item()`/`bool()` calls into the graph instead of breaking on
+them, which might avoid whichever specific resumed-trace shape is
+crashing inductor) and/or a newer torch version with inductor fixes.
+
 ## -3. Blackwell consumer/workstation GPUs (RTX 5090, RTX PRO 6000 -- compute capability 12.0): xformers/SDPA gotchas (fixed)
 
 Hit on `kschmid-4vvboh` ("horde"), a compute-capability-**12.0** GPU
