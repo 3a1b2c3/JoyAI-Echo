@@ -1024,7 +1024,13 @@ def _warmup(engine, engine_kind: str) -> None:
                 prompt="warmup",
                 action_str="w-8",
                 seed=0,
-                num_frames=25,
+                # Trimmed from 25: kernel compilation/backend dispatch happens
+                # per tensor shape, not per block, and the block-to-block
+                # cache/state transition (the only thing a single block would
+                # skip) only needs to fire once -- 2 frames is the minimum
+                # that still produces >1 block, so it still exercises that
+                # transition without paying for 3 extra redundant blocks.
+                num_frames=2,
                 fps=24.0,
                 width=128,
                 height=64,
@@ -1050,7 +1056,9 @@ def _warmup(engine, engine_kind: str) -> None:
                 prompt="warmup",
                 action_str="w-8",
                 seed=0,
-                num_frames=25,
+                # Trimmed from 25 for a faster warmup -- see the streaming
+                # engine's num_frames comment above for the rationale.
+                num_frames=2,
                 fps=24.0,
                 steps=2,
                 video_cfg=1.0,
