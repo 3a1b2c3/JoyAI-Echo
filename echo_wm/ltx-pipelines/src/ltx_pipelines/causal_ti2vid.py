@@ -79,7 +79,7 @@ class CausalTI2VidPipeline:
         # those -- is what makes compiling actually pay off: it's built (and
         # compiled) once per resolution, then reused across every later
         # generation at that resolution instead of rebuilt from scratch.
-        self._model_cache: dict[tuple[int, int], tuple] = {}
+        self._model_cache: dict[tuple[int, int, int, int], tuple] = {}
         self._compile_enabled = os.environ.get("ECHO_WM_COMPILE", "0") == "1"
 
     @torch.inference_mode()
@@ -97,12 +97,28 @@ class CausalTI2VidPipeline:
         timesteps: tuple[int, ...] | list[int] = DEFAULT_CAUSAL_TIMESTEPS,
         video_tiling_config: TilingConfig | None = None,
         on_block: OnBlockMedia | None = None,
+        attn_window: tuple[int, int] | None = None,
     ) -> tuple[Iterator[torch.Tensor], Audio]:
+        # attn_window overrides self.cache_config's (video_local_attn_size,
+        # video_sink_size) for this call only, exposed so the UI can A/B
+        # speed/coherence trade-offs live instead of only via config file +
+        # restart. video_chunk_size is NOT overridable -- it must equal
+        # CAUSAL_VIDEO_CHUNK_SIZE (enforced by CausalCacheConfig.validate()).
+        if attn_window is not None:
+            cache_config = CausalCacheConfig(
+                video_local_attn_size=attn_window[0],
+                video_sink_size=attn_window[1],
+                video_chunk_size=self.cache_config.video_chunk_size,
+            )
+            cache_config.validate()
+        else:
+            cache_config = self.cache_config
+
         assert_resolution(height=height, width=width, is_two_stage=False)
         latent_frames = (num_frames - 1) // 8 + 1
         if num_frames != (latent_frames - 1) * 8 + 1:
             raise ValueError("causal --num-frames must be 1 + 8*n output frames")
-        causal_video_blocks(latent_frames, self.cache_config.video_chunk_size)
+        causal_video_blocks(latent_frames, cache_config.video_chunk_size)
         # The causal student is trained on one positive conditioning branch.
         encoded_prompt, = encode_prompts([prompt], self.model_ledger)
         if encoded_prompt.audio_encoding is None:
@@ -124,14 +140,18 @@ class CausalTI2VidPipeline:
             output_shape, noiser, conditionings, self.pipeline_components,
             self.dtype, self.device,
         )
-        audio_frames = causal_audio_frames(latent_frames, self.cache_config.video_chunk_size)
+        audio_frames = causal_audio_frames(latent_frames, cache_config.video_chunk_size)
         audio_shape = AudioLatentShape(batch=1, channels=8, frames=audio_frames, mel_bins=16)
         audio_tools = AudioLatentTools(self.pipeline_components.audio_patchifier, audio_shape)
         audio_state = create_noised_state(
             audio_tools, [], noiser, self.dtype, self.device
         )
 
-        cache_key = (width, height)
+        # Keyed on attn_window too (not just resolution) -- different
+        # windows need different KV-cache tensor sizes (see
+        # CausalModelWrapper.init_caches), so they can't share a cached
+        # model instance.
+        cache_key = (width, height, cache_config.video_local_attn_size, cache_config.video_sink_size)
         cached = self._model_cache.get(cache_key)
         if cached is not None:
             x0_model, wrapper = cached
@@ -151,7 +171,7 @@ class CausalTI2VidPipeline:
             wrapper = CausalModelWrapper(
                 x0_model.velocity_model,
                 patches_per_frame=(height // 32) * (width // 32),
-                cache=self.cache_config,
+                cache=cache_config,
             )
             self._model_cache[cache_key] = (x0_model, wrapper)
 
@@ -233,7 +253,7 @@ class CausalTI2VidPipeline:
                 # at call start) against the full decoded waveform length --
                 # avoids needing decoded_audio_so_far's exact sample-rate/
                 # hop-size relationship to audio latent frames.
-                target_audio_frames = causal_audio_frames(video_end, self.cache_config.video_chunk_size)
+                target_audio_frames = causal_audio_frames(video_end, cache_config.video_chunk_size)
                 waveform = decoded_audio_so_far.waveform
                 sample_end = int(waveform.shape[-1] * target_audio_frames / audio_frames)
                 waveform_valid = waveform[..., :sample_end]

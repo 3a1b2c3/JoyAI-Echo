@@ -22,14 +22,16 @@ causal:
   # linear. Revert to [1000, 750, 500, 250] (native 4-step) if output
   # quality visibly suffers.
   timesteps: [1000, 500]
-  # Halved from 19/7 for more speed -- smaller attention window means less
-  # per-step/per-cache-update compute, at the cost of temporal
-  # coherence/motion consistency (less context each block can attend to).
-  # Must satisfy CausalCacheConfig.validate(): 0 < sink < local_attn,
-  # local_attn - sink >= video_chunk_size (3), and both values must be
-  # 1 + n*video_chunk_size. Revert to 19/7 if motion looks visibly worse.
-  video_local_attn_size: 10
-  video_sink_size: 4
+  # Minimum values CausalCacheConfig.validate() allows (0 < sink <
+  # local_attn, local_attn - sink >= video_chunk_size, both must be
+  # 1 + n*video_chunk_size) -- most aggressive attention-window cut
+  # possible, for the most speed. Went 19/7 -> 10/4 first (confirmed real
+  # ~35% speedup, generation went 6.88fps -> 9.28fps); this pushes further.
+  # Highest temporal-coherence risk of any change made this session --
+  # revert toward 10/4 or 19/7 if motion looks visibly broken, not just
+  # "a bit worse."
+  video_local_attn_size: 4
+  video_sink_size: 1
   video_chunk_size: 3
 
 action:

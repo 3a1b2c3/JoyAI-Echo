@@ -163,6 +163,17 @@ STEP_PRESETS: dict[str, tuple[int, ...] | None] = {
     "2 (fastest, most quality risk)": (1000, 500),
 }
 
+# (video_local_attn_size, video_sink_size) presets -- same live-A/B
+# rationale as STEP_PRESETS. Values must satisfy CausalCacheConfig.validate()
+# (0 < sink < local_attn, local_attn - sink >= video_chunk_size (3), both
+# must be 1 + n*video_chunk_size) -- these three are all valid.
+ATTENTION_PRESETS: dict[str, tuple[int, int] | None] = {
+    "(config default)": None,
+    "19/7 (native, most coherent)": (19, 7),
+    "10/4 (moderate)": (10, 4),
+    "4/1 (fastest, most quality risk)": (4, 1),
+}
+
 ACTION_HELP = (
     "**Action DSL** — segments `<keys>-<frames>` joined by commas; keys held simultaneously.\n"
     "`w`/`s` forward/back · `a`/`d` strafe left/right · `i`/`k` pitch up/down · `j`/`l` yaw (pan) left/right · "
@@ -456,10 +467,14 @@ class EchoWMCausalEngine:
         out_dir: Path,
         timesteps: tuple[int, ...] | None = None,
         on_stream_chunk=None,
+        attn_window: tuple[int, int] | None = None,
     ):
         """Generator. Yields ("block", index, total, block_video_path) as each
         block finishes, then a final ("done", video_path, overlaid_path_or_None,
         timing).
+
+        `attn_window`, if given, overrides the config's (video_local_attn_size,
+        video_sink_size) for this call only -- see CausalTI2VidPipeline.__call__.
 
         Runs the (blocking) pipeline call on a background thread and relays its
         on_block callbacks through a queue, since a callback fired from inside
@@ -603,6 +618,7 @@ class EchoWMCausalEngine:
                     timesteps=timesteps,
                     video_tiling_config=TilingConfig.default(),
                     on_block=on_block,
+                    attn_window=attn_window,
                 )
                 result_queue.put(("final", video, audio))
             except Exception as exc:  # noqa: BLE001 - relay to the consumer thread
@@ -900,7 +916,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
     def on_generate(
         image_path, prompt, action_str, seed, num_frames, fps, width, height,
         fov_deg, translation_speed, rotation_speed, pitch_limit,
-        gen_audio, overlay, denoise_steps_choice,
+        gen_audio, overlay, denoise_steps_choice, attn_window_choice,
     ):
         if not image_path:
             yield "❌ Pick or upload an image first.", None, None, None
@@ -956,6 +972,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                 out_dir=out_dir,
                 on_stream_chunk=on_stream_chunk,
                 timesteps=STEP_PRESETS.get(denoise_steps_choice),
+                attn_window=ATTENTION_PRESETS.get(attn_window_choice),
             ):
                 if item[0] == "block":
                     _, block_index, total_blocks, block_path, frames_so_far = item
@@ -1311,6 +1328,10 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                             list(STEP_PRESETS), label="Denoising steps",
                             value="(config default)",
                         )
+                    attn_window = gr.Dropdown(
+                        list(ATTENTION_PRESETS), label="Attention window (local_attn/sink)",
+                        value="(config default)",
+                    )
 
                 with gr.Accordion("Action Settings", open=False):
                     fov_deg = gr.Slider(
@@ -1369,7 +1390,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
             inputs=[
                 image, prompt, action, seed, num_frames, fps, width, height,
                 fov_deg, translation_speed, rotation_speed, pitch_limit,
-                gen_audio, overlay, denoise_steps,
+                gen_audio, overlay, denoise_steps, attn_window,
             ],
             outputs=[status, stream_trigger, out_video, raw_file],
             concurrency_limit=1,
