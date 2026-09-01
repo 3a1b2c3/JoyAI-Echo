@@ -123,6 +123,31 @@ def get_fractional_positions(indices_grid: torch.Tensor, max_pos: list[int]) -> 
     return fractional_positions
 
 
+# generate_freq_grid_np/generate_freq_grid_pytorch (above) are
+# @lru_cache'd but never specify a device, so they always return a CPU
+# tensor -- cached forever as CPU. Without this, `indices.to(device=...)`
+# below would re-copy that same CPU tensor to the GPU on *every single*
+# call to generate_freqs() (every attention/positional-embedding
+# computation, every block), not just once. Also a hard blocker for
+# torch.cuda.graph() capture, which forbids any CPU-CUDA tensor copy
+# inside the captured region unless the CPU tensor is pinned -- traced
+# there via a real torch.profiler-informed investigation, see
+# TROUBLESHOOTING.md. lru_cache's maxsize=5 upstream bounds how many
+# distinct CPU tensor identities can ever exist, so this dict (keyed by
+# CPU tensor identity + target device) stays small -- not an unbounded
+# cache.
+_freq_grid_device_cache: dict[tuple[int, str], torch.Tensor] = {}
+
+
+def _to_device_cached(indices: torch.Tensor, device: torch.device) -> torch.Tensor:
+    key = (id(indices), str(device))
+    cached = _freq_grid_device_cache.get(key)
+    if cached is None:
+        cached = indices.to(device=device)
+        _freq_grid_device_cache[key] = cached
+    return cached
+
+
 def generate_freqs(
     indices: torch.Tensor, indices_grid: torch.Tensor, max_pos: list[int], use_middle_indices_grid: bool
 ) -> torch.Tensor:
@@ -135,7 +160,7 @@ def generate_freqs(
         indices_grid = indices_grid[..., 0]
 
     fractional_positions = get_fractional_positions(indices_grid, max_pos)
-    indices = indices.to(device=fractional_positions.device)
+    indices = _to_device_cached(indices, fractional_positions.device)
 
     freqs = (indices * (fractional_positions.unsqueeze(-1) * 2 - 1)).transpose(-1, -2).flatten(2)
     return freqs

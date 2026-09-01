@@ -158,49 +158,80 @@ def _mask_is_effectively_none(mask: torch.Tensor | None) -> bool:
     return bool(torch.all(mask == 0.0))
 
 
+def _pytorch_attention_core(
+    q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, heads: int, mask: torch.Tensor | None
+) -> torch.Tensor:
+    """The reshape -> SDPA -> reshape sequence, factored out so it can
+    optionally be torch.compile-d as one unit (see ECHO_WM_COMPILE_ATTENTION
+    below) -- compiling only the single SDPA call wouldn't help (it's
+    already one fused op), but the surrounding view/transpose/reshape calls
+    are genuine separate dispatched ops that compilation could fuse away."""
+    b, _, dim_head = q.shape
+    dim_head //= heads
+    q, k, v = (t.view(b, -1, heads, dim_head).transpose(1, 2) for t in (q, k, v))
+
+    if mask is not None:
+        # add a batch dimension if there isn't already one
+        if mask.ndim == 2:
+            mask = mask.unsqueeze(0)
+        # add a heads dimension if there isn't already one
+        if mask.ndim == 3:
+            mask = mask.unsqueeze(1)
+
+    # SDPA has multiple backends (FLASH_ATTENTION, EFFICIENT_ATTENTION,
+    # MATH, CUDNN_ATTENTION). Flash's kernel often can't take an
+    # arbitrary (non-causal) bias tensor at all and PyTorch silently
+    # falls back to MATH -- the slowest backend, always correct but with
+    # no fast kernel, which is genuine per-call compute cost that no
+    # amount of caching or warmup fixes. Explicitly prefer
+    # EFFICIENT_ATTENTION/CUDNN_ATTENTION (both support a bias tensor)
+    # over letting PyTorch's default priority silently pick MATH.
+    global _sdpa_backend_logged
+    try:
+        from torch.nn.attention import SDPBackend, sdpa_kernel
+        with sdpa_kernel([SDPBackend.EFFICIENT_ATTENTION, SDPBackend.CUDNN_ATTENTION, SDPBackend.MATH]):
+            if not _sdpa_backend_logged:
+                print("[attention] using SDPA with explicit backend priority "
+                      "[EFFICIENT_ATTENTION, CUDNN_ATTENTION, MATH] (skipping FLASH_ATTENTION, "
+                      "which can't take a non-causal bias tensor and would silently fall through "
+                      "to MATH -- the slow backend -- if left in the default priority order)", flush=True)
+                _sdpa_backend_logged = True
+            out = torch.nn.functional.scaled_dot_product_attention(
+                q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False
+            )
+    except ImportError:
+        # Older torch without torch.nn.attention.sdpa_kernel -- fall back
+        # to whatever the default backend priority picks.
+        out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
+    out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+    return out
+
+
+# Opt-in (ECHO_WM_COMPILE_ATTENTION=1): torch.compile just this one function,
+# not the whole model -- unlike the whole-model attempt in item -4 that hit
+# a recompilation storm (from a self.idx guard living elsewhere in the
+# model, outside this function entirely), scoping compilation to only this
+# small, self-contained reshape+SDPA+reshape sequence may avoid that guard
+# altogether. mode="default" (not "reduce-overhead"/CUDA graphs -- item -20
+# found an unpinned CPU-GPU copy elsewhere in the model breaks graph
+# capture; unclear if that's reachable from here, not worth the risk).
+# dynamic=True is set upfront (not left to dynamo's default
+# guess-then-recompile-once-it-notices behavior) since this model's
+# sequence length genuinely varies during KV-cache fill-up before
+# stabilizing at the windowed size -- starting dynamic avoids paying that
+# discovery-recompile on the first few real blocks. NOT YET BENCHMARKED.
+_COMPILE_ATTENTION = os.environ.get("ECHO_WM_COMPILE_ATTENTION", "0") == "1"
+_compiled_pytorch_attention_core = None
+if _COMPILE_ATTENTION:
+    _compiled_pytorch_attention_core = torch.compile(_pytorch_attention_core, dynamic=True)
+
+
 class PytorchAttention(AttentionCallable):
     def __call__(
         self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, heads: int, mask: torch.Tensor | None = None
     ) -> torch.Tensor:
-        b, _, dim_head = q.shape
-        dim_head //= heads
-        q, k, v = (t.view(b, -1, heads, dim_head).transpose(1, 2) for t in (q, k, v))
-
-        if mask is not None:
-            # add a batch dimension if there isn't already one
-            if mask.ndim == 2:
-                mask = mask.unsqueeze(0)
-            # add a heads dimension if there isn't already one
-            if mask.ndim == 3:
-                mask = mask.unsqueeze(1)
-
-        # SDPA has multiple backends (FLASH_ATTENTION, EFFICIENT_ATTENTION,
-        # MATH, CUDNN_ATTENTION). Flash's kernel often can't take an
-        # arbitrary (non-causal) bias tensor at all and PyTorch silently
-        # falls back to MATH -- the slowest backend, always correct but with
-        # no fast kernel, which is genuine per-call compute cost that no
-        # amount of caching or warmup fixes. Explicitly prefer
-        # EFFICIENT_ATTENTION/CUDNN_ATTENTION (both support a bias tensor)
-        # over letting PyTorch's default priority silently pick MATH.
-        global _sdpa_backend_logged
-        try:
-            from torch.nn.attention import SDPBackend, sdpa_kernel
-            with sdpa_kernel([SDPBackend.EFFICIENT_ATTENTION, SDPBackend.CUDNN_ATTENTION, SDPBackend.MATH]):
-                if not _sdpa_backend_logged:
-                    print("[attention] using SDPA with explicit backend priority "
-                          "[EFFICIENT_ATTENTION, CUDNN_ATTENTION, MATH] (skipping FLASH_ATTENTION, "
-                          "which can't take a non-causal bias tensor and would silently fall through "
-                          "to MATH -- the slow backend -- if left in the default priority order)", flush=True)
-                    _sdpa_backend_logged = True
-                out = torch.nn.functional.scaled_dot_product_attention(
-                    q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False
-                )
-        except ImportError:
-            # Older torch without torch.nn.attention.sdpa_kernel -- fall back
-            # to whatever the default backend priority picks.
-            out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
-        out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
-        return out
+        fn = _compiled_pytorch_attention_core if _compiled_pytorch_attention_core is not None else _pytorch_attention_core
+        return fn(q, k, v, heads, mask)
 
 
 class XFormersAttention(AttentionCallable):
