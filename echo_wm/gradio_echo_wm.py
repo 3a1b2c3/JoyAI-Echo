@@ -1005,9 +1005,16 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
     # unreliable across frameworks -- polling is simple and cheap here)
     # and opens a new WebSocket + MediaSource whenever it changes.
     _mse_stream_js = """
+    <style>
+      /* stream_trigger must be visible=True in Gradio (invisible components
+         aren't mounted in the DOM at all, so JS can't poll them) -- hide it
+         purely cosmetically here instead. */
+      #stream-trigger { display: none !important; }
+    </style>
     <script>
     (function() {
       function log(...args) { console.log("[mse-stream]", new Date().toISOString(), ...args); }
+      log("script loaded, starting poll for #stream-trigger");
 
       let lastRunId = null;
       let ws = null;
@@ -1015,6 +1022,8 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
       let sourceBuffer = null;
       let pendingChunks = [];
       let streamDone = false;
+      let pollCount = 0;
+      let sawElement = false;
 
       function teardown() {
         if (ws) { try { ws.close(); } catch (e) {} }
@@ -1089,7 +1098,19 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
       }
 
       function poll() {
+        pollCount++;
         const el = document.querySelector("#stream-trigger textarea, #stream-trigger input");
+        if (el && !sawElement) {
+          sawElement = true;
+          log("#stream-trigger element found in DOM (took", pollCount, "polls)");
+        }
+        // Every ~10s, log a heartbeat so "nothing happened" and "script never
+        // started" are distinguishable from the console alone -- this was
+        // genuinely ambiguous before (see TROUBLESHOOTING.md) and cost a
+        // long back-and-forth to pin down.
+        if (pollCount % 50 === 0) {
+          log("poll heartbeat, elementFound:", sawElement, "currentValue:", el ? el.value : "(no element)");
+        }
         if (el && el.value && el.value !== lastRunId) {
           lastRunId = el.value;
           log("new run id detected:", lastRunId);
@@ -1181,7 +1202,14 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                     '<video id="live-preview-video" autoplay muted playsinline '
                     'style="width:100%;max-height:300px;background:#000;"></video>'
                 )
-                stream_trigger = gr.Textbox(value="", visible=False, elem_id="stream-trigger")
+                # visible=False components are not just CSS-hidden in current
+                # Gradio -- they're not mounted in the DOM at all (conditional
+                # {#if visible} render), so a plain JS poll against them never
+                # finds anything and silently never fires. Keep this
+                # genuinely visible=True (so Gradio actually renders the
+                # <textarea>) and hide it purely with CSS instead (see
+                # _mse_stream_js's injected <style> block below).
+                stream_trigger = gr.Textbox(value="", visible=True, elem_id="stream-trigger")
                 out_video = gr.Video(label="Result (final, full quality)", height=300)
                 status = gr.Textbox(label="Status", lines=6, interactive=False)
                 raw_file = gr.File(label="Raw video (no overlay)", interactive=False)
