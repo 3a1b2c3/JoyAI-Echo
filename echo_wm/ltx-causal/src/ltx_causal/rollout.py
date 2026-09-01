@@ -10,6 +10,8 @@ from dataclasses import dataclass
 
 import torch
 
+from ltx_core.types import VIDEO_SCALE_FACTORS
+
 # Opt-in (ECHO_WM_PROFILE_CACHE=1): profile exactly one cache-update
 # forward() call (see the bottom of _generate_av_blocks below) with
 # torch.profiler, to find out what's actually expensive in it -- this call
@@ -410,13 +412,20 @@ def _generate_av_blocks(
                 traceback.print_exc()
                 print("[graph-test] Diagnostic only -- real generation is unaffected by "
                       "this failure (extra calls above were discarded/idempotent).", flush=True)
-        # Real-time target: this block covers video_chunk_size latent frames,
-        # so it must finish within (video_chunk_size / fps) wall-clock
-        # seconds to keep up with playback. fps isn't threaded into this
-        # function (only configs/inference_wm_causal.yaml has it) -- 16.0 is
-        # that config's current value; update this if fps changes.
+        # Real-time target: video_chunk_size is in *latent* frames, not
+        # decoded output frames -- the VAE has an 8x temporal compression
+        # (VIDEO_SCALE_FACTORS.time, ltx_core.types.py), so a
+        # video_chunk_size=3 block actually decodes to 24 output frames,
+        # not 3. Confirmed on real hardware (user-reported: "each block is
+        # 24 frames") -- an earlier version of this line divided by
+        # video_chunk_size directly, understating the real-time target by
+        # 8x and overstating how far off real-time every block was by the
+        # same factor. fps isn't threaded into this function (only
+        # configs/inference_wm_causal.yaml has it) -- 16.0 is that config's
+        # current value; update this if fps changes.
         fps = 16.0
-        target_s = forward.wrapper.cache.video_chunk_size / fps
+        output_frames_per_block = forward.wrapper.cache.video_chunk_size * VIDEO_SCALE_FACTORS.time
+        target_s = output_frames_per_block / fps
         block_total = time.time() - t_block_start
         print(f"[rollout] block {block_index}/{total_blocks}: denoise={t_denoise:.3f}s "
               f"callback={t_callback:.3f}s cache={t_cache:.3f}s total={block_total:.3f}s "

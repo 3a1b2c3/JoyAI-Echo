@@ -1,5 +1,25 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -0.5. Real-time target was overstated by 8x for most of this session (fixed)
+
+Every "Nx too slow" figure discussed/printed earlier in this session used
+`video_chunk_size / fps` as the real-time target -- treating
+`video_chunk_size` (a *latent*-frame count, per `cache.py`'s own
+docstring: "Video cache sizes in latent-frame units") as if it were
+decoded output frames. The VAE has an **8x temporal compression**
+(`VIDEO_SCALE_FACTORS.time`, `ltx_core/types.py`), so a
+`video_chunk_size=3` block actually decodes to **24 output frames**, not
+3. Real target at `fps=16` is **24/16 = 1.5s/block**, not `3/16 = 0.188s`.
+
+Actual measured steady-state: ~1.74-1.87s/block. **That's ~1.15-1.25x
+too slow, not ~10x.** The "not happening tonight, needs a smaller/distilled
+model or multi-GPU parallelism" conclusion reached earlier in this session
+was wrong, built on this bug in the debug print added at the same time
+(`rollout.py`'s `[rollout] block ...` line) -- real-time is actually
+within a plausible night's-work margin, not a different-model-scale
+problem. Fixed in `rollout.py`: `target_s` now multiplies
+`video_chunk_size` by `VIDEO_SCALE_FACTORS.time` before dividing by fps.
+
 ## 0. Recurring gotcha: "the fix didn't work" is very often just a stale sync, not a real failure
 
 Hit repeatedly this session -- costly enough in wasted round-trips to call
@@ -166,6 +186,60 @@ the attention wrapper alone).
 `ECHO_WM_COMPILE_ATTENTION=1` for normal use -- it's real code left in
 place for reference/future retesting if the underlying function ever
 changes shape, not something to turn on.
+
+## -20.5. Second graph-capture blocker: `_mask_is_effectively_none`'s GPU read, computed unconditionally for a value nothing on this box consumes (fixed)
+
+After item -23's `BlockKVCache` rewrite fixed the RoPE-freq-grid and
+KV-cache `.item()` blockers, re-running `ECHO_WM_GRAPH_CAPTURE_TEST=1` hit
+a *different* capture failure at the identical class of bug, in code
+written earlier this same session: `AttentionFunction.DEFAULT`
+(`attention.py`) computed `mask_arg = None if
+_mask_is_effectively_none(mask) else mask` **unconditionally**, before
+even checking whether any library that consumes it (FlashAttention-2/3,
+FlashInfer) is installed/enabled. `_mask_is_effectively_none` reads a
+value back from the GPU (`bool(torch.all(mask == 0.0))`) -- forbidden
+during `torch.cuda.graph()` capture (`cudaErrorStreamCaptureUnsupported`).
+Traceback pointed at the text cross-attention path specifically
+(`_apply_text_cross_attention` -> `context_mask`).
+
+First fix attempted: cache `_mask_is_effectively_none`'s result by tensor
+identity (mirrors item -20's RoPE freq-grid device-cache fix), with a
+`weakref.finalize` callback to evict the entry the instant the real
+tensor is freed (avoids a stale-`id()`-reuse correctness bug that a naive
+`id()`-keyed dict would have). **Insufficient alone**: `context_mask` is
+rebuilt as a brand-new tensor object on *every single block-forward call*
+(`transformer_args.py::prepare()` -> `_prepare_attention_mask`), so
+there's no repeat identity to ever hit the cache -- every call, including
+the one inside capture, is genuinely "first time seen."
+
+**Real fix**: on this box right now, `mask_arg`'s result is never actually
+consumed at all -- xformers/flash-attn are uninstalled (item -24),
+FlashInfer is off by default (item -16) -- and `PytorchAttention()` at the
+very end of the fallback chain uses the original `mask`, not `mask_arg`.
+Made the computation **lazy**: wrapped in a `_mask_arg()` closure, called
+only from inside the FA3/FA2/FlashInfer branches, each already guarded by
+an availability check. With none of those libraries active, `_mask_arg()`
+is never invoked at all -- zero GPU reads on the hot path in the current
+config, not just a cheaper one. The identity-cache fix stays in place too
+(still correct, still useful if FlashInfer/FA2/FA3 are ever re-enabled
+later, when `_mask_arg()` genuinely does get called every block).
+
+**Re-tested on the box after this fix: CAPTURE SUCCEEDED, REPLAY SUCCEEDED.**
+First successful graph capture all night --
+```
+[graph-test] CAPTURE SUCCEEDED. Attempting one replay...
+[graph-test] REPLAY SUCCEEDED. This forward() call is graph-capturable -- real integration is worth pursuing.
+```
+This confirms item -23's `BlockKVCache` rewrite + this mask-laziness fix
+together removed every CPU-GPU sync point in the steady-state cache-update
+forward path. **This is a feasibility result, not a speedup yet** -- the
+diagnostic still discards its capture and runs the normal eager path for
+real generation (see item -20's warmup-call design). Real integration
+(capture once during warmup, replay on every later block instead of
+re-dispatching the model) is new work, not started -- see item -23's "Not
+yet done" note for what that would involve. Expected upside if built: the
+dispatch-overhead savings item -19 measured (828ms CPU vs 86ms CUDA per
+cache-update forward), i.e. meaningful but not the 10x real-time needs.
 
 ## -21. `flashdreams` scoping: a mature, CUDA-graph-ready KV cache + RoPE implementation already exists for this exact pattern (not integrated, scoping only)
 
