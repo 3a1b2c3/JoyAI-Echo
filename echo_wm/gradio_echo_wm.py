@@ -1498,16 +1498,19 @@ def _warmup(engine, engine_kind: str) -> None:
                 # num_frames must satisfy causal --num-frames == 1 + 8*n AND
                 # (combined with video_chunk_size=3) the resulting latent
                 # length must be 1 + 3*m -- together that means valid
-                # non-degenerate values are 1 + 24*k. 25 (k=1) is the
-                # smallest value that produces more than zero real blocks;
-                # anything smaller either violates the frame-count
-                # constraint outright or degenerates to zero real blocks.
-                # Deliberately NOT the real config's num_frames=241: block
-                # count doesn't affect per-block kernel shape (that's driven
-                # by width/height/video_chunk_size, all matched above), so
-                # more blocks here would only add warmup time without
-                # warming anything new.
-                num_frames=25,
+                # non-degenerate values are 1 + 24*k. 25 (k=1) gives exactly
+                # 1 real block; 49 (k=2) gives 2 of the *same* shape (no new
+                # kernel shapes to warm -- that's driven by
+                # width/height/video_chunk_size, all matched above). The
+                # extra block exists so cuDNN/kernel autotuning (which can
+                # take 2-3 calls of the same shape to settle on the fastest
+                # algorithm, distinct from CUDA JIT/torch.compile-style
+                # one-time compilation) has a real chance to fully converge
+                # during warmup instead of leaving residual settling cost on
+                # a real user's first block. Deliberately NOT the real
+                # config's num_frames=241 -- costs real extra warmup time
+                # for diminishing returns past a couple of reps.
+                num_frames=49,
                 fps=warmup_fps,
                 width=warmup_width,
                 height=warmup_height,

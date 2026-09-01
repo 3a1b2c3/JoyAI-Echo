@@ -25,6 +25,20 @@ av
 # fails to import against the pinned 2.9.1. Keep this aligned with torch above.
 xformers==0.0.33.post2
 
+# Optional, experimental: FlashAttention-4 (a *separate* PyPI package from
+# xformers/flash-attn, matching NVIDIA's SM100/SM103 -- i.e. GB300/B200/B300
+# Blackwell datacenter GPUs -- naming). Investigated as a possible xformers
+# replacement on GB300 (compute capability 10.3, which xformers explicitly
+# rejects as "too new" -- see TROUBLESHOOTING.md item -3). Only beta releases
+# exist on PyPI as of this writing (no stable release, requires --pre or an
+# exact version pin) and it's NOT yet wired into ltx-core/.../attention.py --
+# installing this alone does nothing; real integration work is still needed,
+# and it may reject this model's non-causal bias-tensor attention masks the
+# same way flash-attn-2 already does (see TROUBLESHOOTING.md item -10), which
+# would make it a dead end regardless of GPU support. Not installed by
+# default -- uncomment to experiment:
+# flash-attn-4==4.0.0b28
+
 # UI and visualization
 # gradio is capped below 6.0: 6.x requires huggingface-hub>=1.16, which conflicts
 # with the huggingface-hub<1.0 that transformers 4.x requires.

@@ -1,5 +1,48 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -10. FlashAttention-4 investigated as a possible xformers replacement on GB300 (not integrated)
+
+xformers has no working kernel for compute capability 10.3 (GB300) or 12.0
+(horde) at all (item -3) -- checked whether a newer xformers release fixed
+this: the box already had **xformers 0.0.35** installed (newer than this
+repo's pinned `0.0.33.post2` in `requirements.txt`), and it *still* rejects
+this GPU the same way. Confirmed via web search that xformers itself has
+not added Blackwell (sm_120 consumer, and status unclear for sm_100/103
+datacenter) kernel support as of this writing.
+
+Separately found: **FlashAttention-4** (`flash-attn-4` on PyPI -- a
+different package from `flash-attn`/xformers, not a version bump of
+either) explicitly targets NVIDIA's **SM100/SM103** datacenter Blackwell
+GPUs, i.e. B200/B300/**GB300** by name -- a real, specific hardware match
+for the GB300 box (compute capability 10.3), confirmed via web search, not
+a guess. Requires CUDA 12.8+ (earlier CUDA builds carry no Blackwell
+kernels at all per the project's own setup.py gencode logic). Only beta
+releases exist on PyPI as of this writing (`4.0.0b3` through `4.0.0b28`,
+no stable release) -- `pip install flash-attn-4` fails outright without
+`--pre` or an exact version pin (`pip install flash-attn-4==4.0.0b28`,
+confirmed installable this way on the GB300 box).
+
+**Real, unresolved risk found before any integration work started:**
+looking back at the original xformers rejection log (item -3), **FA2 was
+already rejected for a reason independent of compute capability**:
+```
+`fa2F@2.5.7-pt` is not supported because:
+    attn_bias type is <class 'torch.Tensor'>
+```
+This model passes a real additive bias tensor into attention (not a
+boolean causal mask), and FlashAttention kernels have historically had
+limited/no support for arbitrary bias tensors -- optimized for
+causal/no-mask patterns instead. It's unconfirmed whether FlashAttention-4
+broadened bias-tensor support enough to accept this model's masks, or
+whether it would reject them the same structural way regardless of
+matching the GPU generation perfectly. **Not yet integrated** --
+`flash-attn-4` is listed (commented out) in `requirements.txt` for
+reference, but nothing in `ltx-core/.../attention.py` calls it yet. Before
+sinking real integration effort (a third attention backend path,
+analogous to the existing xformers-then-SDPA fallback) into this, worth a
+cheap standalone check of whether FA4's Python API even accepts a
+tensor-shaped bias argument at all -- not yet done.
+
 ## -9. `ECHO_WM_FP8=1`: opt-in fp8 weight storage (implemented, not yet benchmarked)
 
 `ltx_core/quantization/` already has a working, dependency-free
