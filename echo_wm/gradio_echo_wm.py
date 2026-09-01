@@ -157,9 +157,22 @@ def _log_attention_backend_status() -> None:
             print(f"[attention-check]   {name}: FAILED -- {type(exc).__name__}: {exc}", flush=True)
     _sage_on = os.environ.get("ECHO_WM_SAGEATTENTION", "0") == "1"
     _fi_on = os.environ.get("ECHO_WM_FLASHINFER", "0") == "1"
-    print(f"[attention-check] Actual default in use: SDPA (SageAttention/FlashInfer both "
-          f"confirmed slower tonight, gated off unless explicitly enabled -- "
-          f"ECHO_WM_SAGEATTENTION={'1' if _sage_on else '0'}, ECHO_WM_FLASHINFER={'1' if _fi_on else '0'}).",
+    # This used to hardcode "SDPA" regardless of the flags below -- wrong
+    # and misleading whenever ECHO_WM_SAGEATTENTION/ECHO_WM_FLASHINFER
+    # were actually set, since AttentionFunction.DEFAULT's real priority
+    # order is SageAttention (if enabled) -> xformers -> FA3 -> FA2 ->
+    # FlashInfer (if enabled) -> SDPA, not always SDPA. Compute what will
+    # actually be tried first instead of asserting a fixed answer.
+    if _sage_on and _attn.sageattn is not None:
+        _expected = "SageAttention (enabled, tried first -- but only for calls with no real mask)"
+    elif _fi_on and _attn.flashinfer_single_prefill is not None:
+        _expected = "FlashInfer (enabled, tried after SageAttention/xformers/FA2/FA3)"
+    else:
+        _expected = "SDPA (SageAttention/FlashInfer both gated off by default -- confirmed slower tonight)"
+    print(f"[attention-check] Expected priority for real generation calls: {_expected}. "
+          f"ECHO_WM_SAGEATTENTION={'1' if _sage_on else '0'}, ECHO_WM_FLASHINFER={'1' if _fi_on else '0'}. "
+          f"Actual per-call outcome is only known from the '[attention]' lines "
+          f"during real generation, not this startup check.",
           flush=True)
 
 # Default paths (Base model — full multi-step diffusion, no live preview)
