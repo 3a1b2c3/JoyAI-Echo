@@ -600,18 +600,24 @@ class AttentionFunction(Enum):
                     mask_arg_cache.append(None if _mask_is_effectively_none(mask) else mask)
                 return mask_arg_cache[0]
 
-            # First choice: SageAttention -- confirmed working on real
-            # hardware tonight (GB300, compute capability 10.3), unlike
-            # xformers/FlashAttention2/3 below, which are confirmed
-            # unusable on this GPU (see TROUBLESHOOTING.md). Not yet
-            # benchmarked against the SDPA baseline for real speed, only
-            # confirmed to produce correct-shaped output -- tried first
-            # since it's the only fast-path library actually known to run
-            # here at all; same try-once-remember-forever pattern as the
-            # others below if it turns out not to be usable for some
-            # call shapes.
+            # SageAttention -- confirmed working on real hardware tonight
+            # (GB300, compute capability 10.3), unlike xformers/
+            # FlashAttention2/3 below (confirmed unusable on this GPU).
+            # DISABLED by default (set ECHO_WM_SAGEATTENTION=1 to
+            # re-enable for testing), same as FlashInfer below: confirmed
+            # correct output, but measurably SLOWER than PyTorch SDPA on a
+            # real generation run (denoise ~1.08-1.10s vs SDPA's
+            # ~1.00-1.05s, consistently across every block, not noise --
+            # see TROUBLESHOOTING.md). Working isn't the same as fast on
+            # this hardware -- same lesson as FlashInfer.
+            _sageattention_enabled = os.environ.get("ECHO_WM_SAGEATTENTION", "0") == "1"
             global _sageattention_unusable
-            if sageattn is not None and not _sageattention_unusable and _mask_arg() is None:
+            if (
+                _sageattention_enabled
+                and sageattn is not None
+                and not _sageattention_unusable
+                and _mask_arg() is None
+            ):
                 try:
                     return SageAttention()(q, k, v, heads, _mask_arg())
                 except Exception as exc:  # noqa: BLE001 - report whatever a real kernel call raises

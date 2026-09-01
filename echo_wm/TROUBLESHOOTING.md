@@ -1,5 +1,29 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -0.6. SageAttention: confirmed working on this GPU (contradicts earlier research), but confirmed SLOWER than SDPA -- disabled by default
+
+Earlier this session (see -16 below), research suggested no sm_100/103
+kernel existed for SageAttention on this architecture (GitHub issue
+#237). **Wrong, or since fixed upstream**: `pip install sageattention`
+(1.0.6) on the real GB300 box, then a standalone real-kernel-call test
+(`test_sageattention_backend.py`) succeeded cleanly -- correct output
+shape/dtype, no exception. Wired into `AttentionFunction.DEFAULT` in
+`attention.py` as a new `SageAttention` class, tried before xformers.
+
+**Confirmed on a real generation run: SLOWER than SDPA, not faster.**
+Steady-state block total went from the ~1.74-1.78s SDPA baseline to
+~1.84-1.88s with SageAttention active (confirmed active via the *absence*
+of both the SDPA-fallback print and a SageAttention-failure print --
+neither fired, meaning it ran successfully for the whole generation).
+`denoise` alone rose from ~1.00-1.05s to ~1.08-1.10s, consistently across
+every block -- not noise. Same lesson as FlashInfer (item -16): a fast
+attention library actually running correctly on this GPU is not the same
+as it being faster for this specific workload/shape. **Disabled by
+default** (`ECHO_WM_SAGEATTENTION=1` to re-enable for further testing),
+mirroring FlashInfer's `ECHO_WM_FLASHINFER` gate exactly. Doesn't change
+item -16's overall conclusion: SDPA with explicit backend priority
+remains the practical ceiling on this hardware.
+
 ## -0.5. Real-time target was overstated by 8x for most of this session (fixed)
 
 Every "Nx too slow" figure discussed/printed earlier in this session used
