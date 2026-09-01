@@ -123,46 +123,26 @@ class AttentionCallable(Protocol):
 
 _sdpa_backend_logged = False
 
-# DIAGNOSTIC (temporary): logs the actual unique values of the first few
-# distinct real (non-None) mask tensors that reach PytorchAttention --
-# every masked attention call in this model goes through here on this GPU
-# (xformers has no working kernel, see AttentionFunction.DEFAULT's
-# fallback). A prior attempt to check this in transformer.py at the
-# self_attention_mask call sites found those masks are always None for the
-# causal streaming path -- meaning the real bias tensor(s) come from a
-# different call site (cross-attention/UCPE/etc.), caught generically here
-# instead of guessing which one. Determines whether FlashInfer's
-# boolean-only custom_mask API (see echo_wm/test_flashinfer_bias.py) could
-# represent this model's masking. Remove once answered.
-_masks_logged = 0
-_MAX_MASKS_TO_LOG = 6
+
+def _mask_is_effectively_none(mask: torch.Tensor | None) -> bool:
+    """True if mask is None, or a real tensor that's a complete no-op (all
+    zeros -- adds zero bias everywhere, restricts nothing). Confirmed on
+    real hardware: every mask reaching PytorchAttention in this model's
+    causal streaming path is exactly this -- a real (non-None) tensor
+    object, but with a single unique value of 0.0. FlashAttention/FlashInfer's
+    `if mask is not None: raise` checks were treating these as "has a mask"
+    and skipping the fast path even though the mask has zero actual effect;
+    this lets AttentionFunction.DEFAULT correctly recognize them as safe to
+    fast-path too."""
+    if mask is None:
+        return True
+    return bool(torch.all(mask == 0.0))
 
 
 class PytorchAttention(AttentionCallable):
     def __call__(
         self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, heads: int, mask: torch.Tensor | None = None
     ) -> torch.Tensor:
-        global _masks_logged
-        if mask is not None and _masks_logged < _MAX_MASKS_TO_LOG:
-            finfo = torch.finfo(mask.dtype) if mask.dtype.is_floating_point else None
-            unique_vals = torch.unique(mask)
-            n_unique = unique_vals.numel()
-            is_binary = (
-                mask.dtype == torch.bool
-                or (
-                    finfo is not None
-                    and n_unique <= 2
-                    and bool(((unique_vals == 0.0) | (unique_vals <= finfo.min * 0.99)).all())
-                )
-            )
-            print(
-                f"[mask-diagnostic] call #{_masks_logged}: q_shape={tuple(q.shape)} "
-                f"mask dtype={mask.dtype} shape={tuple(mask.shape)} n_unique_values={n_unique} "
-                f"sample_values={unique_vals[:10].tolist()} looks_binary={is_binary}",
-                flush=True,
-            )
-            _masks_logged += 1
-
         b, _, dim_head = q.shape
         dim_head //= heads
         q, k, v = (t.view(b, -1, heads, dim_head).transpose(1, 2) for t in (q, k, v))
@@ -371,6 +351,14 @@ class AttentionFunction(Enum):
         elif self is AttentionFunction.FLASH_INFER:
             return FlashInferAttention()(q, k, v, heads, mask)
         else:
+            # Strip masks that are real tensors but a complete no-op (all
+            # zeros -- see _mask_is_effectively_none) down to None before
+            # trying FlashAttention2/3/FlashInfer below: their `if mask is
+            # not None: raise` checks otherwise skip these calls even
+            # though the mask has zero actual effect. xformers/PyTorch SDPA
+            # don't have this issue (they just use the mask as-is, whether
+            # it's a no-op or not), so this only matters for those three.
+            mask_arg = None if _mask_is_effectively_none(mask) else mask
             # Default behavior: XFormers if installed else PyTorch. "Installed"
             # only means importable, not that it has a working kernel for this
             # GPU -- xformers builds ship a fixed set of prebuilt kernels
@@ -410,9 +398,9 @@ class AttentionFunction(Enum):
             #   future call the same way. Remember it, same
             #   try-once-remember-forever pattern as xformers above.
             global _flash_attn3_unusable
-            if flash_attn_interface is not None and not _flash_attn3_unusable and mask is None:
+            if flash_attn_interface is not None and not _flash_attn3_unusable and mask_arg is None:
                 try:
-                    return FlashAttention3()(q, k, v, heads, mask)
+                    return FlashAttention3()(q, k, v, heads, mask_arg)
                 except RuntimeError as exc:
                     _flash_attn3_unusable = True
                     print(
@@ -429,9 +417,9 @@ class AttentionFunction(Enum):
             # installed. Same call-specific-vs-permanent failure handling
             # as FlashAttention3.
             global _flash_attn2_unusable
-            if flash_attn_func is not None and not _flash_attn2_unusable and mask is None:
+            if flash_attn_func is not None and not _flash_attn2_unusable and mask_arg is None:
                 try:
-                    return FlashAttention2()(q, k, v, heads, mask)
+                    return FlashAttention2()(q, k, v, heads, mask_arg)
                 except RuntimeError as exc:
                     _flash_attn2_unusable = True
                     print(
@@ -447,9 +435,9 @@ class AttentionFunction(Enum):
             # build -- see TROUBLESHOOTING.md. Same call-specific-vs-
             # permanent handling as the flash-attn variants above.
             global _flashinfer_unusable
-            if flashinfer_single_prefill is not None and not _flashinfer_unusable and mask is None:
+            if flashinfer_single_prefill is not None and not _flashinfer_unusable and mask_arg is None:
                 try:
-                    return FlashInferAttention()(q, k, v, heads, mask)
+                    return FlashInferAttention()(q, k, v, heads, mask_arg)
                 except RuntimeError as exc:
                     _flashinfer_unusable = True
                     print(

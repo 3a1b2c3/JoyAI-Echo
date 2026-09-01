@@ -1,5 +1,89 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -15. torch/CUDA environment corruption chasing FlashAttention-2 (fixed, new DGX-specific requirements file)
+
+Chasing item -12's FlashAttention-2 install (`pip install flash-attn
+--force-reinstall --no-cache-dir`) dragged in a cascade of mismatched
+dependency upgrades on the GB300 box: `torch` silently jumped to a
+**nightly dev build** (`2.15.0.dev20260830+cu132`), with `torchaudio`
+(2.11.0) and `torchvision` (0.30.0.dev) landing on different, inconsistent
+versions -- none matching this repo's pin (`torch==2.9.1`,
+`requirements.txt`). First symptom: `torchaudio` import crashed outright
+(`RuntimeError: PyTorch and TorchAudio were compiled with different CUDA
+versions`), blocking the app from starting at all.
+
+**Recovery took multiple attempts, two of which made things worse:**
+- Reinstalling the pinned versions via the **cu128** index (per
+  `requirements.txt`'s own comment) failed to find a matching wheel --
+  this box is **aarch64** (GB300/Grace), and cu128 has no aarch64 builds
+  for this platform.
+- Reinstalling via **cu132**, unpinned (`pip install torch torchaudio
+  torchvision --index-url .../cu132`, no version numbers): silently
+  produced a **CPU-only** build (`torch 2.9.1+cpu`, `CUDA available:
+  False`) -- no error, no warning, just silently dropped GPU support. This
+  is what produced the misleading "masks are always None" finding in item
+  -12/-13's earlier measurement -- almost certainly measured against this
+  broken CPU build, not a real GPU run.
+- The actual fix: `setup_and_run.sh` (the script that originally
+  provisioned this exact box) already had the right answer --
+  `pip install --index-url https://download.pytorch.org/whl/cu130
+  torch==2.9.1 torchvision==0.24.1 torchaudio==2.9.1`, explicitly
+  excluding xformers entirely on aarch64 (`grep -v '^xformers'
+  requirements.txt`, since there's no aarch64 xformers wheel at all --
+  independently consistent with everything else found about xformers not
+  working on this GPU regardless of wheel availability).
+- That cu130/2.9.1 combination *did* reinstall successfully, but a
+  subsequent (unintended) unpinned reinstall onto **cu132** landed on
+  `torch==2.14.0+cu132` / `torchaudio==2.11.0` / `torchvision==0.29.0`
+  instead -- a different, newer, but apparently GPU-working combination.
+  Rather than fight back to exactly 2.9.1 a third time, this became the
+  new documented baseline for this box (see below) since it's the one
+  that's actually confirmed to have `torch.cuda.is_available() == True`.
+
+**New file**: `requirements_dgx.txt` -- a DGX-GB300-specific (aarch64,
+CUDA 13.2) variant of `requirements.txt`, pinning `torch==2.14`,
+`torchaudio==2.11`, `torchvision==0.29.0` (install via the `cu132` index,
+documented in the file itself), no `xformers` (no aarch64 wheel, ever, on
+any torch version -- unrelated to this specific ABI saga), and
+`flashinfer-python` included. **Always verify after any torch-adjacent
+install on this box** with
+`python -c "import torch; print(torch.__version__, torch.cuda.is_available())"`
+-- this session hit two different *silent* failure modes (ABI mismatch
+crash, and silent CPU-only fallback) from mismatched CUDA-tagged indices
+before landing on a working combination.
+
+## -14. Masks are real tensors but all-zero (a no-op) -- FlashAttention/FlashInfer were rejecting them anyway (fixed)
+
+Once the torch/CUDA environment (item -15) was working again, the
+mask-diagnostic from item -12/-13 actually fired for the first time and
+gave a real, different answer than "always `None`": every mask reaching
+`PytorchAttention` is a genuine (non-`None`) tensor, but with exactly one
+unique value: `0.0`. An all-zero additive bias restricts nothing -- it's
+mathematically a complete no-op, identical in effect to no mask at all.
+
+This matters because `FlashAttention2`/`FlashAttention3`/`FlashInferAttention`
+all hard-reject on `mask is not None` (raising `NotImplementedError`) --
+so every single call was hitting that rejection and falling back to SDPA,
+even though the mask had zero actual effect and the fast kernels would
+have produced identical output. The earlier "masks are always None"
+conclusion (item -12) was measured on a *different, broken* torch install
+(the CPU-only fallback -- see item -15) where the model may not have
+reached these particular code paths at all; this is the first measurement
+taken with a genuinely working GPU torch build.
+
+**Fixed**: added `_mask_is_effectively_none(mask)` (`attention.py`) --
+`True` for `None` or an all-zero tensor. `AttentionFunction.DEFAULT` now
+computes `mask_arg = None if _mask_is_effectively_none(mask) else mask`
+once, and passes `mask_arg` (not the raw `mask`) into the
+FlashAttention2/3/FlashInfer attempts -- so a no-op mask gets stripped to
+a real `None` before reaching their hard-rejection checks, letting the
+fast paths actually engage instead of always falling through to SDPA.
+xformers/PyTorch SDPA are unaffected (no mask-presence hard-rejection to
+begin with, so passing the original `mask` there is harmless either way).
+
+The mask-diagnostic instrumentation itself was removed after this
+confirmed the answer (no longer needed).
+
 ## -13. FlashInfer wired in as a fourth attention fallback (implemented, not yet benchmarked)
 
 Direct continuation of item -12's FlashAttention-2 attempt, which turned
