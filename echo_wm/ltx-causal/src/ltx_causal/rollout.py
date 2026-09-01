@@ -324,12 +324,16 @@ def _generate_av_blocks(
         ] = video_sample
         buffers.audio_output[:, audio_start:audio_end] = audio_sample
         if on_block is not None:
+            t_callback_start = time.time()
             print(f"[rollout] block {block_index}/{total_blocks} calling on_block callback", flush=True)
             on_block(block_index, total_blocks, video_block, buffers.video_output, buffers.audio_output)
-            print(f"[rollout] block {block_index}/{total_blocks} on_block callback returned", flush=True)
+            print(f"[rollout] block {block_index}/{total_blocks} on_block callback returned "
+                  f"in {time.time() - t_callback_start:.1f}s", flush=True)
+        t_cache_start = time.time()
         forward(video_sample, video_block, 0.0, audio_sample, audio_block, 0.0)
-        print(f"[rollout] block {block_index}/{total_blocks} cache update done, "
-              f"total block time {time.time() - t_block_start:.1f}s", flush=True)
+        print(f"[rollout] block {block_index}/{total_blocks} cache update (forward()) done "
+              f"in {time.time() - t_cache_start:.1f}s, total block time "
+              f"{time.time() - t_block_start:.1f}s", flush=True)
 
 
 @torch.no_grad()

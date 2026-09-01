@@ -518,14 +518,22 @@ class EchoWMCausalEngine:
                 frame_count["n"] += 0
                 result_queue.put(("progress", block_index, total_blocks))
                 return
+            # block_path is kept as a *name* for status-text/log purposes
+            # only -- the file itself is no longer written when the
+            # WebSocket live stream is active (stream_encoder is not None),
+            # since nothing displays it anymore (the old block-swap
+            # gr.Video preview this used to feed is gone). Encoding the
+            # same frames twice (once here, once into stream_encoder below)
+            # was pure wasted per-block latency.
             block_path = blocks_dir / f"block_{block_index:03d}.mp4"
-            encode_video(
-                video=video_chunk,
-                fps=int(fps),
-                audio=audio_chunk if generate_audio else None,
-                output_path=str(block_path),
-                video_chunks_number=1,
-            )
+            if stream_encoder is None:
+                encode_video(
+                    video=video_chunk,
+                    fps=int(fps),
+                    audio=audio_chunk if generate_audio else None,
+                    output_path=str(block_path),
+                    video_chunks_number=1,
+                )
             frame_count["n"] += video_chunk.shape[0]
             if stream_encoder is not None:
                 try:

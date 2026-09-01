@@ -101,56 +101,99 @@ black. If it does, this isn't a UI issue at all -- the model/decode
 pipeline is producing genuinely black frames near the clip's end, a
 different and more serious problem.
 
-## -1. Visible stutter/gap between block updates in the live preview (tried a fix, reverted -- still open)
+## -1. Visible stutter/gap between block updates in the live preview (fixed via WebSocket + MediaSource)
 
 Even with item 0 below fixed (real incremental blocks now arrive), each
-new block causes a visible pause: `stream_video` (`gr.Video`) does a full
-`<video src=...>` swap per block, which means a full HTTP fetch + decode +
+new block caused a visible pause: `stream_video` (`gr.Video`) did a full
+`<video src=...>` swap per block, which meant a full HTTP fetch + decode +
 rebuffer in the browser every time, not a seamless append.
 
-**Attempted and reverted:** flipped `stream_video` to
+**First attempt, reverted:** flipped `stream_video` to
 `gr.Video(streaming=True)` plus a `fragmented=True` option on
-`encode_video()` (`movflags: frag_keyframe+empty_moov`), assuming
-`streaming=True` does client-side MSE append of fragmented MP4 chunks.
-**Wrong assumption, confirmed by testing:** this Gradio version's
-`streaming=True` actually drives an **HLS** player (`hls.mjs`) that fetches
-a `playlist.m3u8` from `/gradio_api/stream/.../playlist.m3u8` -- i.e.
-Gradio expects to run its own server-side HLS segmentation, not receive
-already-fragmented MP4 files directly. Result: `HLS error: levelEmptyError
--- No Segments found in Playlist`, fatal, video never played at all
-(strictly worse than the stutter it was meant to fix). Both changes fully
-reverted (`gradio_echo_wm.py`'s `stream_video`, and the `fragmented` param
-on `encode_video()` in `media_io.py` -- removed entirely since nothing
-uses it anymore, not left as unused dead code).
+`encode_video()`, assuming `streaming=True` does client-side MSE append of
+fragmented MP4 chunks. **Wrong assumption, confirmed by testing:** this
+Gradio version's `streaming=True` actually drives an **HLS** player
+(`hls.mjs`) that fetches a `playlist.m3u8` -- Gradio expects to run its own
+server-side HLS segmentation, not receive already-fragmented MP4 directly.
+Result: `HLS error: levelEmptyError`, fatal, video never played. Fully
+reverted.
 
-**Still an open problem.** Whatever the actual fix is, it needs to work
-*with* Gradio's HLS-based streaming pipeline (or bypass Gradio's `Video`
-component's file-serving path entirely via a custom component), not just
-hand it a differently-encoded standalone file per block.
+**Second attempt, this is what's in place now:** bypass `gr.Video` and
+Gradio's file-serving entirely with a custom WebSocket + MediaSource
+Extensions (MSE) player, mirroring `JoyAI-Video-Edit`'s own UI. Standalone
+pieces validated first via throwaway scripts (`test_streaming_encode.py`,
+`test_ws_stream_server.py`/`test_ws_stream_client.py`, `test_mse_player.html`)
+before touching the real app, confirming: PyAV can produce a correctly
+incrementally-flushing fragmented MP4 (critical setting:
+`stream.gop_size = frames_per_chunk`, forcing a keyframe/fragment boundary
+at each chunk -- without it fragments don't flush until `close()`), a
+WebSocket can deliver those bytes progressively, and a real browser's
+`MediaSource`/`SourceBuffer.appendBuffer()` plays them live.
 
-**Investigation in progress -- exact commands to resume with:**
-```bash
-cd ~/JoyAI-Echo/echo_wm && source .venv/bin/activate
-GRADIO_DIR=$(python -c "import gradio, os; print(os.path.dirname(gradio.__file__))")
-# routes.py has two `sse_stream` functions (found via `grep -n "def.*stream" routes.py`,
-# neither matched the literal "gradio_api/stream" text -- route prefix is
-# likely added via an included router elsewhere) -- read both:
-sed -n '1420,1470p' "$GRADIO_DIR/routes.py"
-sed -n '1615,1670p' "$GRADIO_DIR/routes.py"
-# find the actual HLS/.m3u8 segmenter -- this is the real contract to learn:
-grep -rn "playlist.m3u8\|\.m3u8" "$GRADIO_DIR" 2>/dev/null | grep -v ".pyc"
-# separately, how the Video component's Python side treats streaming=True:
-grep -n "streaming" "$GRADIO_DIR/components/video.py" | head -40
-```
-Not yet run/read this session -- resume here rather than guessing again.
+**Architecture, as built:**
+- `ltx_pipelines/utils/media_io.py`: new `StreamingEncoder` class --
+  `write_chunk(video_chunk, audio_chunk)` returns only newly-flushed bytes
+  since the last call; `close()` flushes and returns the trailer. Supports
+  an optional second (AAC) stream for audio (`include_audio=True`), added
+  at construction time (not lazily -- fragmented MP4 needs every stream
+  declared before the first packet is muxed).
+- `gradio_echo_wm.py`: `main()` no longer uses `demo.queue().launch(...)`
+  -- it mounts Gradio into a FastAPI app (`gr.mount_gradio_app`) alongside
+  a custom `/ws/stream/{run_id}` route, served via `uvicorn.run()` (needed
+  since `.launch()` has no hook for adding routes). **`--share` no longer
+  works in this mode** (Gradio's tunnel setup is internal to `.launch()`)
+  -- prints a note and ignores the flag instead of failing silently.
+  `EchoWMCausalEngine.generate()` takes an `on_stream_chunk(bytes | None)`
+  callback, driving a per-generation `StreamingEncoder` from inside
+  `on_block`; a thread-safe bridge (`_stream_queues` + `_push_stream_chunk`,
+  using `loop.call_soon_threadsafe`) relays bytes from the sync worker
+  thread to the async WebSocket handler. Frontend: `head=` JS
+  (`_mse_stream_js`) polls a hidden trigger textbox for a fresh run id,
+  then opens `MediaSource` + the WebSocket and appends chunks as they
+  arrive into a raw `<video id="live-preview-video">` (replacing the old
+  `stream_video` `gr.Video`).
 
-**Alternative not requiring Gradio internals at all:** bypass `gr.Video`
-entirely with a custom WebSocket + MediaSource Extensions player, the same
-architecture `JoyAI-Video-Edit`'s UI already uses successfully (raw frames
-over a live WebSocket into a `<video>` fed by `MediaSource`, no per-chunk
-reload) -- more work (custom Gradio component or a raw HTML/JS panel via
-`gr.Blocks(head=...)`), but a proven pattern already working elsewhere in
-this environment, not a guess at Gradio's undocumented internals.
+**Two real bugs hit and fixed while wiring this into the actual app
+(neither showed up in the standalone validation, since that used plain
+HTML, not Gradio):**
+
+**(a) The hidden trigger textbox never being detected at all.**
+`stream_trigger = gr.Textbox(..., visible=False, elem_id="stream-trigger")`
+seemed like the obvious way to hide it, but current Gradio's `visible=False`
+means the component **is never mounted in the DOM at all** (conditional
+`{#if visible}` render), not just CSS-hidden like older Gradio/most other
+frameworks. The polling JS's `document.querySelector('#stream-trigger
+textarea')` therefore always returned `null`, silently, forever --
+`connect()` never ran, and confirmed via the server access log: **zero**
+`/ws/stream/...` requests ever arrived. Fixed: `visible=True` (so Gradio
+actually renders it) with `#stream-trigger { display: none !important; }`
+in the injected `<style>` instead. General lesson for this codebase: don't
+use `visible=False` for any component a `head=` script needs to observe.
+
+**(b) `MediaSource.addSourceBuffer()` MIME/codec mismatch once audio was
+added.** The codecs string (`'video/mp4; codecs="avc1.640028"'`) must
+declare *exactly* the track set present in the actual byte stream, or every
+`appendBuffer()` call fails, not just the `addSourceBuffer()` call itself.
+Since whether a given generation has audio depends on the `gen_audio`
+checkbox (runtime, not know-at-page-load), the trigger textbox's value is
+now `"<run_id>|<1-or-0>"` (not just the bare run id) so the frontend knows
+upfront whether to declare `mp4a.40.2` (AAC-LC) alongside `avc1.640028` --
+`connect(runId, hasAudio)`.
+
+**Autoplay-with-audio caveat (inherent to browsers, not fixable server-side):**
+browsers block autoplay *with sound* unless the site already has "high
+media engagement" or `play()` follows a real user gesture -- a live-updating
+background preview can't manufacture that. `_mse_stream_js` tries unmuted
+`play()` first; on failure it falls back to muted (so the picture still
+plays) and a click on the video unmutes + resumes audio. If a generation
+has no audio track at all (`gen_audio` off), the video is muted upfront
+instead of attempting (and always failing) an unmuted play.
+
+**Not yet confirmed working end-to-end on real hardware after the audio
+addition** -- video-only was confirmed working (clean `appendBuffer`,
+`loadeddata` fired, `endOfStream()` succeeded with no errors) on
+`10.74.11.118` before audio support was added; audio itself hasn't been
+tested yet as of this writing.
 
 ## 0.5. Preview decode is redundant/slow -- partially mitigated
 
