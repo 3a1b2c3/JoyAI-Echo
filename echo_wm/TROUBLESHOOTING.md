@@ -1,30 +1,55 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
-## -4. `ECHO_WM_COMPILE=1`: opt-in torch.compile for the causal transformer (implemented, not yet benchmarked)
+## -5. Warmup used a different resolution than the real config, so it didn't actually warm anything (fixed)
+
+Confirmed on real hardware: even with warmup running to completion before
+the server started accepting requests, the **first real user generation**
+still paid a huge cold-start hit -- block 0 took 21.2s and block 1 took
+6.0s before settling to ~1.0-1.1s/block steady state. Cause: `_warmup()`
+was hardcoded to 128x64, while the real config is 512x288 -- cuDNN/cuBLAS
+kernel selection and CUDA JIT compilation are shape-dependent, so warming
+up at one resolution doesn't warm the kernels needed at another. Fixed:
+`_warmup()` now reads `width`/`height`/`fps` from the engine's actual
+loaded config (falling back to 512/288/16 if unset) instead of a
+hardcoded throwaway size, while deliberately keeping `num_frames=25`
+(minimal valid causal block count) -- block count doesn't affect
+per-block kernel shape, only width/height/`video_chunk_size` do, so more
+warmup blocks would add time without warming anything new.
+
+## -4. `ECHO_WM_COMPILE=1`: opt-in torch.compile for the causal transformer (tried, confirmed net loss -- default off)
 
 `ModelLedger.transformer()` (`utils/model_ledger.py:219`) builds a
 brand-new model object from scratch on **every** `CausalTI2VidPipeline.__call__`
 -- naively wrapping that in `torch.compile()` would mean paying full
 graph-tracing cost on every single generation (same failure mode as the
 CUDA-cache-size tuning in item -3.6 that turned out not to help). Fixed the
-precondition for compiling to pay off at all: `causal_ti2vid.py` now caches
-the built model per `(width, height)` (`self._model_cache`) -- built once,
+precondition for compiling to pay off at all: `causal_ti2vid.py` caches the
+built model per `(width, height)` (`self._model_cache`) -- built once,
 reused across every later generation at that resolution -- and, only when
-`ECHO_WM_COMPILE=1` is set (default off), wraps `x0_model.velocity_model`
-in `torch.compile()` (default mode, deliberately **not**
-`reduce-overhead`/CUDA-graphs -- the KV-cache argument is a `list[dict]`
-with per-block-varying scalar start-frame ints, a much higher-risk
-combination for CUDA-graph capture than for plain graph compilation).
+`ECHO_WM_COMPILE=1` is set, wraps `x0_model.velocity_model` in
+`torch.compile()` (default mode, deliberately not `reduce-overhead`/
+CUDA-graphs, for the reasons below).
 
-**Not yet run on real hardware.** Expected real risk: the KV-cache
-structure and changing start-frame ints are classic `torch.compile`
-graph-break triggers -- if it breaks the graph every block (likely), most
-of the theoretical speedup is lost and this may land close to a wash. The
-*first* generation at a given resolution pays real compile time (the
-startup `_warmup()` run absorbs this automatically as long as later real
-generations use the same width/height as warmup); every later generation
-at that resolution should be pure win if the graph holds, since nothing
-rebuilds/recompiles after the first hit.
+**Confirmed net loss on real hardware (`10.74.11.118`).** Exactly the risk
+predicted before testing: `torch._dynamo` hit a **repeated recompilation
+storm**, not a one-time compile cost --
+```
+W ... torch/_dynamo/convert_frame.py:2048] [14/8] User stack trace:
+W ...   File ".../ltx_core/model/transformer/transformer.py", line 440, in torch_dynamo_resume_in_forward_at_405
+W ...     if self.idx >= int(self.num_layers * 0.7)
+```
+(HINT from dynamo: "torch.compile considers integer attributes of the
+nn.Module to be static... you might want to make this integer dynamic").
+Warmup got stuck on **block 0 of a 1-block warmup run** -- normally ~2s --
+for **>100s and still climbing** (heartbeats every 2s past t=107.7s) before
+being interrupted. This is a real regression, not "maybe slightly better,
+maybe a wash" as originally estimated -- **default is now `ECHO_WM_COMPILE=0`**
+in `run_gradio.sh`. Leaving the model-caching infrastructure in place (that
+part is harmless/correct on its own, unrelated to the compile-specific
+recompilation bug) in case this is revisited later with a fix for the
+`self.idx` guard (e.g. `torch._dynamo.config.allow_unspec_int_on_nn_module = True`,
+per dynamo's own hint, or restructuring that comparison to avoid a
+per-layer Python-int guard entirely) -- not attempted this session.
 
 ## -3. Blackwell consumer/workstation GPUs (RTX 5090, RTX PRO 6000 -- compute capability 12.0): xformers/SDPA gotchas (fixed)
 

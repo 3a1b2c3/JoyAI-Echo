@@ -1332,7 +1332,26 @@ def _warmup(engine, engine_kind: str) -> None:
     print(f"[warmup] Starting warmup generation (image={image_path})...", flush=True)
     try:
         if engine_kind == "causal":
-            print("[warmup] calling engine.generate() (causal, streaming)...", flush=True)
+            # Kernel selection/autotuning (cuDNN/cuBLAS algorithm choice,
+            # CUDA JIT compilation, etc.) is shape-dependent -- warming up
+            # at a throwaway small resolution doesn't actually warm the
+            # kernels a real generation needs. Confirmed on real hardware:
+            # despite warmup running to completion first, the first real
+            # user generation still paid a ~21s+6s cold-start hit on its
+            # first two blocks (vs. ~1s/block steady-state) because warmup
+            # was using 128x64 while the real config is 512x288. Use the
+            # engine's actual configured width/height here so warmup pays
+            # this cost once, before the server starts accepting requests,
+            # instead of deferring it onto whoever generates first.
+            warmup_video_cfg = engine.cfg.get("video", {})
+            warmup_width = int(warmup_video_cfg.get("width", 512))
+            warmup_height = int(warmup_video_cfg.get("height", 288))
+            warmup_fps = float(warmup_video_cfg.get("fps", 16))
+            print(
+                f"[warmup] calling engine.generate() (causal, streaming) at "
+                f"{warmup_width}x{warmup_height}@{warmup_fps}fps (matches real config)...",
+                flush=True,
+            )
             for item in engine.generate(
                 image_path=image_path,
                 prompt="warmup",
@@ -1345,10 +1364,15 @@ def _warmup(engine, engine_kind: str) -> None:
                 # smallest value that produces more than zero real blocks;
                 # anything smaller either violates the frame-count
                 # constraint outright or degenerates to zero real blocks.
+                # Deliberately NOT the real config's num_frames=241: block
+                # count doesn't affect per-block kernel shape (that's driven
+                # by width/height/video_chunk_size, all matched above), so
+                # more blocks here would only add warmup time without
+                # warming anything new.
                 num_frames=25,
-                fps=24.0,
-                width=128,
-                height=64,
+                fps=warmup_fps,
+                width=warmup_width,
+                height=warmup_height,
                 fov_deg=70.0,
                 translation_speed=DEFAULT_TRANSLATION_SPEED,
                 rotation_speed_deg=DEFAULT_ROTATION_SPEED_DEG,
