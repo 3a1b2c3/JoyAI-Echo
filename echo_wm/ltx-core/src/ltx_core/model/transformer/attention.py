@@ -7,6 +7,7 @@ from ltx_core.model.transformer.rope import LTXRopeType, apply_rotary_emb
 
 memory_efficient_attention = None
 flash_attn_interface = None
+_xformers_unusable = False
 try:
     from xformers.ops import memory_efficient_attention
 except ImportError:
@@ -86,6 +87,9 @@ class AttentionCallable(Protocol):
     ) -> torch.Tensor: ...
 
 
+_sdpa_backend_logged = False
+
+
 class PytorchAttention(AttentionCallable):
     def __call__(
         self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, heads: int, mask: torch.Tensor | None = None
@@ -102,7 +106,31 @@ class PytorchAttention(AttentionCallable):
             if mask.ndim == 3:
                 mask = mask.unsqueeze(1)
 
-        out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
+        # SDPA has multiple backends (FLASH_ATTENTION, EFFICIENT_ATTENTION,
+        # MATH, CUDNN_ATTENTION). Flash's kernel often can't take an
+        # arbitrary (non-causal) bias tensor at all and PyTorch silently
+        # falls back to MATH -- the slowest backend, always correct but with
+        # no fast kernel, which is genuine per-call compute cost that no
+        # amount of caching or warmup fixes. Explicitly prefer
+        # EFFICIENT_ATTENTION/CUDNN_ATTENTION (both support a bias tensor)
+        # over letting PyTorch's default priority silently pick MATH.
+        global _sdpa_backend_logged
+        try:
+            from torch.nn.attention import SDPBackend, sdpa_kernel
+            with sdpa_kernel([SDPBackend.EFFICIENT_ATTENTION, SDPBackend.CUDNN_ATTENTION, SDPBackend.MATH]):
+                if not _sdpa_backend_logged:
+                    print("[attention] using SDPA with explicit backend priority "
+                          "[EFFICIENT_ATTENTION, CUDNN_ATTENTION, MATH] (skipping FLASH_ATTENTION, "
+                          "which can't take a non-causal bias tensor and would silently fall through "
+                          "to MATH -- the slow backend -- if left in the default priority order)", flush=True)
+                    _sdpa_backend_logged = True
+                out = torch.nn.functional.scaled_dot_product_attention(
+                    q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False
+                )
+        except ImportError:
+            # Older torch without torch.nn.attention.sdpa_kernel -- fall back
+            # to whatever the default backend priority picks.
+            out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
         out = out.transpose(1, 2).reshape(b, -1, heads * dim_head)
         return out
 
@@ -193,12 +221,30 @@ class AttentionFunction(Enum):
         elif self is AttentionFunction.FLASH_ATTENTION_3:
             return FlashAttention3()(q, k, v, heads, mask)
         else:
-            # Default behavior: XFormers if installed else - PyTorch
-            return (
-                XFormersAttention()(q, k, v, heads, mask)
-                if memory_efficient_attention is not None
-                else PytorchAttention()(q, k, v, heads, mask)
-            )
+            # Default behavior: XFormers if installed else PyTorch. "Installed"
+            # only means importable, not that it has a working kernel for this
+            # GPU -- xformers builds ship a fixed set of prebuilt kernels
+            # (fa3/fa2/cutlassF etc.), each gated on specific compute
+            # capability ranges, and reject anything outside them at *call*
+            # time (NotImplementedError), not import time. A GPU newer than
+            # every kernel's supported range (e.g. compute capability 12.0
+            # consumer/workstation Blackwell cards on some xformers builds)
+            # imports fine and then fails on the very first real call. Try it
+            # once; if it doesn't work for this GPU, remember that and use
+            # PyTorch's own scaled_dot_product_attention for the rest of the
+            # process instead of failing every call.
+            global _xformers_unusable
+            if memory_efficient_attention is not None and not _xformers_unusable:
+                try:
+                    return XFormersAttention()(q, k, v, heads, mask)
+                except NotImplementedError as exc:
+                    _xformers_unusable = True
+                    print(
+                        f"[attention] xformers has no working kernel for this GPU "
+                        f"(falling back to PyTorch SDPA for the rest of this process): {exc}",
+                        flush=True,
+                    )
+            return PytorchAttention()(q, k, v, heads, mask)
 
 
 class Attention(torch.nn.Module):
