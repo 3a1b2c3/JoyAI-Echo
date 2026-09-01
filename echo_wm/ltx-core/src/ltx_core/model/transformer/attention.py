@@ -528,7 +528,27 @@ class AttentionFunction(Enum):
             # though the mask has zero actual effect. xformers/PyTorch SDPA
             # don't have this issue (they just use the mask as-is, whether
             # it's a no-op or not), so this only matters for those three.
-            mask_arg = None if _mask_is_effectively_none(mask) else mask
+            #
+            # Computed lazily (only right before the first branch that
+            # actually needs it, and only if that branch's library is even
+            # available) rather than unconditionally up front: on hardware
+            # where none of FA2/FA3/FlashInfer are installed/enabled (the
+            # common case here -- xformers/flash-attn confirmed unusable on
+            # this GPU, FlashInfer off by default), this value is never
+            # consumed at all (PytorchAttention below uses the original
+            # `mask`, not `mask_arg`), so eagerly computing it would pay a
+            # real CPU-GPU sync (_mask_is_effectively_none reads a value
+            # back from the GPU) for nothing -- and that sync is a hard
+            # crash (`cudaErrorStreamCaptureUnsupported`), not just wasted
+            # time, inside a torch.cuda.graph() capture. Confirmed on real
+            # hardware: this exact line was the graph-capture blocker.
+            mask_arg_cache: list[torch.Tensor | None] = []
+
+            def _mask_arg() -> torch.Tensor | None:
+                if not mask_arg_cache:
+                    mask_arg_cache.append(None if _mask_is_effectively_none(mask) else mask)
+                return mask_arg_cache[0]
+
             # Default behavior: XFormers if installed else PyTorch. "Installed"
             # only means importable, not that it has a working kernel for this
             # GPU -- xformers builds ship a fixed set of prebuilt kernels
@@ -568,9 +588,9 @@ class AttentionFunction(Enum):
             #   future call the same way. Remember it, same
             #   try-once-remember-forever pattern as xformers above.
             global _flash_attn3_unusable
-            if flash_attn_interface is not None and not _flash_attn3_unusable and mask_arg is None:
+            if flash_attn_interface is not None and not _flash_attn3_unusable and _mask_arg() is None:
                 try:
-                    return FlashAttention3()(q, k, v, heads, mask_arg)
+                    return FlashAttention3()(q, k, v, heads, _mask_arg())
                 except RuntimeError as exc:
                     _flash_attn3_unusable = True
                     print(
@@ -587,9 +607,9 @@ class AttentionFunction(Enum):
             # installed. Same call-specific-vs-permanent failure handling
             # as FlashAttention3.
             global _flash_attn2_unusable
-            if flash_attn_func is not None and not _flash_attn2_unusable and mask_arg is None:
+            if flash_attn_func is not None and not _flash_attn2_unusable and _mask_arg() is None:
                 try:
-                    return FlashAttention2()(q, k, v, heads, mask_arg)
+                    return FlashAttention2()(q, k, v, heads, _mask_arg())
                 except RuntimeError as exc:
                     _flash_attn2_unusable = True
                     print(
@@ -619,10 +639,10 @@ class AttentionFunction(Enum):
                 _flashinfer_enabled
                 and flashinfer_single_prefill is not None
                 and not _flashinfer_unusable
-                and mask_arg is None
+                and _mask_arg() is None
             ):
                 try:
-                    return FlashInferAttention()(q, k, v, heads, mask_arg)
+                    return FlashInferAttention()(q, k, v, heads, _mask_arg())
                 except RuntimeError as exc:
                     _flashinfer_unusable = True
                     print(
