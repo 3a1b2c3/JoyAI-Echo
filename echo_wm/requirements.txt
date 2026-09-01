@@ -25,19 +25,32 @@ av
 # fails to import against the pinned 2.9.1. Keep this aligned with torch above.
 xformers==0.0.33.post2
 
-# Optional, experimental: FlashAttention-4 (a *separate* PyPI package from
-# xformers/flash-attn, matching NVIDIA's SM100/SM103 -- i.e. GB300/B200/B300
-# Blackwell datacenter GPUs -- naming). Investigated as a possible xformers
-# replacement on GB300 (compute capability 10.3, which xformers explicitly
-# rejects as "too new" -- see TROUBLESHOOTING.md item -3). Only beta releases
-# exist on PyPI as of this writing (no stable release, requires --pre or an
-# exact version pin) and it's NOT yet wired into ltx-core/.../attention.py --
-# installing this alone does nothing; real integration work is still needed,
-# and it may reject this model's non-causal bias-tensor attention masks the
-# same way flash-attn-2 already does (see TROUBLESHOOTING.md item -10), which
-# would make it a dead end regardless of GPU support. Not installed by
-# default -- uncomment to experiment:
-# flash-attn-4==4.0.0b28
+# Optional acceleration, CONFIRMED WORKING on GB300 (compute capability
+# 10.3): FlashInfer. Wired into ltx-core/.../attention.py's
+# AttentionFunction.DEFAULT fallback chain (xformers -> FlashAttention3 ->
+# FlashAttention2 -> FlashInfer -> SDPA) -- see TROUBLESHOOTING.md item -12.
+# This model's causal streaming attention calls never actually pass a
+# mask/bias tensor (confirmed on real hardware), so FlashInfer's
+# custom_mask API isn't even needed -- a plain unmasked call suffices,
+# which is exactly what was confirmed to import and run successfully here
+# when xformers/FlashAttention-2/3 all failed (hardware rejection or ABI
+# mismatch against the pinned torch build, respectively).
+flashinfer-python
+
+# Optional, experimental, CONFIRMED BROKEN on this box: FlashAttention-2
+# (mainline `flash-attn` PyPI package). Wired into attention.py's fallback
+# chain the same way as FlashInfer above, but every install attempt here
+# hit a different ABI mismatch against the pinned torch==2.9.1 -- first
+# `undefined symbol: ..._c10_cuda_check_implementation...` (prebuilt
+# wheel), then, after forcing a from-source rebuild
+# (`pip uninstall -y flash-attn && pip install flash-attn
+# --no-build-isolation --force-reinstall --no-cache-dir`), a *second*,
+# different undefined symbol (`materialize_cow_storage`) -- meaning this
+# isn't a build-flag issue, flash-attn 2.8.3.post1 genuinely doesn't match
+# this torch build's internal ABI. Left unwired-by-default (commented out)
+# since it doesn't currently work; the attention.py code gracefully no-ops
+# if it's absent, so nothing else depends on this being installed.
+# flash-attn
 
 # UI and visualization
 # gradio is capped below 6.0: 6.x requires huggingface-hub>=1.16, which conflicts

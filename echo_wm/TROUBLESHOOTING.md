@@ -1,5 +1,72 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -13. FlashInfer wired in as a fourth attention fallback (implemented, not yet benchmarked)
+
+Direct continuation of item -12's FlashAttention-2 attempt, which turned
+out to be a dead end (see below): item -10's original FlashInfer
+investigation found it supports SM100/SM103 (GB300's compute capability
+10.3) and, unlike xformers/FlashAttention, has a real (if boolean-only)
+custom-mask API -- but that investigation got shelved once FlashAttention
+briefly looked more promising. Since item -12 established this model's
+causal streaming attention calls **never actually pass a mask at all**,
+FlashInfer's mask API question is moot -- a plain unmasked call is all
+that's needed, and that exact call
+(`flashinfer.single_prefill_with_kv_cache(q, k, v, causal=False)`) was
+already confirmed importable and runnable on the real GB300 box in a
+standalone test (`echo_wm/test_flashinfer_bias.py`) before any of the
+FlashAttention detour happened.
+
+**FlashAttention-2, tried in between, is a confirmed dead end** -- not a
+missing-package or wrong-build-flag issue, but incompatible at the
+compiled-CUDA-extension ABI level against the pinned `torch==2.9.1`:
+- `pip install flash-attn` (prebuilt wheel): `undefined symbol:
+  ..._c10_cuda_check_implementation...`
+- `pip uninstall -y flash-attn && pip install flash-attn
+  --no-build-isolation --force-reinstall --no-cache-dir` (forced source
+  rebuild against the actual installed torch): still failed, but with a
+  **different** undefined symbol (`materialize_cow_storage`) -- proof the
+  rebuild genuinely happened and still doesn't match. flash-attn
+  2.8.3.post1 does not currently work against this torch build, full stop.
+  A `FlashAttention2` class (mirroring `FlashAttention3`'s structure,
+  using `flash_attn.flash_attn_func`) was still added to `attention.py`
+  for completeness/future use -- it gracefully no-ops (via the existing
+  `except ImportError` guard) since the import fails, so it costs nothing
+  to leave in.
+
+**FlashInfer integration** (`FlashInferAttention` class in `attention.py`):
+mirrors the `FlashAttention2`/`3` structure, with one real difference --
+`single_prefill_with_kv_cache`'s API has **no batch dimension** (`q`/`k`/`v`
+are `[seqlen, num_heads, head_dim]`, not `[B, T, H*D]` like every other
+`AttentionCallable` here), handled by indexing out batch 0 before the call
+and unsqueezing back after (this model only ever runs `batch_size=1`;
+`batch_size != 1` raises `RuntimeError`, treated as a permanent
+incompatibility like a real hardware/kernel failure would be, not a
+call-specific one). Wired as the fourth stage in `AttentionFunction.DEFAULT`:
+xformers -> FlashAttention3 -> FlashAttention2 -> **FlashInfer** -> SDPA.
+Added `flashinfer-python` to `requirements.txt` (uncommented, since it's
+confirmed importable/runnable here, unlike the commented-out
+confirmed-broken `flash-attn`).
+
+**Not yet benchmarked end-to-end through a real generation** -- confirmed
+working at the standalone-script level (item -10), not yet confirmed via
+`[rollout]` timing that it's actually engaging (watch for the *absence* of
+both the xformers-rejection and any flash-attn-rejection messages, i.e.
+`grep -i "attention\]" gradio_debug.log` showing nothing at all instead of
+the `using SDPA...` line) or that it produces a real speed change.
+
+Unrelated regression hit while testing this, not caused by any of the
+above: `pip install flash-attn --force-reinstall --no-cache-dir` appears
+to have pulled in a `torchaudio` dependency resolution that no longer
+matches the installed `torch` build's CUDA version (`torch` reports CUDA
+13.0, `torchaudio` reports CUDA 13.2) --
+`RuntimeError: Detected that PyTorch and TorchAudio were compiled with
+different CUDA versions`. Blocks the app from starting at all. Not yet
+fixed -- needs `torchaudio` reinstalled from whatever CUDA-13.0-tagged
+index `torch` itself was originally installed from (matching this repo's
+own `torch`/`xformers` CUDA-alignment pattern elsewhere in
+`requirements.txt`), not investigated further this session since the
+FlashInfer work took priority.
+
 ## -12. FlashAttention-3 re-opened as an option: masks are always None on the causal streaming path (implemented, not yet tested)
 
 Item -10's FlashAttention-4 investigation assumed every attention call in

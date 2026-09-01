@@ -38,6 +38,21 @@ try:
 except ImportError:
     flash_attn_func = None
 
+flashinfer_single_prefill = None
+_flashinfer_unusable = False
+try:
+    # Confirmed on real hardware (GB300, compute capability 10.3): imports
+    # and runs successfully with no bias/mask argument -- unlike xformers
+    # (no kernel for this compute capability at all) and FlashAttention-2/3
+    # (either no working kernel here, or an ABI mismatch against the pinned
+    # torch build -- see TROUBLESHOOTING.md items -10/-12). This model's
+    # causal streaming attention calls never actually pass a mask (also
+    # confirmed on real hardware), so FlashInfer's boolean-only custom_mask
+    # API isn't even needed here -- a plain unmasked call suffices.
+    from flashinfer import single_prefill_with_kv_cache as flashinfer_single_prefill
+except ImportError:
+    flashinfer_single_prefill = None
+
 
 def _slice_rope(
     pe: tuple[torch.Tensor, torch.Tensor], start: int, end: int
@@ -290,11 +305,56 @@ class FlashAttention2(AttentionCallable):
         return out
 
 
+class FlashInferAttention(AttentionCallable):
+    """FlashInfer's single_prefill_with_kv_cache -- confirmed importable and
+    runnable on GB300 (compute capability 10.3) with no mask/bias argument,
+    unlike xformers (no kernel for this capability) or FlashAttention-2/3
+    (ABI mismatch against the pinned torch build here). Unlike those two,
+    this doesn't need mask support at all: this model's causal streaming
+    attention calls never actually pass a mask (confirmed on real
+    hardware), so a plain unmasked call suffices.
+
+    single_prefill_with_kv_cache's API is per-request (no batch dimension:
+    q/k/v are [seqlen, num_heads, head_dim]), unlike the [B, T, H*D] shape
+    every other AttentionCallable here takes -- this model only ever runs
+    batch=1, so that's handled by indexing/unsqueezing around the call
+    rather than a real batching loop.
+    """
+
+    def __call__(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        heads: int,
+        mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        if flashinfer_single_prefill is None:
+            raise RuntimeError("FlashInferAttention was selected but `flashinfer` is not installed.")
+
+        b, _, dim_head = q.shape
+        dim_head //= heads
+        if b != 1:
+            raise RuntimeError(
+                f"FlashInferAttention only supports batch_size=1 (single_prefill_with_kv_cache "
+                f"has no batch dimension), got batch_size={b}"
+            )
+
+        if mask is not None:
+            raise NotImplementedError("Mask is not supported by this FlashInferAttention wiring")
+
+        q, k, v = (t.view(b, -1, heads, dim_head)[0] for t in (q, k, v))  # [T, H, D], batch dim dropped
+        out = flashinfer_single_prefill(q.to(v.dtype), k.to(v.dtype), v, causal=False)
+        out = out.unsqueeze(0).reshape(b, -1, heads * dim_head)
+        return out
+
+
 class AttentionFunction(Enum):
     PYTORCH = "pytorch"
     XFORMERS = "xformers"
     FLASH_ATTENTION_3 = "flash_attention_3"
     FLASH_ATTENTION_2 = "flash_attention_2"
+    FLASH_INFER = "flash_infer"
     DEFAULT = "default"
 
     def __call__(
@@ -308,6 +368,8 @@ class AttentionFunction(Enum):
             return FlashAttention3()(q, k, v, heads, mask)
         elif self is AttentionFunction.FLASH_ATTENTION_2:
             return FlashAttention2()(q, k, v, heads, mask)
+        elif self is AttentionFunction.FLASH_INFER:
+            return FlashInferAttention()(q, k, v, heads, mask)
         else:
             # Default behavior: XFormers if installed else PyTorch. "Installed"
             # only means importable, not that it has a working kernel for this
@@ -376,6 +438,23 @@ class AttentionFunction(Enum):
                         f"[attention] flash-attn (FlashAttention2) has no working kernel "
                         f"for this GPU (falling back to PyTorch SDPA for the rest of this "
                         f"process): {exc}",
+                        flush=True,
+                    )
+
+            # Fourth choice: FlashInfer. Confirmed importable and runnable
+            # on GB300 (compute capability 10.3) in a standalone test where
+            # xformers/FlashAttention-2/3 all failed for this hardware/torch
+            # build -- see TROUBLESHOOTING.md. Same call-specific-vs-
+            # permanent handling as the flash-attn variants above.
+            global _flashinfer_unusable
+            if flashinfer_single_prefill is not None and not _flashinfer_unusable and mask is None:
+                try:
+                    return FlashInferAttention()(q, k, v, heads, mask)
+                except RuntimeError as exc:
+                    _flashinfer_unusable = True
+                    print(
+                        f"[attention] flashinfer has no working kernel for this GPU "
+                        f"(falling back to PyTorch SDPA for the rest of this process): {exc}",
                         flush=True,
                     )
 
