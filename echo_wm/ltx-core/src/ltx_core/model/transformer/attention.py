@@ -42,6 +42,8 @@ except ImportError:
 
 flashinfer_single_prefill = None
 _flashinfer_unusable = False
+_flashinfer_skip_logged = False
+_flashinfer_success_logged = False
 try:
     # Confirmed on real hardware (GB300, compute capability 10.3): imports
     # and runs successfully with no bias/mask argument -- unlike xformers
@@ -739,22 +741,41 @@ class AttentionFunction(Enum):
             # timing (not the first) against the SDPA baseline before
             # concluding anything further.
             _flashinfer_enabled = os.environ.get("ECHO_WM_FLASHINFER", "0") == "1"
-            global _flashinfer_unusable
-            if (
-                _flashinfer_enabled
-                and flashinfer_single_prefill is not None
-                and not _flashinfer_unusable
-                and _mask_arg() is None
-            ):
-                try:
-                    return FlashInferAttention()(q, k, v, heads, _mask_arg())
-                except RuntimeError as exc:
-                    _flashinfer_unusable = True
-                    print(
-                        f"[attention] flashinfer has no working kernel for this GPU "
-                        f"(falling back to PyTorch SDPA for the rest of this process): {exc}",
-                        flush=True,
-                    )
+            global _flashinfer_unusable, _flashinfer_skip_logged, _flashinfer_success_logged
+            if _flashinfer_enabled and flashinfer_single_prefill is not None and not _flashinfer_unusable:
+                if _mask_arg() is not None:
+                    # Same diagnostic as SageAttention above -- confirms
+                    # whether "falls back to SDPA with no failure message"
+                    # is because this call's mask isn't effectively-none
+                    # (FlashInferAttention.__call__ hard-rejects any real
+                    # mask), not a crash.
+                    if not _flashinfer_skip_logged:
+                        _flashinfer_skip_logged = True
+                        print(
+                            "[attention] FlashInfer SKIPPED (not failed) -- this call's "
+                            "mask is not effectively-none, and FlashInfer's wiring here "
+                            "hard-rejects any real mask. Falling through to SDPA for this "
+                            "and any later call with a real mask.",
+                            flush=True,
+                        )
+                else:
+                    try:
+                        out = FlashInferAttention()(q, k, v, heads, _mask_arg())
+                        if not _flashinfer_success_logged:
+                            _flashinfer_success_logged = True
+                            print(
+                                "[attention] FlashInfer IS ACTUALLY BEING USED for this call "
+                                "(real kernel executed successfully, not SDPA).",
+                                flush=True,
+                            )
+                        return out
+                    except RuntimeError as exc:
+                        _flashinfer_unusable = True
+                        print(
+                            f"[attention] flashinfer has no working kernel for this GPU "
+                            f"(falling back to PyTorch SDPA for the rest of this process): {exc}",
+                            flush=True,
+                        )
 
             return PytorchAttention()(q, k, v, heads, mask)
 
