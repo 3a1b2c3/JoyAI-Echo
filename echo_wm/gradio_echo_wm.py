@@ -1267,9 +1267,19 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
         }
       }
 
+      let appendedChunkCount = 0;
       function appendNext() {
         if (!sourceBuffer || sourceBuffer.updating || pendingChunks.length === 0) return;
         const chunk = pendingChunks.shift();
+        appendedChunkCount += 1;
+        // Byte length of the first few chunks distinguishes a genuinely
+        // empty/malformed init segment (encoder-side bug) from a pure
+        // client-side timing issue (see TROUBLESHOOTING.md item -8.5) --
+        // only logging the first 5 to avoid flooding the console on a long
+        // generation.
+        if (appendedChunkCount <= 5) {
+          log(`appendBuffer chunk #${appendedChunkCount}, ${chunk.byteLength} bytes`);
+        }
         try {
           sourceBuffer.appendBuffer(chunk);
         } catch (e) {
@@ -1307,6 +1317,19 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
             appendNext();
             maybeEndStream();
           });
+          // MSE reports most real append failures ASYNCHRONOUSLY via this
+          // event, not via appendBuffer()'s synchronous throw (that only
+          // catches immediate argument/state errors) -- without this
+          // listener, a failed append is silently invisible here and the
+          // only symptom ever seen is the <video> element's own downstream
+          // MediaError, which doesn't say which chunk or why (see
+          // TROUBLESHOOTING.md item -8.5).
+          sourceBuffer.addEventListener("error", (e) => {
+            log("SourceBuffer error event (async append failure)", e,
+                "buffered:", sourceBuffer.buffered.length ? `${sourceBuffer.buffered.start(0)}-${sourceBuffer.buffered.end(0)}` : "(empty)");
+          });
+          mediaSource.addEventListener("sourceended", () => log("MediaSource sourceended"));
+          mediaSource.addEventListener("error", (e) => log("MediaSource error event", e));
           appendNext();
         });
 
