@@ -12,33 +12,6 @@ from ltx_core.model.transformer.transformer_args import TransformerArgs
 from ltx_core.model.transformer.ucpe_prope import _prepare_apply_fns
 from ltx_core.utils import rms_norm
 
-# DIAGNOSTIC (temporary): logs the actual unique values in the video/audio
-# self-attention masks the first time each is seen, to determine whether
-# they're genuinely boolean/binary (0.0 and finfo.min only -- a structural
-# attend/don't-attend pattern) or truly continuous (fractional log-space
-# attenuation values in between). This decides whether FlashInfer's
-# boolean-only custom_mask API (see echo_wm/test_flashinfer_bias.py) could
-# actually represent this model's masking or not. Remove once answered.
-_video_mask_logged = False
-_audio_mask_logged = False
-
-
-def _log_mask_values_once(name: str, mask: torch.Tensor | None, already_logged: bool) -> bool:
-    if already_logged or mask is None:
-        return already_logged
-    finfo = torch.finfo(mask.dtype)
-    unique_vals = torch.unique(mask)
-    n_unique = unique_vals.numel()
-    is_binary = n_unique <= 2 and bool(((unique_vals == 0.0) | (unique_vals <= finfo.min * 0.99)).all())
-    print(
-        f"[mask-diagnostic] {name} mask dtype={mask.dtype} shape={tuple(mask.shape)} "
-        f"n_unique_values={n_unique} "
-        f"sample_values={unique_vals[:10].tolist()} "
-        f"looks_binary(0/-inf only)={is_binary}",
-        flush=True,
-    )
-    return True
-
 
 @dataclass
 class TransformerConfig:
@@ -419,10 +392,6 @@ class BasicAVTransformerBlock(torch.nn.Module):
                 if not all_perturbed and not none_perturbed
                 else None
             )
-            global _video_mask_logged
-            _video_mask_logged = _log_mask_values_once(
-                "video.self_attention_mask", video.self_attention_mask, _video_mask_logged
-            )
             attn_out = self.attn1(
                     norm_vx,
                     pe=video.positional_embeddings,
@@ -470,10 +439,6 @@ class BasicAVTransformerBlock(torch.nn.Module):
             audio_self_attention_mask = audio.self_attention_mask
             if self.idx >= int(self.num_layers * 0.7):
                 audio_self_attention_mask = audio.late_self_attention_mask
-            global _audio_mask_logged
-            _audio_mask_logged = _log_mask_values_once(
-                "audio_self_attention_mask", audio_self_attention_mask, _audio_mask_logged
-            )
             ax = (
                 ax
                 + self.audio_attn1(

@@ -89,11 +89,46 @@ class AttentionCallable(Protocol):
 
 _sdpa_backend_logged = False
 
+# DIAGNOSTIC (temporary): logs the actual unique values of the first few
+# distinct real (non-None) mask tensors that reach PytorchAttention --
+# every masked attention call in this model goes through here on this GPU
+# (xformers has no working kernel, see AttentionFunction.DEFAULT's
+# fallback). A prior attempt to check this in transformer.py at the
+# self_attention_mask call sites found those masks are always None for the
+# causal streaming path -- meaning the real bias tensor(s) come from a
+# different call site (cross-attention/UCPE/etc.), caught generically here
+# instead of guessing which one. Determines whether FlashInfer's
+# boolean-only custom_mask API (see echo_wm/test_flashinfer_bias.py) could
+# represent this model's masking. Remove once answered.
+_masks_logged = 0
+_MAX_MASKS_TO_LOG = 6
+
 
 class PytorchAttention(AttentionCallable):
     def __call__(
         self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, heads: int, mask: torch.Tensor | None = None
     ) -> torch.Tensor:
+        global _masks_logged
+        if mask is not None and _masks_logged < _MAX_MASKS_TO_LOG:
+            finfo = torch.finfo(mask.dtype) if mask.dtype.is_floating_point else None
+            unique_vals = torch.unique(mask)
+            n_unique = unique_vals.numel()
+            is_binary = (
+                mask.dtype == torch.bool
+                or (
+                    finfo is not None
+                    and n_unique <= 2
+                    and bool(((unique_vals == 0.0) | (unique_vals <= finfo.min * 0.99)).all())
+                )
+            )
+            print(
+                f"[mask-diagnostic] call #{_masks_logged}: q_shape={tuple(q.shape)} "
+                f"mask dtype={mask.dtype} shape={tuple(mask.shape)} n_unique_values={n_unique} "
+                f"sample_values={unique_vals[:10].tolist()} looks_binary={is_binary}",
+                flush=True,
+            )
+            _masks_logged += 1
+
         b, _, dim_head = q.shape
         dim_head //= heads
         q, k, v = (t.view(b, -1, heads, dim_head).transpose(1, 2) for t in (q, k, v))
