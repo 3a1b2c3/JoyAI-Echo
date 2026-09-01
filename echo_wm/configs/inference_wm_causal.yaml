@@ -3,12 +3,12 @@ model:
   gemma_path: checkpoints/gemma-3
 
 video:
-  # width kept at 512 (last known-working value); height dropped from 288
-  # for more speed -- must stay multiples of 32 (assert_resolution) for the
-  # one-stage causal pipeline. 256x128 failed with a different error than
-  # the 32-divisibility check (cause not yet diagnosed).
+  # 512x288 -- exact 16:9, a known-working combo from earlier this session.
+  # width kept at 512 per explicit request; height back up from 128/192 for
+  # a normal (not squished) aspect ratio, at the cost of some speed vs. the
+  # smaller shapes tried above.
   width: 512
-  height: 128
+  height: 288
   num_frames: 241
   fps: 16
   seed: 42
