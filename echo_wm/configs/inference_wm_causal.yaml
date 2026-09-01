@@ -3,10 +3,9 @@ model:
   gemma_path: checkpoints/gemma-3
 
 video:
-  # 512x288 -- exact 16:9, a known-working combo from earlier this session.
-  # width kept at 512 per explicit request; height back up from 128/192 for
-  # a normal (not squished) aspect ratio, at the cost of some speed vs. the
-  # smaller shapes tried above.
+  # 512x288 -- exact 16:9, confirmed acceptable quality. The "radical
+  # config stack" (320x192 + 1-step + 4/1 window, all at once) was tried
+  # and explicitly reported as "slow and awful" -- reverted in full.
   width: 512
   height: 288
   num_frames: 241
@@ -14,19 +13,20 @@ video:
   seed: 42
 
 causal:
-  # 1 step -- most aggressive cut possible, highest quality risk of the
-  # session. 4->2 steps was confirmed ~linear (2.0s -> ~1.0-1.1s/block
-  # denoise); this pushes further for maximum speed tonight. Revert to
-  # [1000, 500] (2-step, previously confirmed acceptable quality) or
-  # [1000, 750, 500, 250] (native 4-step) if output is visibly broken, not
-  # just softer.
-  timesteps: [1000]
-  # 7/1 -- untested middle ground. 10/4 confirmed acceptable quality; 4/1
-  # (the minimum CausalCacheConfig.validate() allows) confirmed looking
-  # bad. This sits between them for tonight's push. Revert to 10/4 if
-  # motion looks broken.
-  video_local_attn_size: 7
-  video_sink_size: 1
+  # 2 steps -- confirmed acceptable quality, the setting before tonight's
+  # "radical config stack" push. 1-step was tried (stacked with 4/1 window
+  # + 320x192 resolution) and reported "slow and awful" -- reverted.
+  # Note: 1-step was never isolated/tested on its own without the other
+  # stacked changes, so it's unconfirmed whether 1-step alone (at 10/4
+  # window, 512x288) would look acceptable -- not retried this session.
+  timesteps: [1000, 500]
+  # 10/4 -- confirmed acceptable quality (the setting before tonight's
+  # push). 4/1 (tried twice now, both times as part of a larger stack)
+  # confirmed looking bad both times. 7/1 was set once as an untested
+  # middle ground but never actually run/reported on before being
+  # overwritten by the 4/1 stack -- still genuinely untested in isolation.
+  video_local_attn_size: 10
+  video_sink_size: 4
   video_chunk_size: 3
 
 action:

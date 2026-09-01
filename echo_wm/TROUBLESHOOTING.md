@@ -1,5 +1,44 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -17. "Radical config stack" for max speed -- tried, reverted ("slow and awful")
+
+After fp8 (item -9) was confirmed a clean net loss (2.0-2.1s/block vs.
+the 1.6-1.7s baseline -- upcast-per-matmul overhead with no offsetting
+compute savings on this compute-bound workload) and the whole
+attention-backend avenue closed out (item -16), tried stacking every
+remaining aggressive lever at once for one final push:
+- **1-step denoising** (`timesteps: [1000]`, down from the confirmed-
+  acceptable 2-step `[1000, 500]`)
+- **4/1 attention window** (`video_local_attn_size: 4, video_sink_size: 1`
+  -- the minimum `CausalCacheConfig.validate()` allows), stacked on top of
+  1-step this time (previously only tried alongside 2-step, where it was
+  also reported bad -- see item -7)
+- **320x192 resolution** (down from 512x288)
+
+**Result: explicitly reported "slow and awful" -- reverted in full**, back
+to 512x288 / 2-step / 10/4 window (all three, together, are the confirmed
+floor of acceptable quality this session). Numerically the run wasn't
+actually slower by fps (~10.74fps, arguably the best raw number of the
+session) -- "slow and awful" reads as being about perceived motion
+quality/coherence collapsing, not throughput, though this wasn't
+separately confirmed.
+
+**Not actually isolated -- worth knowing before retrying any piece of
+this alone:** all three changes landed in the same untested run. Two real
+open questions this leaves, deliberately not re-tried this session given
+time pressure:
+- Does **1-step alone** (at 10/4 window, 512x288 -- i.e. only cutting
+  steps, nothing else) look acceptable? Never tested in isolation --
+  1-step has only ever been tried already stacked with 4/1+320x192.
+- Does **7/1 window** (the untested middle ground between confirmed-good
+  10/4 and confirmed-bad 4/1) look acceptable? Set once this session but
+  overwritten by the 4/1 stack before ever actually being run/reported on
+  -- genuinely never tested.
+
+Both would need to be tried **one change at a time**, not stacked, to get
+an actual answer -- the stacked test only tells us the *combination* is
+bad, not which piece(s) of it are the actual problem.
+
 ## -16. Attention-backend investigation, final result: FlashInfer works but is slower than SDPA (disabled by default)
 
 Closing conclusion of the whole item -3/-10/-12/-13/-14 attention-backend
