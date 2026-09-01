@@ -138,11 +138,11 @@ def _log_attention_backend_status() -> None:
 
     checks = [
         ("SDPA", lambda: _attn.PytorchAttention()(q, k, v, heads)),
-        ("xformers", lambda: _attn.XFormersAttention()(q, k, v, heads)) if _attn.memory_efficient_attention is not None else None,
-        ("FlashAttention3", lambda: _attn.FlashAttention3()(q, k, v, heads)) if _attn.flash_attn_interface is not None else None,
-        ("FlashAttention2", lambda: _attn.FlashAttention2()(q, k, v, heads)) if _attn.flash_attn_func is not None else None,
-        ("FlashInfer", lambda: _attn.FlashInferAttention()(q, k, v, heads)) if _attn.flashinfer_single_prefill is not None else None,
-        ("SageAttention", lambda: _attn.SageAttention()(q, k, v, heads)) if _attn.sageattn is not None else None,
+        ("xformers", (lambda: _attn.XFormersAttention()(q, k, v, heads)) if _attn.memory_efficient_attention is not None else None),
+        ("FlashAttention3", (lambda: _attn.FlashAttention3()(q, k, v, heads)) if _attn.flash_attn_interface is not None else None),
+        ("FlashAttention2", (lambda: _attn.FlashAttention2()(q, k, v, heads)) if _attn.flash_attn_func is not None else None),
+        ("FlashInfer", (lambda: _attn.FlashInferAttention()(q, k, v, heads)) if _attn.flashinfer_single_prefill is not None else None),
+        ("SageAttention", (lambda: _attn.SageAttention()(q, k, v, heads)) if _attn.sageattn is not None else None),
     ]
     print("[attention-check] Real-kernel self-check for every installed attention backend:", flush=True)
     for name, fn in checks:
