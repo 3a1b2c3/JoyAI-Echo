@@ -166,6 +166,18 @@ class CausalTI2VidPipeline:
                     f"real forward call, not here, so this print returning fast is expected.",
                     flush=True,
                 )
+                # Confirmed on real hardware (see TROUBLESHOOTING.md item -4):
+                # without this, torch.compile hits a repeated recompilation
+                # storm from `if self.idx >= int(self.num_layers * 0.7)` in
+                # transformer.py -- self.idx is fixed per layer instance, but
+                # dynamo doesn't reliably treat plain nn.Module integer
+                # attributes as static without this flag, so it kept
+                # re-tracing instead of settling on one compiled graph
+                # (warmup got stuck >100s on a single ~2s block). This is
+                # dynamo's own suggested fix, per its error output --
+                # untested whether it actually resolves the storm.
+                import torch._dynamo  # noqa: PLC0415
+                torch._dynamo.config.allow_unspec_int_on_nn_module = True
                 x0_model.velocity_model = torch.compile(x0_model.velocity_model)
                 print(f"[compile] torch.compile() wrap done in {time.time() - t_compile:.1f}s", flush=True)
             wrapper = CausalModelWrapper(

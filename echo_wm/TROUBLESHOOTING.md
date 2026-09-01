@@ -1,6 +1,120 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
-## -19. `torch.profiler` on cache-update: real bottleneck is CPU dispatch overhead, not GPU compute
+## 0. Recurring gotcha: "the fix didn't work" is very often just a stale sync, not a real failure
+
+Hit repeatedly this session -- costly enough in wasted round-trips to call
+out explicitly at the top of this doc. Symptom: a fix is applied and
+committed, restart the server, test again, **same exact error/behavior as
+before, often at the same line number**. Before concluding the fix is
+wrong, check sync state first:
+
+```bash
+# On the box actually running the test:
+git status                              # anything uncommitted/behind?
+git log --oneline -3 -- <path/to/file>  # does the latest commit hash match what you expect?
+git pull                                # if behind, pull, then restart the server fresh
+```
+
+Two concrete tells that it's a sync issue, not a real failure:
+- The traceback/error references the **exact same line number** as the
+  pre-fix version, even though the fix added/removed lines above that
+  point (a real fix would have shifted the line numbers).
+- `git log` on the specific file, checked on the *editing* side, shows
+  the fix is already committed with clean `git status` -- meaning the gap
+  is purely "hasn't been pulled on the test box yet," not "the fix is
+  wrong."
+
+This happened at least half a dozen times this session (`rope.py`'s
+freq-grid fix, `attention.py`'s FlashAttention wiring, the diagnostic
+sync-removal in `rollout.py`, others) -- each time costing a full
+restart-and-retest round-trip before the real cause (stale pull) was
+found. **Always verify sync state before re-investigating a "fix didn't
+work" result.**
+
+## -22. `ECHO_WM_COMPILE_ATTENTION=1`: scoped torch.compile on just the attention call -- confirmed net negative, default off
+
+Narrower alternative to item -4's whole-model `torch.compile` (which
+confirmed a recompilation-storm regression). Instead of compiling the
+whole model, only `_pytorch_attention_core` -- the reshape -> SDPA ->
+reshape sequence in `PytorchAttention.__call__` (`ltx-core/.../attention.py`)
+-- is wrapped: `torch.compile(_pytorch_attention_core, dynamic=True)`.
+Rationale: the whole-model recompilation storm came from a `self.idx`
+guard living *outside* this function entirely (in `transformer.py`), so
+scoping compilation to just this small, self-contained function may dodge
+that guard altogether. `dynamic=True` is set upfront (not left to
+dynamo's default guess-then-recompile-once-it-notices behavior) since
+sequence length genuinely varies during KV-cache fill-up before
+stabilizing at the windowed size.
+
+**First test (contaminated, not trustworthy):** didn't hit a
+recompilation storm (warmup completed normally, ~35s, similar to
+uncompiled runs), but that run also had the 4-stale-GPU-process
+contention issue (item -15/-18) active, so the ~2.9s/block result
+couldn't be attributed to the compile flag.
+
+**Second test, clean (GPU contention resolved, sync verified): confirmed
+net negative.** ~2.0-2.25s/block vs. the verified-clean uncompiled
+baseline (~1.82-1.87s/block) -- real, attributable regression, not
+noise. Plausible explanation: `torch.compile`'s tracing/guard overhead on
+a function that's already just one fused SDPA call plus a couple of
+reshapes costs more than it saves -- there wasn't much dispatch overhead
+concentrated in *this specific function* to remove (see item -19: the
+828ms-CPU-vs-86ms-CUDA dispatch-overhead pattern is spread across
+*thousands* of ops throughout the whole forward pass, not concentrated in
+the attention wrapper alone).
+
+**Default off, confirmed correct as the default.** Don't enable
+`ECHO_WM_COMPILE_ATTENTION=1` for normal use -- it's real code left in
+place for reference/future retesting if the underlying function ever
+changes shape, not something to turn on.
+
+## -21. `flashdreams` scoping: a mature, CUDA-graph-ready KV cache + RoPE implementation already exists for this exact pattern (not integrated, scoping only)
+
+While investigating item -20's CUDA-graph blocker, checked
+`C:\workspace\world\flashdream_public` (a sibling NVIDIA framework) for
+prior art. Found `flashdreams/flashdreams/core/attention/` already
+implements, in production-tested form, close to everything item -19/-20
+were reasoning toward from scratch:
+
+- **`BlockKVCache`** (`kvcache.py`) -- a bounded sink+window causal KV
+  cache, explicitly documented as **"CUDA-graph compatible"**. Uses
+  `torch.sym_min`/`torch.sym_max` (symbolic-integer ops, not `.item()`)
+  for all its write-bounds math -- no CPU-GPU sync at all, unlike
+  Echo-WM's `update_kv_cache` (fixed in item -19 to remove `nonzero()`,
+  but the replacement `searchsorted(...).item()` still syncs). Pure
+  slice-based writes (`self._k[dst_slice] = ...`), no boolean masking
+  either. Explicit `before_update`/`update`/`after_update`/`cached_k`/
+  `cached_v` lifecycle with distinct filling-phase vs. steady-state-phase
+  code paths -- exactly the distinction item -14's "warmup doesn't
+  transfer to real generation" investigation inferred empirically.
+- **`KVCacheRelativeRotaryPositionEmbedding3D`** (`rope.py`) -- 3D RoPE
+  specifically for bounded sink/window caches where tokens move through
+  cache slots (vs. `RotaryPositionEmbedding3D` for unbounded monotonic
+  positions) -- Echo-WM's exact pattern. All frequency tensors
+  precomputed once in `__init__`, device-resident from construction (no
+  per-call CPU-GPU copy at all -- the class of bug item -20 found and
+  fixed in Echo-WM's own `rope.py`, but avoided here by construction, not
+  a patch).
+- **`apply_rope_freqs`** applies RoPE via a real fused Triton kernel
+  (`rope_kernel.py`) rather than a sequence of separate elementwise ops.
+
+**Not integrated -- scoping only.** These are strong architectural
+matches (built for what looks like this exact problem shape), not just
+generically similar. Real integration would mean rewiring Echo-WM's
+`Attention`/`update_kv_cache` (`ltx-core/.../attention.py`) and
+`CausalModelWrapper` (`ltx-causal/.../causal_wrapper.py`) to use these
+instead of their own versions -- reconciling shape/dict conventions
+between the two codebases, and Echo-WM's joint audio+video modeling
+(unclear whether `flashdreams`' patterns, which look video-centric in
+`flashdreams-integrations`'s own `SKILL.md`, have a direct analog for
+that). Rough estimate: **1-3 days for a single-piece cherry-pick** (e.g.
+just the RoPE class), **1-2+ weeks for the full coupled integration**
+(`BlockKVCache` + the paired `CUDAGraphWrapper`, needed together to
+reach the large -- theoretical, not measured -- speedup item -19's
+profiler data suggested: up to ~80-90% off cache-update specifically if
+its 828ms-CPU-vs-86ms-CUDA dispatch-overhead pattern is representative of
+the whole model). Not started this session -- a real scoping decision for
+next time, not incremental patching.
 
 `ECHO_WM_PROFILE_CACHE=1` (`rollout.py`) profiles one real cache-update
 `forward()` call (block 3) with `torch.profiler`. Real finding: **Self CUDA
