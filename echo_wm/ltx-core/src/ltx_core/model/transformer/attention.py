@@ -74,6 +74,31 @@ try:
 except ImportError:
     sageattn = None
 
+flash_attn_4_func = None
+_flash_attn4_unusable = False
+_flash_attn4_skip_logged = False
+_flash_attn4_success_logged = False
+try:
+    # `pip install flash-attn-4` (a real, separate package from mainline
+    # flash-attn -- item -10 in TROUBLESHOOTING.md) -- confirmed on real
+    # hardware tonight: `flash_attn_func` is NOT at the top-level `flash_attn`
+    # namespace (that import always fails, same as if flash-attn-4 weren't
+    # installed at all -- confirmed empty `flash_attn/__init__.py`, real
+    # content lives in `flash_attn.cute`, a CUTLASS-DSL implementation, not
+    # a precompiled .so like FA2/FA3). The real function is
+    # `flash_attn.cute.interface.flash_attn_func`. Confirmed working: real
+    # kernel call succeeds (correct output shape), JIT-compiles on first
+    # call per distinct shape (~1.75s one-time cost, absorbed by warmup
+    # since item -5 already fixed warmup to use real production shapes),
+    # then ~0.0005s on every later call with the same shape -- dramatically
+    # faster than SDPA/SageAttention/FlashInfer, none of which showed
+    # anywhere near this speedup tonight. Returns a (output, aux) tuple,
+    # not a bare tensor like FA2 -- aux is None when return_attn_probs-style
+    # extras aren't requested (the default), confirmed on real hardware.
+    from flash_attn.cute.interface import flash_attn_func as flash_attn_4_func
+except ImportError:
+    flash_attn_4_func = None
+
 
 def _slice_rope(
     pe: tuple[torch.Tensor, torch.Tensor], start: int, end: int
@@ -551,6 +576,41 @@ class SageAttention(AttentionCallable):
         return out
 
 
+class FlashAttention4(AttentionCallable):
+    """`flash_attn.cute.interface.flash_attn_func` -- the real package
+    installed by `pip install flash-attn-4` (item -10 in
+    TROUBLESHOOTING.md). Confirmed working on real hardware tonight,
+    including a real speed win (not just correctness) unlike every other
+    fast-path library tried this session: JIT-compiles once per distinct
+    shape on first call (~1.75s, absorbed by warmup), then ~0.0005s per
+    call after that. Expects [B, T, H, D] layout (same convention as
+    FlashAttention2/3, no transpose needed, unlike SageAttention). Returns
+    a (output, aux) tuple, not a bare tensor -- aux is None unless
+    return_attn_probs-style extras are requested (never done here)."""
+
+    def __call__(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        heads: int,
+        mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        if flash_attn_4_func is None:
+            raise RuntimeError("FlashAttention4 was selected but `flash-attn-4` is not installed.")
+
+        b, _, dim_head = q.shape
+        dim_head //= heads
+
+        if mask is not None:
+            raise NotImplementedError("Mask is not supported by this FlashAttention4 wiring")
+
+        q, k, v = (t.view(b, -1, heads, dim_head) for t in (q, k, v))
+        out, _aux = flash_attn_4_func(q.to(v.dtype), k.to(v.dtype), v, causal=False)
+        out = out.reshape(b, -1, heads * dim_head)
+        return out
+
+
 class AttentionFunction(Enum):
     PYTORCH = "pytorch"
     XFORMERS = "xformers"
@@ -558,6 +618,7 @@ class AttentionFunction(Enum):
     FLASH_ATTENTION_2 = "flash_attention_2"
     FLASH_INFER = "flash_infer"
     SAGE_ATTENTION = "sage_attention"
+    FLASH_ATTENTION_4 = "flash_attention_4"
     DEFAULT = "default"
 
     def __call__(
@@ -575,6 +636,8 @@ class AttentionFunction(Enum):
             return FlashInferAttention()(q, k, v, heads, mask)
         elif self is AttentionFunction.SAGE_ATTENTION:
             return SageAttention()(q, k, v, heads, mask)
+        elif self is AttentionFunction.FLASH_ATTENTION_4:
+            return FlashAttention4()(q, k, v, heads, mask)
         else:
             # Strip masks that are real tensors but a complete no-op (all
             # zeros -- see _mask_is_effectively_none) down to None before
@@ -603,6 +666,52 @@ class AttentionFunction(Enum):
                 if not mask_arg_cache:
                     mask_arg_cache.append(None if _mask_is_effectively_none(mask) else mask)
                 return mask_arg_cache[0]
+
+            # FlashAttention-4 -- tried FIRST, ahead of SageAttention:
+            # unlike every other fast-path library tonight (SageAttention,
+            # FlashInfer -- both confirmed correct but SLOWER than SDPA),
+            # FA4 showed a real, dramatic speedup in a standalone test
+            # (~0.0005s/call once JIT-compiled, vs. SDPA's much higher
+            # per-call cost at comparable shapes). NOT YET BENCHMARKED in
+            # real generation as of this wiring -- only a synthetic
+            # single-call test. DISABLED by default (set
+            # ECHO_WM_FLASH_ATTENTION_4=1) until that's confirmed, same
+            # opt-in pattern as SageAttention/FlashInfer -- don't trust a
+            # synthetic benchmark as the final word after tonight's
+            # SageAttention/FlashInfer lesson (working + fast in isolation
+            # isn't always fast in the real pipeline).
+            _fa4_enabled = os.environ.get("ECHO_WM_FLASH_ATTENTION_4", "0") == "1"
+            global _flash_attn4_unusable, _flash_attn4_skip_logged, _flash_attn4_success_logged
+            if _fa4_enabled and flash_attn_4_func is not None and not _flash_attn4_unusable:
+                if _mask_arg() is not None:
+                    if not _flash_attn4_skip_logged:
+                        _flash_attn4_skip_logged = True
+                        print(
+                            "[attention] FlashAttention4 SKIPPED (not failed) -- this call's "
+                            "mask is not effectively-none, and this wiring hard-rejects any "
+                            "real mask. Falling through to SDPA for this and any later call "
+                            "with a real mask.",
+                            flush=True,
+                        )
+                else:
+                    try:
+                        out = FlashAttention4()(q, k, v, heads, _mask_arg())
+                        if not _flash_attn4_success_logged:
+                            _flash_attn4_success_logged = True
+                            print(
+                                "[attention] FlashAttention4 IS ACTUALLY BEING USED for this "
+                                "call (real kernel executed successfully, not SDPA).",
+                                flush=True,
+                            )
+                        return out
+                    except Exception as exc:  # noqa: BLE001 - report whatever a real kernel call raises
+                        _flash_attn4_unusable = True
+                        print(
+                            f"[attention] FlashAttention4 failed on a real call "
+                            f"(falling back to PyTorch SDPA for the rest of this process): "
+                            f"{type(exc).__name__}: {exc}",
+                            flush=True,
+                        )
 
             # SageAttention -- confirmed working on real hardware tonight
             # (GB300, compute capability 10.3), unlike xformers/

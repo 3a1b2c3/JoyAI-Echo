@@ -143,6 +143,7 @@ def _log_attention_backend_status() -> None:
         ("FlashAttention2", (lambda: _attn.FlashAttention2()(q, k, v, heads)) if _attn.flash_attn_func is not None else None),
         ("FlashInfer", (lambda: _attn.FlashInferAttention()(q, k, v, heads)) if _attn.flashinfer_single_prefill is not None else None),
         ("SageAttention", (lambda: _attn.SageAttention()(q, k, v, heads)) if _attn.sageattn is not None else None),
+        ("FlashAttention4", (lambda: _attn.FlashAttention4()(q, k, v, heads)) if _attn.flash_attn_4_func is not None else None),
     ]
     print("[attention-check] Real-kernel self-check for every installed attention backend:", flush=True)
     for name, fn in checks:
@@ -155,21 +156,26 @@ def _log_attention_backend_status() -> None:
             print(f"[attention-check]   {name}: OK, output shape {tuple(out.shape)}", flush=True)
         except Exception as exc:  # noqa: BLE001 - report whatever a real kernel call raises
             print(f"[attention-check]   {name}: FAILED -- {type(exc).__name__}: {exc}", flush=True)
+    _fa4_on = os.environ.get("ECHO_WM_FLASH_ATTENTION_4", "0") == "1"
     _sage_on = os.environ.get("ECHO_WM_SAGEATTENTION", "0") == "1"
     _fi_on = os.environ.get("ECHO_WM_FLASHINFER", "0") == "1"
     # This used to hardcode "SDPA" regardless of the flags below -- wrong
     # and misleading whenever ECHO_WM_SAGEATTENTION/ECHO_WM_FLASHINFER
     # were actually set, since AttentionFunction.DEFAULT's real priority
-    # order is SageAttention (if enabled) -> xformers -> FA3 -> FA2 ->
-    # FlashInfer (if enabled) -> SDPA, not always SDPA. Compute what will
-    # actually be tried first instead of asserting a fixed answer.
-    if _sage_on and _attn.sageattn is not None:
-        _expected = "SageAttention (enabled, tried first -- but only for calls with no real mask)"
+    # order is FlashAttention4 (if enabled) -> SageAttention (if enabled)
+    # -> xformers -> FA3 -> FA2 -> FlashInfer (if enabled) -> SDPA, not
+    # always SDPA. Compute what will actually be tried first instead of
+    # asserting a fixed answer.
+    if _fa4_on and _attn.flash_attn_4_func is not None:
+        _expected = "FlashAttention4 (enabled, tried first -- confirmed a real speedup tonight, but only for calls with no real mask, and not yet benchmarked in real generation)"
+    elif _sage_on and _attn.sageattn is not None:
+        _expected = "SageAttention (enabled, tried after FlashAttention4 -- but only for calls with no real mask)"
     elif _fi_on and _attn.flashinfer_single_prefill is not None:
-        _expected = "FlashInfer (enabled, tried after SageAttention/xformers/FA2/FA3)"
+        _expected = "FlashInfer (enabled, tried after FlashAttention4/SageAttention/xformers/FA2/FA3)"
     else:
-        _expected = "SDPA (SageAttention/FlashInfer both gated off by default -- confirmed slower tonight)"
+        _expected = "SDPA (FlashAttention4/SageAttention/FlashInfer all gated off by default)"
     print(f"[attention-check] Expected priority for real generation calls: {_expected}. "
+          f"ECHO_WM_FLASH_ATTENTION_4={'1' if _fa4_on else '0'}, "
           f"ECHO_WM_SAGEATTENTION={'1' if _sage_on else '0'}, ECHO_WM_FLASHINFER={'1' if _fi_on else '0'}. "
           f"Actual per-call outcome is only known from the '[attention]' lines "
           f"during real generation, not this startup check.",

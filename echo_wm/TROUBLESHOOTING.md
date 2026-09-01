@@ -805,6 +805,32 @@ analogous to the existing xformers-then-SDPA fallback) into this, worth a
 cheap standalone check of whether FA4's Python API even accepts a
 tensor-shaped bias argument at all -- not yet done.
 
+**Update, later same session: tried, hit a real dead end.**
+`pip install flash-attn-4==4.0.0b28` succeeds and `pip show` confirms
+real metadata (author Tri Dao, from the actual Dao-AILab/flash-attention
+repo) -- but its declared top-level import module (checked via
+`importlib.metadata.distribution('flash-attn-4').read_text('top_level.txt')`)
+is **`flash_attn`** -- the exact same import name as mainline
+FlashAttention-2 (`pip install flash-attn`), not a separate `flash_attn_4`
+namespace as the standalone test (`test_flashattention4_backend.py`)
+initially guessed. Calling `flash_attn_func` from this namespace hits the
+**identical** crash as plain FA2 earlier tonight:
+```
+ImportError: .../flash_attn_2_cuda.cpython-312-aarch64-linux-gnu.so: undefined symbol: _ZN3c104impl3cow23materialize_cow_storageERNS_11StorageImplE
+```
+-- the traceback shows it loading `flash_attn_2_cuda` specifically, i.e.
+genuinely FA2's compiled extension, not an FA4-specific kernel. Either
+`flash-attn-4`'s package is a thin wrapper still depending on FA2's
+extension, or this environment has stale FA2 files shadowing whatever FA4
+actually ships -- not disentangled, and not worth the multi-round
+environment-archaeology effort given tonight's earlier xformers
+source-build saga (item -24) already cost significant time on the same
+class of problem. **Closed for this session.** If revisited: would need a
+clean venv (not this box's already-churned environment) to tell whether
+FA4 itself works, or introspect `pip show -f flash-attn-4` to see exactly
+which files it installs vs. what's already present from earlier FA2
+attempts.
+
 ## -9. `ECHO_WM_FP8=1`: opt-in fp8 weight storage (implemented, not yet benchmarked)
 
 `ltx_core/quantization/` already has a working, dependency-free
