@@ -61,6 +61,117 @@ def _slice_rope(
     return pe[0][..., start:end, :], pe[1][..., start:end, :]
 
 
+def _update_kv_cache_general(
+    cache: dict, start: int, end: int, k: torch.Tensor, v: torch.Tensor
+) -> int:
+    """Original searchsorted-based transactional-range-replace path. Used for
+    any call that isn't a plain "advance by one fixed chunk" or "redo the
+    same range" -- in practice, just Echo-WM's one-off first block (1 latent
+    frame, vs. every later block's fixed video_chunk_size=3), which never
+    repeats and is never the loop CUDA graph capture needs to be fast/static
+    -- so paying its one .item() sync here is harmless. See
+    _update_kv_cache_fixed_chunk for the graph-capturable steady-state path.
+    """
+    length = int(cache["length"])
+    old_positions = cache["positions"][:length]
+    old_k = cache["k"][:, :length]
+    old_v = cache["v"][:, :length]
+
+    n_keep_old = int(torch.searchsorted(old_positions, start).item()) if length > 0 else 0
+    positions = torch.cat(
+        [old_positions[:n_keep_old], torch.arange(start, end, device=k.device)], dim=0
+    )
+    merged_k = torch.cat([old_k[:, :n_keep_old], k], dim=1)
+    merged_v = torch.cat([old_v[:, :n_keep_old], v], dim=1)
+
+    local = int(cache.get("local_attn_size", -1))
+    sink = int(cache.get("sink_tokens", 0))
+    if local >= 0 and positions.numel() > local:
+        if not 0 <= sink < local:
+            raise ValueError(f"expected 0 <= sink_tokens < local_attn_size, got {sink}/{local}")
+        recent_budget = local - sink
+        recent_start = max(sink, end - recent_budget)
+        recent_start_idx = int(torch.searchsorted(positions, recent_start).item())
+        positions = torch.cat([positions[:sink], positions[recent_start_idx:]], dim=0)
+        merged_k = torch.cat([merged_k[:, :sink], merged_k[:, recent_start_idx:]], dim=1)
+        merged_v = torch.cat([merged_v[:, :sink], merged_v[:, recent_start_idx:]], dim=1)
+
+    active = positions.numel()
+    if active > cache["k"].shape[1]:
+        raise ValueError(f"KV cache overflow: {active} active tokens exceed capacity {cache['k'].shape[1]}")
+    cache["k"][:, :active].copy_(merged_k)
+    cache["v"][:, :active].copy_(merged_v)
+    cache["positions"][:active].copy_(positions)
+    return active
+
+
+def _update_kv_cache_fixed_chunk(
+    cache: dict, start: int, chunk: int, k: torch.Tensor, v: torch.Tensor, is_advance: bool
+) -> int:
+    """Graph-capturable steady-state path: fixed chunk width, roll-left FIFO
+    with a sink prefix, no torch.cat/searchsorted/.item() -- only in-place
+    slice writes at bounds computed from plain Python ints already known
+    host-side (start, chunk, and the cache's own running int bookkeeping),
+    so nothing here forces a CPU-GPU sync or produces a variable-shaped
+    intermediate tensor. Algorithm ported from flashdreams'
+    core/attention/kvcache.py::BlockKVCache (Apache-2.0,
+    C:\\workspace\\world\\flashdream_public), which solves exactly this
+    sink+FIFO-window cache-update pattern for CUDA graph capture -- adapted
+    here to operate on this repo's existing dict-based cache (k/v/positions
+    tensors + length/local_attn_size/sink_tokens fields) instead of
+    introducing a new object into the call sites, and to use plain `start`
+    (already given by every caller) instead of BlockKVCache's chunk_idx
+    numbering, which doesn't fit Echo-WM's irregular 1-frame first block.
+    """
+    capacity = cache["k"].shape[1]
+    sink = int(cache["sink_tokens"])
+    n_cached = int(cache["length"])
+    overlaps_sink = sink > 0 and start < sink
+
+    if is_advance:
+        if not overlaps_sink:
+            overflow = n_cached + chunk - capacity
+            if overflow > 0:
+                # Roll the local (post-sink) window left by `overflow` to make
+                # room for this chunk at the right edge -- same as
+                # BlockKVCache._roll_local_window_left.
+                valid_end = min(n_cached, capacity)
+                valid_local_size = max(0, valid_end - sink)
+                tokens_to_keep = max(0, valid_local_size - overflow)
+                if tokens_to_keep > 0:
+                    src_start = sink + overflow
+                    src_end = src_start + tokens_to_keep
+                    dst_start = sink
+                    dst_end = sink + tokens_to_keep
+                    cache["k"][:, dst_start:dst_end] = cache["k"][:, src_start:src_end].clone()
+                    cache["v"][:, dst_start:dst_end] = cache["v"][:, src_start:src_end].clone()
+                    cache["positions"][dst_start:dst_end] = cache["positions"][src_start:src_end].clone()
+                n_cached = capacity
+        write_start = min(n_cached, capacity - chunk)
+        write_end = write_start + chunk
+    else:
+        write_end = min(n_cached, capacity)
+        write_start = max(write_end - chunk, 0)
+
+    read_start, read_end = 0, chunk
+    if sink > 0 and not overlaps_sink and write_start < sink:
+        write_start = sink
+        keep_size = write_end - write_start
+        read_start = chunk - keep_size
+
+    cache["k"][:, write_start:write_end] = k[:, read_start:read_end]
+    cache["v"][:, write_start:write_end] = v[:, read_start:read_end]
+    cache["positions"][write_start:write_end] = torch.arange(
+        start + read_start, start + read_end, device=k.device
+    )
+
+    if is_advance:
+        active = capacity if (overlaps_sink is False and n_cached == capacity) else min(n_cached + chunk, capacity)
+    else:
+        active = min(n_cached, capacity)
+    return active
+
+
 def update_kv_cache(
     cache: dict,
     start: int,
@@ -78,58 +189,32 @@ def update_kv_cache(
     if k.shape != v.shape or k.ndim != 3:
         raise ValueError("KV tensors must have matching [batch, tokens, dim] shapes")
 
-    length = int(cache["length"])
-    old_positions = cache["positions"][:length]
-    old_k = cache["k"][:, :length]
-    old_v = cache["v"][:, :length]
     end = start + k.shape[1]
-
-    # A denoising step is a transaction over [start, end): discard a previous
-    # noisy version of that range while retaining earlier committed history.
-    #
-    # old_positions is always sorted ascending (tokens are appended in
-    # strictly increasing position order, never reordered) -- so
-    # `old_positions < start` always selects a contiguous *prefix*, not a
-    # scattered subset. Boolean-mask indexing (`old_k[:, keep_old]`, as
-    # this used to be written) doesn't know that, and internally calls
-    # nonzero() on the mask to find which indices to gather -- a real,
-    # measured cost confirmed via torch.profiler (720 aten::nonzero calls
-    # in a single forward pass, each forcing a CPU-GPU sync -- see
-    # TROUBLESHOOTING.md). Replaced with searchsorted (finds the prefix
-    # length directly) + plain slicing, which needs only one small sync
-    # (the .item() call) instead of nonzero()'s per-call sync-and-gather.
-    n_keep_old = int(torch.searchsorted(old_positions, start).item()) if length > 0 else 0
-    positions = torch.cat(
-        [old_positions[:n_keep_old], torch.arange(start, end, device=k.device)], dim=0
-    )
-    merged_k = torch.cat([old_k[:, :n_keep_old], k], dim=1)
-    merged_v = torch.cat([old_v[:, :n_keep_old], v], dim=1)
-
+    chunk = k.shape[1]
     local = int(cache.get("local_attn_size", -1))
     sink = int(cache.get("sink_tokens", 0))
-    if local >= 0 and positions.numel() > local:
-        if not 0 <= sink < local:
-            raise ValueError(f"expected 0 <= sink_tokens < local_attn_size, got {sink}/{local}")
-        # Same reasoning as above: positions is sorted and starts at 0, and
-        # sink tokens are never dropped by this function once inserted, so
-        # the sink prefix is exactly positions[:sink] -- same result as the
-        # original `sink_mask = positions < sink; sink_mask.sum()`, without
-        # needing the boolean mask or its sum. The "recent" portion is a
-        # suffix (positions >= recent_start), found the same
-        # searchsorted-instead-of-nonzero way as above.
-        recent_budget = local - sink
-        recent_start = max(sink, end - recent_budget)
-        recent_start_idx = int(torch.searchsorted(positions, recent_start).item())
-        positions = torch.cat([positions[:sink], positions[recent_start_idx:]], dim=0)
-        merged_k = torch.cat([merged_k[:, :sink], merged_k[:, recent_start_idx:]], dim=1)
-        merged_v = torch.cat([merged_v[:, :sink], merged_v[:, recent_start_idx:]], dim=1)
+    capacity = cache["k"].shape[1]
 
-    active = positions.numel()
-    if active > cache["k"].shape[1]:
-        raise ValueError(f"KV cache overflow: {active} active tokens exceed capacity {cache['k'].shape[1]}")
-    cache["k"][:, :active].copy_(merged_k)
-    cache["v"][:, :active].copy_(merged_v)
-    cache["positions"][:active].copy_(positions)
+    prev_start = cache.get("_prev_start")
+    prev_chunk = cache.get("_prev_chunk")
+    is_repeat = prev_start is not None and start == prev_start and chunk == prev_chunk
+    is_advance = prev_start is not None and prev_chunk is not None and start == prev_start + prev_chunk
+
+    # The fixed-chunk graph-capturable path requires a real sink+FIFO window
+    # (local >= 0) whose capacity exactly equals this call's fixed width
+    # pattern, and a call that's either a plain advance-by-one-chunk or a
+    # same-range redo -- i.e. everything except Echo-WM's one-off irregular
+    # first block (width=1 vs. every later block's video_chunk_size=3),
+    # which falls back to the general searchsorted path below.
+    if local >= 0 and local == capacity and (is_repeat or is_advance):
+        active = _update_kv_cache_fixed_chunk(cache, start, chunk, k, v, is_advance=is_advance)
+    else:
+        active = _update_kv_cache_general(cache, start, end, k, v)
+
+    if active > capacity:
+        raise ValueError(f"KV cache overflow: {active} active tokens exceed capacity {capacity}")
+    cache["_prev_start"] = start
+    cache["_prev_chunk"] = chunk
     cache["length"] = active
     return cache["k"][:, :active].clone(), cache["v"][:, :active].clone()
 

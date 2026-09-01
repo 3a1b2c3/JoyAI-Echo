@@ -410,8 +410,17 @@ def _generate_av_blocks(
                 traceback.print_exc()
                 print("[graph-test] Diagnostic only -- real generation is unaffected by "
                       "this failure (extra calls above were discarded/idempotent).", flush=True)
+        # Real-time target: this block covers video_chunk_size latent frames,
+        # so it must finish within (video_chunk_size / fps) wall-clock
+        # seconds to keep up with playback. fps isn't threaded into this
+        # function (only configs/inference_wm_causal.yaml has it) -- 16.0 is
+        # that config's current value; update this if fps changes.
+        fps = 16.0
+        target_s = forward.wrapper.cache.video_chunk_size / fps
+        block_total = time.time() - t_block_start
         print(f"[rollout] block {block_index}/{total_blocks}: denoise={t_denoise:.3f}s "
-              f"callback={t_callback:.3f}s cache={t_cache:.3f}s total={time.time() - t_block_start:.3f}s",
+              f"callback={t_callback:.3f}s cache={t_cache:.3f}s total={block_total:.3f}s "
+              f"(real-time target={target_s:.3f}s, {block_total / target_s:.1f}x too slow)",
               flush=True)
 
 

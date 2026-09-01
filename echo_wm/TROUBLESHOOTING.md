@@ -31,6 +31,105 @@ restart-and-retest round-trip before the real cause (stale pull) was
 found. **Always verify sync state before re-investigating a "fix didn't
 work" result.**
 
+## -24. xformers source build: package installs but compiled CUDA extension missing (in progress)
+
+Following up on item -3/-16 (prebuilt xformers has no kernel for compute
+capability 10.3): attempted a from-source build tonight since GB300/sm_103
+is new enough that prebuilt wheels may not cover it yet, but a from-source
+build targeting the right arch might. First attempt (`pip install
+git+https://github.com/facebookresearch/xformers.git`, `TORCH_CUDA_ARCH_LIST`
+unset at first) **appeared to succeed** (`Successfully installed
+xformers-0.0.35+029779d.d20260901`) but `from xformers.ops import
+memory_efficient_attention` fails with `ImportError: cannot import name
+'memory_efficient_attention'` -- `xformers.ops` silently omits it when the
+compiled `xformers._C` extension isn't available, instead of erroring
+loudly at install time. Root cause (not yet confirmed, but likely): `pip
+install git+...` does a **shallow, non-recursive** clone, and xformers
+pulls its actual CUDA kernels (flash-attention, cutlass) in via **git
+submodules** -- a non-recursive clone silently produces a Python-only
+package with no compiled kernels at all. Fix being tried: clone manually
+with `--recursive` and build from that checkout instead of `pip install
+git+`:
+```bash
+git clone --recursive https://github.com/facebookresearch/xformers.git /tmp/xformers-src
+cd /tmp/xformers-src
+export TORCH_CUDA_ARCH_LIST="10.3"
+pip install -e .
+```
+Diagnostic to confirm the extension actually built: `python -c "from
+xformers import _C; print(_C.__file__)"` -- if this raises ImportError,
+the kernels didn't compile, regardless of what `pip show xformers` or a
+bare `import xformers` says. **Outcome not yet known as of this note** --
+even if this succeeds, xformers' flash/cutlass kernel *templates* need to
+actually support sm_103 in their source for the compiled result to work at
+call time (a from-source build can compile cleanly and still hit the same
+`NotImplementedError: no operator found ... requires device with
+capability <= (9,0)` at runtime if the CUTLASS templates simply don't cover
+this SM version yet) -- that's the next thing to check once the extension
+itself is confirmed to actually be present.
+
+## -23. `update_kv_cache` fixed-chunk path: ported flashdreams' `BlockKVCache` algorithm for the steady-state case (implemented, correctness-verified on CPU, not yet benchmarked on GPU)
+
+Item -20 found CUDA graph capture blocked on `update_kv_cache`'s
+`torch.searchsorted(...).item()` calls and its `torch.cat`-based
+variable-length intermediate tensors -- fundamentally incompatible with
+graph capture's fixed-shape/no-CPU-sync requirement, not just a stray sync
+to remove. Item -21 had scoped (not integrated) `flashdreams`'
+`core/attention/kvcache.py::BlockKVCache` (Apache-2.0,
+`C:\workspace\world\flashdream_public`) as a strong match: an explicitly
+"CUDA-graph compatible" sink+FIFO-window cache using symbolic/plain-int
+bounds and fixed-shape in-place slice writes instead of `.item()` or `cat`.
+
+**Implemented tonight** in `ltx-core/.../attention.py`: `update_kv_cache`
+now has two internal paths --
+- `_update_kv_cache_general` (unchanged): the original searchsorted-based
+  logic, used only for calls that aren't a plain "advance by one fixed
+  chunk" or "redo the same range" -- in practice, just Echo-WM's one-off
+  irregular first block (1 latent frame wide, vs. every later block's fixed
+  `video_chunk_size=3`). This never repeats and is never part of the
+  steady-state loop CUDA graph capture actually needs to be static, so its
+  one `.item()` sync is harmless.
+- `_update_kv_cache_fixed_chunk` (new): `BlockKVCache`'s roll-left +
+  sink-prefix arithmetic, ported to plain Python ints (not
+  `torch.sym_min`/`sym_max` -- those exist for `torch.compile`/dynamo
+  symbolic tracing, which isn't in play for a raw `torch.cuda.graph()`
+  capture; ordinary `min`/`max` on host-side ints that are already known
+  synchronously -- `start` is passed in directly by every caller, `k.shape[1]`
+  is always available without a sync -- is sufficient). Only in-place slice
+  writes, no `torch.cat`, no `.item()`. Activates automatically once a
+  cache dict has seen two consecutive calls that are either an exact
+  chunk-width advance or an exact-range redo *and* `local_attn_size ==
+  cache capacity` (always true for every real cache in this pipeline --
+  confirmed via `model.py::init_av_kv_caches`'s `allocate()`).
+
+All cache-write call sites (`video_self`, `audio_self`, `a2v`, `v2a`,
+`video_ucpe` via `_ucpe_cache_attend`) funnel through this single function,
+so no other file needed to change -- confirmed by tracing every call site
+in `transformer.py`/`attention.py`.
+
+**Correctness verified on CPU (no GPU needed)**: extended
+`test_kv_cache_correctness.py` to compare the original boolean-mask
+implementation against both the searchsorted rewrite *and* the real
+current `update_kv_cache` (imported directly from `attention.py`, not a
+copy) across 11 scenarios -- the original 7 (now with `capacity ==
+local_attn_size`, matching real allocation, so the new fixed-chunk path
+actually activates instead of being skipped by generous test headroom), 3
+new "irregular first block" scenarios (width-1 then width-3, mirroring
+Echo-WM's real `causal_video_blocks` layout), and the exact overlapping-start
+call sequence from `tests/test_echo_wm_causal.py`'s own hardcoded-ground-truth
+pytest (`test_sink_plus_fifo_cache_rollover_and_block_replacement`) --
+including that test's own expected final positions
+(`[0,1,6,7,8,9,10]`) and post-redo trailing values (`[99,99,99]`). All 11
+scenarios: byte-identical match. Run: `python test_kv_cache_correctness.py`.
+
+**Not yet done**: run on the real GB300 box (needs `git pull` + restart) --
+first re-try `ECHO_WM_GRAPH_CAPTURE_TEST=1` to see if this actually
+unblocks capture now, then a clean timing comparison against the
+~1.82-1.87s/block baseline (expected to be a small win at best -- item -19
+already showed CPU dispatch overhead is spread across the whole model, not
+concentrated in this cache update, so the real value here is unblocking
+CUDA graphs, not the cache update's own speed in isolation).
+
 ## -22. `ECHO_WM_COMPILE_ATTENTION=1`: scoped torch.compile on just the attention call -- confirmed net negative, default off
 
 Narrower alternative to item -4's whole-model `torch.compile` (which
