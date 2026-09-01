@@ -10,7 +10,11 @@ video:
   seed: 42
 
 causal:
-  timesteps: [1000, 750, 500, 250]
+  # 3 steps instead of the model's native 4 (evenly resampled across the
+  # same 1000->250 range) -- a speed/quality trade, not a documented-correct
+  # distillation schedule for 3 steps specifically. Revert to
+  # [1000, 750, 500, 250] if output quality visibly suffers.
+  timesteps: [1000, 625, 250]
   video_local_attn_size: 19
   video_sink_size: 7
   video_chunk_size: 3
