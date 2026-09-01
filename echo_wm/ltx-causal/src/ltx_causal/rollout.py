@@ -429,7 +429,7 @@ def _generate_av_blocks(
         block_total = time.time() - t_block_start
         print(f"[rollout] block {block_index}/{total_blocks}: denoise={t_denoise:.3f}s "
               f"callback={t_callback:.3f}s cache={t_cache:.3f}s total={block_total:.3f}s "
-              f"(real-time target={target_s:.3f}s, {block_total / target_s:.1f}x too slow)",
+              f"(real-time target={target_s:.3f}s, {block_total / target_s:.3f}x too slow)",
               flush=True)
 
 

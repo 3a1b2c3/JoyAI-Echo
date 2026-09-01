@@ -1054,17 +1054,21 @@ Reverted to `num_frames=25` for the causal engine's warmup. (The base,
 non-causal engine's warmup has no such constraint and was left at
 `num_frames=2`, untouched.)
 
-## -3.6. CUDA JIT cache tuning (applied, unclear if it actually helped)
+## -3.6. CUDA JIT cache tuning (applied, confirmed no effect via clean A/B test)
 
 Enlarged `CUDA_CACHE_MAXSIZE` (default 1GB -> 4GB) and set
 `CUDA_CACHE_PATH` explicitly in `run_gradio.sh`, on the theory that the
 model's many distinct kernel shapes were evicting the default-size cache,
 forcing every server restart to pay full JIT compilation cost again.
-**Later evidence undercut this theory**: warmup time did not improve
-across multiple repeated restarts even with the larger cache -- pointing
-at (b) above (genuine per-call compute cost from a slow SDPA backend) as
-the real bottleneck instead of JIT compilation. The larger cache size is
-harmless and still applied, but likely wasn't the fix that mattered.
+**Confirmed via a clean, controlled A/B test tonight**: 4 runs (1GB
+cold/warm, 4GB cold/warm, each using a throwaway `CUDA_CACHE_PATH` so
+cold/warm state was actually controlled rather than assumed) -- user
+reported "no difference" across all 4. Closes this out conclusively: the
+cache size was never the bottleneck, consistent with item -19's finding
+that the real cost is per-call CPU dispatch overhead spread across the
+whole model, not JIT compilation. The larger cache size is harmless and
+stays applied (no reason to revert), but isn't doing anything useful
+either -- don't spend more time tuning this.
 
 ## -2. Live preview fades/goes to black near the end (mitigated, not fully diagnosed)
 
