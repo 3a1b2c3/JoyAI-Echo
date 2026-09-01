@@ -1,6 +1,6 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
-## -1.0. Item -0.7's graph-capture blocker: scoped concretely; reordering ruled out, only per-layer split is valid (not started)
+## -1.0. Item -0.7's graph-capture blocker: scoped concretely; reordering ruled out, only per-layer split is valid; feasibility CONFIRMED, real integration not started
 
 Follow-up scoping on item -0.7's cross-modal-RoPE graph-capture bug, done
 before attempting any fix.
@@ -71,6 +71,29 @@ python test_graph_capture_per_layer_split.py
 If it reports CONFIRMED FEASIBLE, real integration into `transformer.py`'s
 layer loop is the next step. If BLOCKED, root-cause before attempting
 integration -- do not proceed on the assumption it'll probably work.
+
+**Result: CONFIRMED FEASIBLE**, run on `pmgb300ws-0304`. All three checks
+matched the eager reference for block 1 (captured at block 0): region A
+(layer-1 self-attn, captured) MATCH, cross-modal (eager, run for real
+between the two capture regions) MATCH, region B (layer-2 self-attn,
+captured after eager work ran on the other cache in between) MATCH. Two
+independent `torch.cuda.graph()` regions with real eager Python work
+interleaved between them, replayed for a different block than captured,
+produced correct results -- the interleaved-capture-regions risk this test
+targeted is not a blocker.
+
+**Next real step: integrate the per-layer split into `transformer.py`'s
+actual layer loop** (not another isolated test) -- wrap each layer's
+self-attn + cache-update calls in their own `torch.cuda.graph()` region,
+leave the a2v/v2a block eager, repeated once per layer. This is real
+production-code surgery, not scoping -- needs careful handling of
+`torch.cuda.graph()` region lifecycle across N real layers (not 2 toy
+ones), warmup-call requirements per region, and the existing
+`is_repeat`/`is_advance` cache semantics `update_kv_cache` relies on.
+Still unmeasured what fraction of the ~87% denoise+cache cost this
+actually recovers once implemented (see -0.9/-1.0's revised, lower-than-
+item-21 estimate) -- that number only exists after this is built and
+benchmarked, same as everything else on this list.
 
 ## -0.9. `ECHO_WM_PROFILE_CACHE=1` re-run: reconfirms item -21's dispatch-bound finding; next steps
 
@@ -967,7 +990,7 @@ FA4 itself works, or introspect `pip show -f flash-attn-4` to see exactly
 which files it installs vs. what's already present from earlier FA2
 attempts.
 
-## -9. `ECHO_WM_FP8=1`: opt-in fp8 weight storage (implemented, not yet benchmarked)
+## -9. `ECHO_WM_FP8=1`: opt-in fp8 weight storage (implemented, BENCHMARKED: net negative, default off)
 
 `ltx_core/quantization/` already has a working, dependency-free
 `QuantizationPolicy.fp8_cast()` -- discovered while looking into whether fp8
@@ -994,10 +1017,16 @@ installed, out of scope for a quick test.) Real, if modest, precision
 loss from the fp8 rounding step, additive to (not a replacement for) the
 timesteps/attn_window quality trades already in place.
 
-Default off (`ECHO_WM_FP8=0` in `run_gradio.sh`). **Not yet tested on real
-hardware** -- unknown whether this actually moves the needle at all,
-given item -7's confirmed-flat cache-update cost might not be
-memory-bandwidth-bound in the way that would make this help.
+Default off (`ECHO_WM_FP8=0` in `run_gradio.sh`). **Benchmarked on real
+hardware: net negative.** `ECHO_WM_FP8=1` real-generation run (10 blocks)
+measured denoise ~1.13-1.2s (vs. ~1.02s baseline), cache ~0.59-0.615s (vs.
+~0.53s baseline), total ~1.9-2.0s / 1.27-1.48x too slow (vs. ~1.76-1.8s /
+1.17-1.2x baseline) -- worse across every segment, not just flat. Confirms
+item -7's suspicion: the bottleneck is dispatch/op-count overhead (items
+-21/-0.9/-1.0), not memory bandwidth, so the `UPCAST_DURING_INFERENCE`
+upcast-before-every-matmul step (see above) adds an extra op per matmul
+without removing anything -- pure overhead here, not a tradeoff. Leave
+`ECHO_WM_FP8=0`.
 
 ## -8. Live-preview audio drop-outs between blocks (fixed, second attempt)
 
