@@ -1,5 +1,83 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -3. Blackwell consumer/workstation GPUs (RTX 5090, RTX PRO 6000 -- compute capability 12.0): xformers/SDPA gotchas (fixed)
+
+Hit on `kschmid-4vvboh` ("horde"), a compute-capability-**12.0** GPU
+(`sm_120`, RTX 5090/PRO 6000-class -- distinct from the GB300 box used
+elsewhere in this repo's docs, which is `sm_103`).
+
+**(a) xformers has no working kernel for this GPU at all (fixed).**
+`memory_efficient_attention` imports fine (so `AttentionFunction.DEFAULT`
+picks it) but crashes on the *first real call* with
+`NotImplementedError: No operator found ... requires device with
+capability <= (9, 0)/== (8, 0) but your GPU has capability (12, 0) (too
+new)` -- every bundled kernel (fa3F, fa2F, cutlassF) explicitly excludes
+this capability. Fixed in `ltx-core/.../model/transformer/attention.py`:
+`AttentionFunction.DEFAULT` now tries xformers once, catches
+`NotImplementedError`, and falls back to `PytorchAttention` (SDPA) for the
+rest of the process (`_xformers_unusable` module flag) instead of crashing
+every call. Confirmed harmless for GPUs where xformers *does* work --
+still tried first every time, unchanged behavior there.
+
+**(b) SDPA's own default backend priority can silently pick the slow MATH
+kernel (fixed).** Once xformers falls back to `PytorchAttention`, it calls
+`torch.nn.functional.scaled_dot_product_attention` with a real (non-causal)
+`attn_mask` tensor. FLASH_ATTENTION's kernel generally can't take an
+arbitrary bias tensor, so PyTorch's default backend priority can silently
+fall through to MATH -- correct, but with no fast kernel, meaning genuine
+per-call compute cost that no warmup/caching fixes (confirmed: warmup time
+did not improve across multiple repeated restarts before this fix, ruling
+out a one-time-JIT-cost explanation). Fixed: explicitly wrap the SDPA call
+in `torch.nn.attention.sdpa_kernel([SDPBackend.EFFICIENT_ATTENTION,
+SDPBackend.CUDNN_ATTENTION, SDPBackend.MATH])` so EFFICIENT_ATTENTION/
+CUDNN_ATTENTION (both support a bias tensor) get a chance before MATH.
+Logs which backend priority is active on first use
+(`[attention] using SDPA with explicit backend priority ...`) -- note this
+only confirms which backends are *allowed*, not which one actually
+engaged internally; if EFFICIENT_ATTENTION/CUDNN_ATTENTION also lack
+sm_120 kernels in this torch build, it would still silently fall through
+to MATH regardless of this fix. Not yet confirmed which backend actually
+engages on this GPU -- only that total generation time did drop after this
+change (see item (d)).
+
+**(c) `pip install sageatten` / `pip install flash_atten` fail — typos, not
+missing packages.** Correct names: `sageattention`, `flash-attn`
+(hyphenated). Neither installed/evaluated yet this session; unconfirmed
+whether either has real sm_120 kernel support (same class of gap as (a) is
+a real risk before assuming either fixes anything).
+
+**(d) End-to-end confirmed working** after (a)+(b)+the `num_frames` fix in
+item -3.5 below: real generation, ~4s/block (denoise ~2.2s + callback/cache
+overhead ~1.8s) across 10 blocks, live preview showing real streaming
+content in the browser.
+
+## -3.5. Invalid `num_frames=2` in causal warmup (fixed)
+
+A later "shorten warmup" edit set the causal engine's warmup
+`num_frames=2` (comment claimed "2 frames is the minimum that still
+produces >1 block") -- **mathematically impossible** for this config and
+crashed immediately (`ValueError: causal --num-frames must be 1 + 8*n
+output frames`). The causal pipeline requires `num_frames = 1 + 8*n`
+*and* (combined with `video_chunk_size=3` in the cache config) the
+resulting latent length must be `1 + 3*m` -- together, valid
+non-degenerate values are `1 + 24*k`. **25 (k=1) is the actual minimum**
+that produces more than zero real blocks; nothing smaller works at all.
+Reverted to `num_frames=25` for the causal engine's warmup. (The base,
+non-causal engine's warmup has no such constraint and was left at
+`num_frames=2`, untouched.)
+
+## -3.6. CUDA JIT cache tuning (applied, unclear if it actually helped)
+
+Enlarged `CUDA_CACHE_MAXSIZE` (default 1GB -> 4GB) and set
+`CUDA_CACHE_PATH` explicitly in `run_gradio.sh`, on the theory that the
+model's many distinct kernel shapes were evicting the default-size cache,
+forcing every server restart to pay full JIT compilation cost again.
+**Later evidence undercut this theory**: warmup time did not improve
+across multiple repeated restarts even with the larger cache -- pointing
+at (b) above (genuine per-call compute cost from a slow SDPA backend) as
+the real bottleneck instead of JIT compilation. The larger cache size is
+harmless and still applied, but likely wasn't the fix that mattered.
+
 ## -2. Live preview fades/goes to black near the end (mitigated, not fully diagnosed)
 
 Reported: the live preview appears to fade to black by the end of
