@@ -1,5 +1,38 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -11. `ltx_core.loader` <-> `ltx_core.quantization` order-dependent circular import (fixed)
+
+Hit when adding the `ECHO_WM_FP8` import (item -9):
+```
+ImportError: cannot import name 'calculate_weight_float8' from partially
+initialized module 'ltx_core.quantization.fp8_cast' (most likely due to a
+circular import)
+```
+Real pre-existing circular dependency in `ltx_core` itself:
+`ltx_core/loader/fuse_loras.py` imports from `ltx_core.quantization.fp8_cast`,
+which imports from `ltx_core.loader.module_ops` -- a genuine cycle between
+the two packages. It only "works" elsewhere in the codebase (e.g.
+`causal_ti2vid.py`) by accident of import order: whichever package's
+`__init__.py` starts executing *first* determines whether the cycle
+resolves cleanly or not. `causal_ti2vid.py` imports `ltx_core.loader`
+(line 12) before `ltx_core.quantization` (line 16), which happens to
+work. `gradio_echo_wm.py`'s new `from ltx_core.quantization import
+QuantizationPolicy` was the *first* thing to touch either package,
+entering the cycle from the opposite direction -- and failed, because
+`fp8_cast.py`'s `calculate_weight_float8` function (needed by
+`fuse_loras.py`) isn't defined yet at the point the cycle loops back to
+it from that direction.
+
+**Fixed** by reordering (not restructuring `ltx_core`'s actual circular
+dependency, which is out of scope): moved the `QuantizationPolicy` import
+in `gradio_echo_wm.py` to *after* `from ltx_pipelines.causal_ti2vid import
+CausalTI2VidPipeline`, so `ltx_core.quantization` is already safely
+resolved (via `causal_ti2vid.py`'s own working import order) by the time
+`gradio_echo_wm.py` touches it directly. **General lesson for this repo**:
+any future top-level import of `ltx_core.quantization` in this file must
+come after something that imports `ltx_core.loader` first (any
+`ltx_pipelines.*` import already does), not before.
+
 ## -10. FlashAttention-4 investigated as a possible xformers replacement on GB300 (not integrated)
 
 xformers has no working kernel for compute capability 10.3 (GB300) or 12.0

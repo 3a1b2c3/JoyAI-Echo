@@ -75,11 +75,20 @@ for package in ("ltx-core/src", "ltx-causal/src", "ltx-pipelines/src"):
 print("[startup] importing ltx_core/ltx_causal/ltx_pipelines...", flush=True)
 
 from ltx_core.components.guiders import MultiModalGuiderParams  # noqa: E402
-from ltx_core.quantization import QuantizationPolicy  # noqa: E402
 from ltx_core.types import Audio  # noqa: E402
 from ltx_causal import CausalCacheConfig, DEFAULT_CAUSAL_TIMESTEPS  # noqa: E402
 from ltx_pipelines.ti2vid_one_stage import TI2VidOneStagePipeline  # noqa: E402
 from ltx_pipelines.causal_ti2vid import CausalTI2VidPipeline  # noqa: E402
+# Must come after the ltx_pipelines imports above: ltx_core.loader and
+# ltx_core.quantization have a circular import between them (fuse_loras.py
+# needs quantization.fp8_cast, fp8_cast.py needs loader.module_ops) that
+# only resolves safely when ltx_core.loader gets triggered first --
+# causal_ti2vid.py (imported above) already does exactly that internally.
+# Importing quantization directly before any ltx_core.loader import hits
+# the same cycle from the other direction and fails with "cannot import
+# name 'calculate_weight_float8' from partially initialized module"
+# (confirmed on real hardware).
+from ltx_core.quantization import QuantizationPolicy  # noqa: E402
 from ltx_core.model.video_vae.tiling import TilingConfig  # noqa: E402
 from ltx_core.model.video_vae.video_vae import get_video_chunks_number  # noqa: E402
 from ltx_pipelines.utils.args import ImageConditioningInput  # noqa: E402
