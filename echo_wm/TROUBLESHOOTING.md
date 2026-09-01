@@ -1054,21 +1054,41 @@ Reverted to `num_frames=25` for the causal engine's warmup. (The base,
 non-causal engine's warmup has no such constraint and was left at
 `num_frames=2`, untouched.)
 
-## -3.6. CUDA JIT cache tuning (applied, confirmed no effect via clean A/B test)
+## -3.6. CUDA JIT cache tuning: size doesn't matter, but a warm cache is a real 2.8x restart-time win (measured)
 
 Enlarged `CUDA_CACHE_MAXSIZE` (default 1GB -> 4GB) and set
 `CUDA_CACHE_PATH` explicitly in `run_gradio.sh`, on the theory that the
 model's many distinct kernel shapes were evicting the default-size cache,
 forcing every server restart to pay full JIT compilation cost again.
-**Confirmed via a clean, controlled A/B test tonight**: 4 runs (1GB
-cold/warm, 4GB cold/warm, each using a throwaway `CUDA_CACHE_PATH` so
-cold/warm state was actually controlled rather than assumed) -- user
-reported "no difference" across all 4. Closes this out conclusively: the
-cache size was never the bottleneck, consistent with item -19's finding
-that the real cost is per-call CPU dispatch overhead spread across the
-whole model, not JIT compilation. The larger cache size is harmless and
-stays applied (no reason to revert), but isn't doing anything useful
-either -- don't spend more time tuning this.
+
+**Clean, controlled A/B test tonight** (4 runs, each using a throwaway
+`CUDA_CACHE_PATH` so cold/warm state was actually controlled, not
+assumed), measuring `[warmup] Done in X.Xs`:
+
+| | Cold | Warm |
+|---|---|---|
+| 1GB | 76.3s | 27.6s |
+| 4GB | 76.5s | 27.5s |
+
+**Cache size (1GB vs 4GB) genuinely makes no difference** -- confirms
+the original theory (kernels evicting a too-small cache) was wrong.
+
+**But cold-vs-warm is a real, large effect: ~2.8x faster restart
+(76s -> ~27.5s)** when the JIT cache already has this process's kernels
+compiled. Since the *default* `CUDA_CACHE_PATH` (`~/.nv/ComputeCache`)
+persists across restarts on this box (unlike the throwaway `/tmp/...`
+dirs used only for this A/B test), every restart *after the first one*
+in a session should already be getting this ~2.8x warmup win for free --
+no code change needed, it was already happening. Only the *first* server
+start after a fresh checkout/clean cache pays the full ~76s. The larger
+4GB `CUDA_CACHE_MAXSIZE` stays applied (harmless, doesn't hurt), but the
+warm-cache win comes from cache *persistence*, not cache *size* -- don't
+spend more time tuning `CUDA_CACHE_MAXSIZE` itself.
+
+This only affects startup/warmup time, not per-block generation
+throughput (confirmed no effect on the steady-state `[rollout]` block
+timing, which stayed ~1.15-1.2x-too-slow across every run tonight
+regardless of cache state) -- doesn't move the real-time gap at all.
 
 ## -2. Live preview fades/goes to black near the end (mitigated, not fully diagnosed)
 
