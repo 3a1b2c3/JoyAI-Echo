@@ -167,7 +167,7 @@ def _log_attention_backend_status() -> None:
     # always SDPA. Compute what will actually be tried first instead of
     # asserting a fixed answer.
     if _fa4_on and _attn.flash_attn_4_func is not None:
-        _expected = "FlashAttention4 (enabled, tried first -- confirmed a real speedup tonight, but only for calls with no real mask, and not yet benchmarked in real generation)"
+        _expected = "FlashAttention4 (enabled, tried first -- confirmed a real speedup, and confirmed actually used in real generation calls, but only for calls with no real mask)"
     elif _sage_on and _attn.sageattn is not None:
         _expected = "SageAttention (enabled, tried after FlashAttention4 -- but only for calls with no real mask)"
     elif _fi_on and _attn.flashinfer_single_prefill is not None:
