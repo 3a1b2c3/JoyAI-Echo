@@ -162,6 +162,20 @@ class CausalTI2VidPipeline:
         cached = self._model_cache.get(cache_key)
         if cached is not None:
             x0_model, wrapper = cached
+            # LayerPhaseGraphCapture's captured graphs are only valid for
+            # the kv_cache tensor addresses they were captured against --
+            # wrapper.init_caches() (rollout.py) allocates FRESH kv_cache
+            # tensors every generation call, but x0_model (and its
+            # LayerPhaseGraphCapture instance) persists across generations
+            # via this _model_cache. Replaying a graph captured against a
+            # PREVIOUS generation's now-stale cache tensors is a real,
+            # confirmed cause of `cudaErrorIllegalAddress` (see
+            # TROUBLESHOOTING.md item -1.1's fifth bug) -- clear captured
+            # regions every call so the next graph-capture-eligible block
+            # captures fresh against THIS generation's real cache tensors.
+            if self._graph_capture_enabled and x0_model.velocity_model._layer_graph_capture is not None:
+                x0_model.velocity_model._layer_graph_capture.clear()
+                x0_model.velocity_model._layer_graph_capture_flags.clear()
         else:
             x0_model = self.model_ledger.transformer(action_config=self.action_config)
             if self._compile_enabled:
