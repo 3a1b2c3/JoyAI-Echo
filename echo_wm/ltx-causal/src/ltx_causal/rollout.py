@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -404,6 +405,9 @@ def _generate_av_blocks(
                       "graph-capturable -- real integration is worth pursuing.", flush=True)
             except Exception as exc:  # noqa: BLE001 - diagnostic, report whatever breaks
                 print(f"[graph-test] CAPTURE/REPLAY FAILED: {type(exc).__name__}: {exc}", flush=True)
+                print("[graph-test] Full traceback (to find the exact operation "
+                      "responsible, not just the generic capture-time error):", flush=True)
+                traceback.print_exc()
                 print("[graph-test] Diagnostic only -- real generation is unaffected by "
                       "this failure (extra calls above were discarded/idempotent).", flush=True)
         print(f"[rollout] block {block_index}/{total_blocks}: denoise={t_denoise:.3f}s "
