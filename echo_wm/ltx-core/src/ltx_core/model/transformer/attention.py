@@ -57,6 +57,8 @@ except ImportError:
 
 sageattn = None
 _sageattention_unusable = False
+_sageattention_skip_logged = False
+_sageattention_success_logged = False
 try:
     # Earlier research this session (see TROUBLESHOOTING.md) found an open
     # GitHub issue suggesting no sm_100/103 kernel existed for
@@ -611,23 +613,46 @@ class AttentionFunction(Enum):
             # see TROUBLESHOOTING.md). Working isn't the same as fast on
             # this hardware -- same lesson as FlashInfer.
             _sageattention_enabled = os.environ.get("ECHO_WM_SAGEATTENTION", "0") == "1"
-            global _sageattention_unusable
-            if (
-                _sageattention_enabled
-                and sageattn is not None
-                and not _sageattention_unusable
-                and _mask_arg() is None
-            ):
-                try:
-                    return SageAttention()(q, k, v, heads, _mask_arg())
-                except Exception as exc:  # noqa: BLE001 - report whatever a real kernel call raises
-                    _sageattention_unusable = True
-                    print(
-                        f"[attention] SageAttention failed on a real call "
-                        f"(falling back to PyTorch SDPA for the rest of this process): "
-                        f"{type(exc).__name__}: {exc}",
-                        flush=True,
-                    )
+            global _sageattention_unusable, _sageattention_skip_logged, _sageattention_success_logged
+            if _sageattention_enabled and sageattn is not None and not _sageattention_unusable:
+                if _mask_arg() is not None:
+                    # Diagnostic (temporary, remove once the real cause of
+                    # "falls back to SDPA with no failure message" is
+                    # found): this call is being skipped, not failing --
+                    # SageAttention.__call__ hard-rejects any non-None
+                    # mask. If this fires, the real cause is a call whose
+                    # mask ISN'T effectively-none (unlike every mask
+                    # checked earlier this session, which were all
+                    # confirmed all-zero no-ops) -- printed once so it
+                    # doesn't spam every block.
+                    if not _sageattention_skip_logged:
+                        _sageattention_skip_logged = True
+                        print(
+                            "[attention] SageAttention SKIPPED (not failed) -- this call's "
+                            "mask is not effectively-none, and SageAttention's wiring here "
+                            "hard-rejects any real mask. Falling through to SDPA for this "
+                            "and any later call with a real mask.",
+                            flush=True,
+                        )
+                else:
+                    try:
+                        out = SageAttention()(q, k, v, heads, _mask_arg())
+                        if not _sageattention_success_logged:
+                            _sageattention_success_logged = True
+                            print(
+                                "[attention] SageAttention IS ACTUALLY BEING USED for this call "
+                                "(real kernel executed successfully, not SDPA).",
+                                flush=True,
+                            )
+                        return out
+                    except Exception as exc:  # noqa: BLE001 - report whatever a real kernel call raises
+                        _sageattention_unusable = True
+                        print(
+                            f"[attention] SageAttention failed on a real call "
+                            f"(falling back to PyTorch SDPA for the rest of this process): "
+                            f"{type(exc).__name__}: {exc}",
+                            flush=True,
+                        )
 
             # Default behavior: XFormers if installed else PyTorch. "Installed"
             # only means importable, not that it has a working kernel for this
