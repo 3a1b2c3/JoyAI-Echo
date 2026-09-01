@@ -3,8 +3,8 @@ model:
   gemma_path: checkpoints/gemma-3
 
 video:
-  width: 896
-  height: 512
+  width: 512
+  height: 288
   num_frames: 241
   fps: 16
   seed: 42
