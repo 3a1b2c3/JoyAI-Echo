@@ -303,18 +303,6 @@ def _generate_av_blocks(
     for block_index, (video_block, audio_block) in enumerate(
         zip(video_blocks[1:], audio_blocks[1:], strict=True)
     ):
-        # DIAGNOSTIC (temporary): torch.cuda.synchronize() calls bracket
-        # each segment below so time.time() actually measures GPU-busy
-        # time, not just Python-side kernel-launch time. Without these,
-        # CUDA's async execution model means a segment's measured duration
-        # can include leftover async work queued by a *previous* segment
-        # rather than its own real cost -- suspected explanation for why
-        # cache-update forward()'s ~0.5s stayed flat across attention-window
-        # changes that did move denoise's measured time. Remove once that's
-        # confirmed/refuted (see TROUBLESHOOTING.md item -7's "curious,
-        # unexplained data point").
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
         t_block_start = time.time()
         video_sample, audio_sample = _denoise_av_block(
             forward,
@@ -325,8 +313,6 @@ def _generate_av_blocks(
             sigmas,
             generator,
         )
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
         t_denoise = time.time() - t_block_start
         video_start, video_end = video_block
         audio_start, audio_end = audio_block
@@ -338,17 +324,12 @@ def _generate_av_blocks(
         if on_block is not None:
             t_callback_start = time.time()
             on_block(block_index, total_blocks, video_block, buffers.video_output, buffers.audio_output)
-            if torch.cuda.is_available():
-                torch.cuda.synchronize()
             t_callback = time.time() - t_callback_start
         t_cache_start = time.time()
         forward(video_sample, video_block, 0.0, audio_sample, audio_block, 0.0)
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
         t_cache = time.time() - t_cache_start
         print(f"[rollout] block {block_index}/{total_blocks}: denoise={t_denoise:.1f}s "
-              f"callback={t_callback:.1f}s cache={t_cache:.1f}s total={time.time() - t_block_start:.1f}s "
-              f"[DIAGNOSTIC: synchronized]",
+              f"callback={t_callback:.1f}s cache={t_cache:.1f}s total={time.time() - t_block_start:.1f}s",
               flush=True)
 
 

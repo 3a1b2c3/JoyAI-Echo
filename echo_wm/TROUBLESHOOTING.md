@@ -1,5 +1,37 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -9. `ECHO_WM_FP8=1`: opt-in fp8 weight storage (implemented, not yet benchmarked)
+
+`ltx_core/quantization/` already has a working, dependency-free
+`QuantizationPolicy.fp8_cast()` -- discovered while looking into whether fp8
+quantization was worth pursuing after item -7's "confirmed real, not a
+timing artifact" cache-update finding raised the possibility that some of
+our fixed costs might be memory-bandwidth-bound rather than purely
+compute-bound. Very low effort to wire in: `CausalTI2VidPipeline.__init__`
+already accepted a `quantization: QuantizationPolicy | None` param
+(unused by `EchoWMCausalEngine` until now), so this was just threading
+`QuantizationPolicy.fp8_cast()` through when `ECHO_WM_FP8=1`
+(`gradio_echo_wm.py`'s `EchoWMCausalEngine.__init__`) -- no new
+dependencies, `ModelLedger.transformer()` already had the sd_ops/module_ops
+application logic in place.
+
+**Important nuance, not "real" fp8 compute:** `fp8_cast()` downcasts
+transformer linear weights to `float8_e4m3fn` **for storage only** --
+`UPCAST_DURING_INFERENCE` (`fp8_cast.py`) replaces each `nn.Linear`'s
+forward to upcast weights back to bf16 immediately before every matmul.
+So this halves weight memory footprint/bandwidth, but the actual multiply
+still happens in bf16 -- it targets memory-bandwidth-bound cost, not
+FLOPs. (A true native-fp8-compute path exists too --
+`QuantizationPolicy.fp8_scaled_mm()` -- but requires `tensorrt_llm`, not
+installed, out of scope for a quick test.) Real, if modest, precision
+loss from the fp8 rounding step, additive to (not a replacement for) the
+timesteps/attn_window quality trades already in place.
+
+Default off (`ECHO_WM_FP8=0` in `run_gradio.sh`). **Not yet tested on real
+hardware** -- unknown whether this actually moves the needle at all,
+given item -7's confirmed-flat cache-update cost might not be
+memory-bandwidth-bound in the way that would make this help.
+
 ## -8. Live-preview audio drop-outs between blocks (fixed, second attempt)
 
 Video and audio decode on independent cadences in this pipeline (separate
@@ -53,12 +85,27 @@ real-time budget at 512x288/16fps. In order of real, confirmed impact:
    but stops the cold-start cost from landing on a real user's first
    request.
 
-**Curious, unexplained data point:** cache-update `forward()`'s ~0.5s cost
-did not move at all across the 19/7 -> 10/4 -> 4/1 attention-window cuts,
-even though it uses the same attention machinery as denoise (which did
-drop). Not investigated further -- either cache-update genuinely doesn't
-scale with window size for some structural reason, or there's an
-unexploited saving being left on the table here.
+**Confirmed real, not a timing artifact:** cache-update `forward()`'s ~0.5s
+cost stayed flat across the 19/7 -> 10/4 -> 4/1 attention-window cuts, even
+though it's literally the same model call as denoise (which did respond).
+Initially suspected a CUDA-async measurement artifact (Python's
+`time.time()` without `torch.cuda.synchronize()` calls between segments
+can attribute one segment's actual GPU-busy time to a different segment,
+since CUDA kernels launch asynchronously) -- tested this directly by
+temporarily bracketing each timed segment with `torch.cuda.synchronize()`
+in `rollout.py`. Result with honest, synchronized measurement: still flat
+~0.5s, total block time barely changed (~1.6-1.7s vs. the unsynchronized
+~1.7s). **Theory refuted -- this is a real, structural fixed cost**, not a
+measurement bug. Whatever's expensive isn't the windowed self-attention
+(`video_local_attn_size`/`video_sink_size`); more likely candidates:
+cross-attention against the full (unwindowed) text/action context, or the
+KV-cache write/bookkeeping itself. Would need real `torch.profiler`
+instrumentation inside that specific `forward()` call to pin down further
+-- not attempted, since we're already near the ~1.5s real-time budget and
+this isn't reachable through any lever already exposed in the UI/config.
+The diagnostic `torch.cuda.synchronize()` calls were removed from
+`rollout.py` after answering this (they add real overhead, not something
+to leave running permanently).
 
 **UI exposure:** both step count and attention window are now live
 dropdowns in the causal UI's "Video Settings" (`STEP_PRESETS`/

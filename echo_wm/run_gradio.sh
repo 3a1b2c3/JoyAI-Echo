@@ -25,6 +25,12 @@ export CUDA_CACHE_MAXSIZE="${CUDA_CACHE_MAXSIZE:-4294967296}"
 # investigate the recompilation cause further, not for normal use.
 export ECHO_WM_COMPILE="${ECHO_WM_COMPILE:-0}"
 
+# fp8 weight storage for the causal transformer (halves weight memory
+# footprint/bandwidth; compute itself still runs in bf16, upcast per-matmul
+# -- see TROUBLESHOOTING.md item -9). Untested on real hardware, default
+# off. Set ECHO_WM_FP8=1 to try it.
+export ECHO_WM_FP8="${ECHO_WM_FP8:-0}"
+
 # Check if checkpoint exists
 if [ ! -f "$CHECKPOINT" ]; then
     echo "Error: Checkpoint not found at $CHECKPOINT"

@@ -75,6 +75,7 @@ for package in ("ltx-core/src", "ltx-causal/src", "ltx-pipelines/src"):
 print("[startup] importing ltx_core/ltx_causal/ltx_pipelines...", flush=True)
 
 from ltx_core.components.guiders import MultiModalGuiderParams  # noqa: E402
+from ltx_core.quantization import QuantizationPolicy  # noqa: E402
 from ltx_core.types import Audio  # noqa: E402
 from ltx_causal import CausalCacheConfig, DEFAULT_CAUSAL_TIMESTEPS  # noqa: E402
 from ltx_pipelines.ti2vid_one_stage import TI2VidOneStagePipeline  # noqa: E402
@@ -439,12 +440,27 @@ class EchoWMCausalEngine:
         self.cache_config.validate()
         self.timesteps = tuple(self.causal_cfg.get("timesteps", DEFAULT_CAUSAL_TIMESTEPS))
 
+        # Opt-in (ECHO_WM_FP8=1, default off): downcasts transformer linear
+        # weights to float8_e4m3fn for storage (halves their memory
+        # footprint/bandwidth), upcasting back to bf16 immediately before
+        # every matmul (see ltx_core/quantization/fp8_cast.py's
+        # UPCAST_DURING_INFERENCE) -- compute itself still runs in bf16, so
+        # this targets memory-bandwidth-bound cost, not FLOPs. Real (if
+        # modest) precision loss from the fp8 rounding step, distinct from
+        # (and additive to) the timesteps/attn_window quality trades.
+        # Untested on real hardware as of writing.
+        quantization = QuantizationPolicy.fp8_cast() if os.environ.get("ECHO_WM_FP8", "0") == "1" else None
+        if quantization is not None:
+            print("[engine] ECHO_WM_FP8=1: loading transformer weights with fp8 storage "
+                  "(compute still runs in bf16, upcast per-matmul)", flush=True)
+
         self.pipeline = CausalTI2VidPipeline(
             checkpoint_path=str(checkpoint),
             gemma_root=str(gemma_path),
             device=device,
             action_config=None,  # Set per generation
             cache_config=self.cache_config,
+            quantization=quantization,
         )
         print("[engine] Ready (weights load on first generation, streaming enabled).", flush=True)
 
