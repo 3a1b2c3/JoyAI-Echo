@@ -23,6 +23,20 @@ _PROFILE_CACHE_UPDATE = os.environ.get("ECHO_WM_PROFILE_CACHE", "0") == "1"
 _PROFILE_BLOCK_INDEX = 3
 _cache_profiled = False
 
+# Opt-in (ECHO_WM_GRAPH_CAPTURE_TEST=1): feasibility-only check -- does
+# torch.cuda.graph() capture even succeed for one real cache-update
+# forward() call, at a later (steady-state windowing) block? Diagnostic
+# only, does not change real generation behavior (runs an extra,
+# discarded capture attempt alongside the normal call). Known likely
+# blocker going in: update_kv_cache's searchsorted(...).item() calls
+# (added to remove nonzero(), see TROUBLESHOOTING.md) are themselves a
+# CPU-GPU sync point, which graph capture forbids entirely -- this test's
+# real value is confirming that (or being pleasantly surprised) with a
+# real error message instead of more speculation.
+_GRAPH_CAPTURE_TEST = os.environ.get("ECHO_WM_GRAPH_CAPTURE_TEST", "0") == "1"
+_GRAPH_CAPTURE_BLOCK_INDEX = 5
+_graph_capture_tested = False
+
 from ltx_core.model.transformer.modality import Modality
 
 from .cache import configure_bounded_caches
@@ -359,6 +373,39 @@ def _generate_av_blocks(
         else:
             forward(video_sample, video_block, 0.0, audio_sample, audio_block, 0.0)
         t_cache = time.time() - t_cache_start
+
+        global _graph_capture_tested
+        if _GRAPH_CAPTURE_TEST and block_index == _GRAPH_CAPTURE_BLOCK_INDEX and not _graph_capture_tested:
+            _graph_capture_tested = True
+            print(f"[graph-test] attempting torch.cuda.graph() capture of cache-update "
+                  f"forward() at block {block_index}...", flush=True)
+            # Safe to call forward() extra times here with the *same*
+            # (video_sample, video_block): update_kv_cache is deliberately
+            # idempotent for repeated same-range writes (it's designed to
+            # handle repeated denoising-step overwrites of the same block --
+            # see its docstring), so these extra warmup/capture/replay calls
+            # converge to the same final cache state as the one real call
+            # above, not corrupt it.
+            try:
+                s = torch.cuda.Stream()
+                s.wait_stream(torch.cuda.current_stream())
+                with torch.cuda.stream(s):
+                    for _ in range(3):  # warmup, per torch.cuda.graph's own recommendation
+                        forward(video_sample, video_block, 0.0, audio_sample, audio_block, 0.0)
+                torch.cuda.current_stream().wait_stream(s)
+
+                g = torch.cuda.CUDAGraph()
+                with torch.cuda.graph(g):
+                    forward(video_sample, video_block, 0.0, audio_sample, audio_block, 0.0)
+                print("[graph-test] CAPTURE SUCCEEDED. Attempting one replay...", flush=True)
+                g.replay()
+                torch.cuda.synchronize()
+                print("[graph-test] REPLAY SUCCEEDED. This forward() call is "
+                      "graph-capturable -- real integration is worth pursuing.", flush=True)
+            except Exception as exc:  # noqa: BLE001 - diagnostic, report whatever breaks
+                print(f"[graph-test] CAPTURE/REPLAY FAILED: {type(exc).__name__}: {exc}", flush=True)
+                print("[graph-test] Diagnostic only -- real generation is unaffected by "
+                      "this failure (extra calls above were discarded/idempotent).", flush=True)
         print(f"[rollout] block {block_index}/{total_blocks}: denoise={t_denoise:.1f}s "
               f"callback={t_callback:.1f}s cache={t_cache:.1f}s total={time.time() - t_block_start:.1f}s",
               flush=True)
