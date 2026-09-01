@@ -86,25 +86,43 @@ def update_kv_cache(
 
     # A denoising step is a transaction over [start, end): discard a previous
     # noisy version of that range while retaining earlier committed history.
-    keep_old = old_positions < start
+    #
+    # old_positions is always sorted ascending (tokens are appended in
+    # strictly increasing position order, never reordered) -- so
+    # `old_positions < start` always selects a contiguous *prefix*, not a
+    # scattered subset. Boolean-mask indexing (`old_k[:, keep_old]`, as
+    # this used to be written) doesn't know that, and internally calls
+    # nonzero() on the mask to find which indices to gather -- a real,
+    # measured cost confirmed via torch.profiler (720 aten::nonzero calls
+    # in a single forward pass, each forcing a CPU-GPU sync -- see
+    # TROUBLESHOOTING.md). Replaced with searchsorted (finds the prefix
+    # length directly) + plain slicing, which needs only one small sync
+    # (the .item() call) instead of nonzero()'s per-call sync-and-gather.
+    n_keep_old = int(torch.searchsorted(old_positions, start).item()) if length > 0 else 0
     positions = torch.cat(
-        [old_positions[keep_old], torch.arange(start, end, device=k.device)], dim=0
+        [old_positions[:n_keep_old], torch.arange(start, end, device=k.device)], dim=0
     )
-    merged_k = torch.cat([old_k[:, keep_old], k], dim=1)
-    merged_v = torch.cat([old_v[:, keep_old], v], dim=1)
+    merged_k = torch.cat([old_k[:, :n_keep_old], k], dim=1)
+    merged_v = torch.cat([old_v[:, :n_keep_old], v], dim=1)
 
     local = int(cache.get("local_attn_size", -1))
     sink = int(cache.get("sink_tokens", 0))
     if local >= 0 and positions.numel() > local:
         if not 0 <= sink < local:
             raise ValueError(f"expected 0 <= sink_tokens < local_attn_size, got {sink}/{local}")
-        sink_mask = positions < sink
-        recent_budget = local - int(sink_mask.sum())
+        # Same reasoning as above: positions is sorted and starts at 0, and
+        # sink tokens are never dropped by this function once inserted, so
+        # the sink prefix is exactly positions[:sink] -- same result as the
+        # original `sink_mask = positions < sink; sink_mask.sum()`, without
+        # needing the boolean mask or its sum. The "recent" portion is a
+        # suffix (positions >= recent_start), found the same
+        # searchsorted-instead-of-nonzero way as above.
+        recent_budget = local - sink
         recent_start = max(sink, end - recent_budget)
-        keep = sink_mask | (positions >= recent_start)
-        positions = positions[keep]
-        merged_k = merged_k[:, keep]
-        merged_v = merged_v[:, keep]
+        recent_start_idx = int(torch.searchsorted(positions, recent_start).item())
+        positions = torch.cat([positions[:sink], positions[recent_start_idx:]], dim=0)
+        merged_k = torch.cat([merged_k[:, :sink], merged_k[:, recent_start_idx:]], dim=1)
+        merged_v = torch.cat([merged_v[:, :sink], merged_v[:, recent_start_idx:]], dim=1)
 
     active = positions.numel()
     if active > cache["k"].shape[1]:
