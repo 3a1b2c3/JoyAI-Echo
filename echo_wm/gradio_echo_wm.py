@@ -507,6 +507,36 @@ class EchoWMCausalEngine:
             else None
         )
 
+        # Encoding (StreamingEncoder.write_chunk, CPU-bound: numpy convert +
+        # libx264/AAC encode) was previously called directly from on_block,
+        # which runs on the same thread that then immediately does the
+        # cache-update forward() and the next block's denoise -- serializing
+        # CPU encode work with GPU work for no real reason (encode only
+        # needs this block's already-denoised output, nothing downstream of
+        # it). Measured on real hardware: ~0.4s/block of the ~1.9s total was
+        # this encode step. Moving it to a dedicated background thread (FIFO
+        # queue, so muxed byte order stays correct) lets it overlap with the
+        # next block's GPU work instead of blocking it.
+        encode_queue: queue.Queue = queue.Queue()
+
+        def _encode_worker() -> None:
+            while True:
+                item = encode_queue.get()
+                if item is None:  # sentinel: no more chunks, drain complete
+                    break
+                video_chunk_item, audio_chunk_item = item
+                try:
+                    new_bytes = stream_encoder.write_chunk(video_chunk_item, audio_chunk_item)
+                    if new_bytes:
+                        on_stream_chunk(new_bytes)
+                except Exception as exc:  # noqa: BLE001 - live preview is best-effort
+                    print(f"[stream] write_chunk failed (continuing without live stream): {exc}", flush=True)
+
+        encode_thread = None
+        if stream_encoder is not None:
+            encode_thread = threading.Thread(target=_encode_worker, daemon=True)
+            encode_thread.start()
+
         def on_block(block_index: int, total_blocks: int, video_chunk, audio_chunk) -> None:
             # Some callbacks in this pipeline carry zero video frames (e.g.
             # audio-only/bookkeeping chunks) -- expected, not an error. There's
@@ -536,14 +566,14 @@ class EchoWMCausalEngine:
                 )
             frame_count["n"] += video_chunk.shape[0]
             if stream_encoder is not None:
-                try:
-                    new_bytes = stream_encoder.write_chunk(
-                        video_chunk, audio_chunk if generate_audio else None
-                    )
-                    if new_bytes:
-                        on_stream_chunk(new_bytes)
-                except Exception as exc:  # noqa: BLE001 - live preview is best-effort
-                    print(f"[stream] write_chunk failed (continuing without live stream): {exc}", flush=True)
+                # Non-blocking hand-off -- the actual encode+push happens on
+                # _encode_worker's thread, concurrently with whatever this
+                # (rollout) thread does next (cache-update forward(), then
+                # the next block's denoise). video_chunk/audio_chunk are
+                # already .clone()'d by the caller (raw_on_block in
+                # causal_ti2vid.py), so they're safe to hand to another
+                # thread.
+                encode_queue.put((video_chunk, audio_chunk if generate_audio else None))
             result_queue.put(("block", block_index, total_blocks, block_path, frame_count["n"]))
 
         def worker() -> None:
@@ -587,8 +617,12 @@ class EchoWMCausalEngine:
             elif item[0] == "error":
                 thread.join()
                 if stream_encoder is not None:
-                    # Don't leave the browser's WebSocket hanging on a
-                    # generation that errored out mid-stream.
+                    # Drain whatever's still queued (best-effort -- the
+                    # generation itself failed, but don't leave the encode
+                    # thread running past this call) before telling the
+                    # browser the stream is over.
+                    encode_queue.put(None)
+                    encode_thread.join()
                     on_stream_chunk(None)
                 raise item[1]
             else:
@@ -598,6 +632,12 @@ class EchoWMCausalEngine:
         timing["generate"] = time.time() - t0
 
         if stream_encoder is not None:
+            # Sentinel + join: wait for every already-queued block's
+            # write_chunk() to actually finish before calling close() --
+            # otherwise close()'s flush could race with (and interleave
+            # incorrectly ahead of) a still-pending block's encode.
+            encode_queue.put(None)
+            encode_thread.join()
             try:
                 tail_bytes = stream_encoder.close()
                 if tail_bytes:

@@ -3,20 +3,24 @@ model:
   gemma_path: checkpoints/gemma-3
 
 video:
+  # width kept at 512 (last known-working value); height dropped from 288
+  # for more speed -- must stay multiples of 32 (assert_resolution) for the
+  # one-stage causal pipeline. 256x128 failed with a different error than
+  # the 32-divisibility check (cause not yet diagnosed).
   width: 512
-  height: 288
+  height: 128
   num_frames: 241
   fps: 16
   seed: 42
 
 causal:
-  # 2 steps instead of the model's native 4 -- a further speed/quality
-  # trade. NOTE: going 4->3 barely changed measured denoise time
-  # (~2.0s -> ~1.9-2.2s), which suggests per-step fixed overhead (kernel
-  # launch/attention setup), not step count, dominates at this scale --
-  # this cut may buy little too. Revert to [1000, 750, 500, 250] (native
-  # 4-step) if output quality visibly suffers and speed doesn't improve
-  # enough to justify it.
+  # 2 steps instead of the model's native 4 -- a speed/quality trade.
+  # Confirmed via real measurement (once an unrelated torch.compile
+  # recompilation bug was fixed, see TROUBLESHOOTING.md item -4) that step
+  # count genuinely matters: denoise dropped from ~2.0s/block (4-step,
+  # uncontaminated baseline) to ~1.0-1.1s/block at 2-step -- close to
+  # linear. Revert to [1000, 750, 500, 250] (native 4-step) if output
+  # quality visibly suffers.
   timesteps: [1000, 500]
   video_local_attn_size: 19
   video_sink_size: 7

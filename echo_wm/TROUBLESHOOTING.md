@@ -1,5 +1,39 @@
 # Troubleshooting: `gradio_echo_wm.py` (Flash Preview / streaming UI)
 
+## -6. Encode work pipelined off the rollout thread (implemented, not yet benchmarked)
+
+Measured steady-state per-block breakdown (once the `torch.compile` bug in
+item -4 was ruled out): `denoise (~1.0-1.1s) -> on_block callback (~0.4s)
+-> cache-update forward() (~0.4s)` = ~1.9s/block total, all strictly
+sequential on one thread. The callback's real work
+(`StreamingEncoder.write_chunk()` -- CPU-bound numpy conversion +
+libx264/AAC encode, then a WebSocket push) only depends on *this* block's
+already-denoised output -- nothing about it needs to finish before
+cache-update `forward()` or the next block's denoise can start.
+
+Fixed in `EchoWMCausalEngine.generate()`: `on_block` no longer calls
+`stream_encoder.write_chunk()` directly. Instead it hands
+`(video_chunk, audio_chunk)` to a FIFO `encode_queue`, consumed by a
+dedicated background thread (`_encode_worker`) that does the actual
+encode+push. `on_block` returns almost immediately, so the rollout
+thread moves straight to cache-update `forward()` (and the next block's
+denoise) while encoding happens concurrently. FIFO ordering matters here:
+muxed byte order must match block order, so a single consumer thread (not
+a thread pool) processes the queue serially. At generation end (both the
+normal-completion and error paths), a `None` sentinel is pushed and the
+encode thread is joined *before* calling `stream_encoder.close()` --
+otherwise `close()`'s flush could race ahead of a still-pending block's
+`write_chunk()`.
+
+**Expected**, not yet confirmed: cutting ~0.4s/block (the previously
+serialized callback time) off the ~1.9s total, landing near or under the
+~1.5s real-time budget at 512x288/16fps. Real risk: if the CPU-bound
+encode work contends for the GIL badly enough with the rollout thread's
+Python-side orchestration (issuing the next CUDA kernels), the overlap
+might not be as clean as expected -- PyAV's C-level encode should release
+the GIL during the actual libx264 work, but this hasn't been verified
+empirically.
+
 ## -5. Warmup used a different resolution than the real config, so it didn't actually warm anything (fixed)
 
 Confirmed on real hardware: even with warmup running to completion before
