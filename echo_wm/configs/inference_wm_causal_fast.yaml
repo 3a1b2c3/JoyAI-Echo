@@ -6,7 +6,7 @@ video:
   width: 512
   height: 288
   num_frames: 97
-  fps: 24
+  fps: 16
   seed: 42
 
 causal:

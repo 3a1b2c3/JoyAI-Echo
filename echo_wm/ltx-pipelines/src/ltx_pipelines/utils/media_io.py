@@ -121,7 +121,7 @@ def decode_image(image_path: str) -> np.ndarray:
     return np_array
 
 
-def _write_audio(container: av.container.Container, audio_stream: av.audio.AudioStream, audio: Audio) -> None:
+def _audio_frame_from_samples(audio: Audio) -> av.AudioFrame:
     samples = audio.waveform
     if samples.ndim == 1:
         samples = samples[:, None]
@@ -143,7 +143,11 @@ def _write_audio(container: av.container.Container, audio_stream: av.audio.Audio
         layout="stereo",
     )
     frame_in.sample_rate = audio.sampling_rate
+    return frame_in
 
+
+def _write_audio(container: av.container.Container, audio_stream: av.audio.AudioStream, audio: Audio) -> None:
+    frame_in = _audio_frame_from_samples(audio)
     _resample_audio(container, audio_stream, frame_in)
 
 
@@ -263,7 +267,9 @@ class StreamingEncoder:
       complete). This is structural to fragmented MP4, not a bug.
     """
 
-    def __init__(self, width: int, height: int, fps: int, frames_per_chunk: int):
+    def __init__(
+        self, width: int, height: int, fps: int, frames_per_chunk: int, include_audio: bool = False
+    ):
         self.buf = BytesIO()
         self.container = av.open(
             self.buf, mode="w", format="mp4",
@@ -274,17 +280,53 @@ class StreamingEncoder:
         self.stream.height = height
         self.stream.pix_fmt = "yuv420p"
         self.stream.gop_size = frames_per_chunk
+
+        # Both streams must exist before the first packet is muxed (fragmented
+        # MP4 writes its header/moov on first mux), so the audio stream is
+        # always created upfront here if requested at all -- never added
+        # lazily on first seeing a real audio chunk. Its own sample rate
+        # (48kHz) is just the AAC encoder's target; AudioResampler (below)
+        # converts from whatever rate each audio_chunk actually arrives at,
+        # so this doesn't need to match the model's audio_vae output rate.
+        self.audio_stream = None
+        self._audio_resampler = None
+        self._audio_next_pts = 0
+        if include_audio:
+            self.audio_stream = _prepare_audio_stream(self.container, audio_sample_rate=48000)
+            cc = self.audio_stream.codec_context
+            self._audio_resampler = av.audio.resampler.AudioResampler(
+                format=cc.format or "fltp", layout=cc.layout or "stereo", rate=cc.sample_rate or 48000,
+            )
+
         self._last_read_pos = 0
 
-    def write_chunk(self, video_chunk: torch.Tensor) -> bytes:
+    def write_chunk(self, video_chunk: torch.Tensor, audio_chunk: Audio | None = None) -> bytes:
         """video_chunk: [f, h, w, c] uint8 tensor (same shape encode_video()
-        takes for a single chunk). Returns newly-available bytes, possibly
-        empty (see class docstring re: 1-chunk flush delay)."""
+        takes for a single chunk). audio_chunk, if given (and include_audio
+        was set at construction), is muxed into the same fragment. Returns
+        newly-available bytes, possibly empty (see class docstring re:
+        1-chunk flush delay)."""
         video_chunk_cpu = video_chunk.to("cpu").numpy()
         for frame_array in video_chunk_cpu:
             frame = av.VideoFrame.from_ndarray(frame_array, format="rgb24")
             for packet in self.stream.encode(frame):
                 self.container.mux_one(packet)
+
+        if audio_chunk is not None and self.audio_stream is not None:
+            frame_in = _audio_frame_from_samples(audio_chunk)
+            # Unlike _resample_audio() (used by encode_video for a single
+            # one-shot full file), this must NOT flush the audio encoder
+            # after each call -- flushing signals EOF to the codec, which
+            # would break every subsequent write_chunk() on this same
+            # instance. Only close() flushes.
+            for rframe in self._audio_resampler.resample(frame_in):
+                if rframe.pts is None:
+                    rframe.pts = self._audio_next_pts
+                self._audio_next_pts += rframe.samples
+                rframe.sample_rate = frame_in.sample_rate
+                for packet in self.audio_stream.encode(rframe):
+                    self.container.mux_one(packet)
+
         return self._extract_new_bytes()
 
     def _extract_new_bytes(self) -> bytes:
@@ -296,10 +338,13 @@ class StreamingEncoder:
         return data
 
     def close(self) -> bytes:
-        """Flushes the encoder and closes the container. Returns the final
+        """Flushes both encoders and closes the container. Returns the final
         bytes (the last fragment plus the mfra trailer box)."""
         for packet in self.stream.encode():
             self.container.mux_one(packet)
+        if self.audio_stream is not None:
+            for packet in self.audio_stream.encode():
+                self.container.mux_one(packet)
         self.container.close()
         return self._extract_new_bytes()
 

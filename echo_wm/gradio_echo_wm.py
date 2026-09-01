@@ -499,7 +499,10 @@ class EchoWMCausalEngine:
         # keyframe/fragment boundary every gop_size frames regardless of how
         # write_chunk() is called.
         stream_encoder = (
-            StreamingEncoder(width=width, height=height, fps=int(fps), frames_per_chunk=max(int(fps) // 2, 1))
+            StreamingEncoder(
+                width=width, height=height, fps=int(fps), frames_per_chunk=max(int(fps) // 2, 1),
+                include_audio=generate_audio,
+            )
             if on_stream_chunk is not None
             else None
         )
@@ -526,7 +529,9 @@ class EchoWMCausalEngine:
             frame_count["n"] += video_chunk.shape[0]
             if stream_encoder is not None:
                 try:
-                    new_bytes = stream_encoder.write_chunk(video_chunk)
+                    new_bytes = stream_encoder.write_chunk(
+                        video_chunk, audio_chunk if generate_audio else None
+                    )
                     if new_bytes:
                         on_stream_chunk(new_bytes)
                 except Exception as exc:  # noqa: BLE001 - live preview is best-effort
@@ -861,9 +866,14 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
         def on_stream_chunk(data: bytes | None) -> None:
             _push_stream_chunk(run_id, data)
 
+        # "<run_id>|<1-or-0>" -- the frontend needs to know upfront whether
+        # this stream carries an audio track at all, since MediaSource's
+        # addSourceBuffer() MIME type must declare the exact codec set
+        # present in the byte stream (see _mse_stream_js's connect()).
+        stream_trigger_value = f"{run_id}|{'1' if gen_audio else '0'}"
         yield (
             f"⏳ Streaming generation started…\naction=[{action_str}] seed={int(seed)}"
-        ), run_id, None, None
+        ), stream_trigger_value, None, None
 
         t0 = time.time()
         try:
@@ -1051,7 +1061,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
         }
       }
 
-      function connect(runId) {
+      function connect(runId, hasAudio) {
         teardown();
         const video = document.getElementById("live-preview-video");
         if (!video) { log("no #live-preview-video element found yet"); return; }
@@ -1060,9 +1070,19 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
         video.src = URL.createObjectURL(mediaSource);
 
         mediaSource.addEventListener("sourceopen", () => {
-          log("MediaSource opened for run", runId);
+          log("MediaSource opened for run", runId, "hasAudio:", hasAudio);
+          // avc1.640028 = H.264 High Profile Level 4.0 (matches libx264's
+          // default here); mp4a.40.2 = AAC-LC (matches the "aac" encoder in
+          // StreamingEncoder). This must match the actual track count in
+          // the byte stream exactly -- declaring an audio codec MSE doesn't
+          // find in the init segment (or vice versa) fails every
+          // appendBuffer call, not just this one, so it's driven by
+          // hasAudio (parsed from the trigger value) rather than guessed.
+          const mimeType = hasAudio
+            ? 'video/mp4; codecs="avc1.640028,mp4a.40.2"'
+            : 'video/mp4; codecs="avc1.640028"';
           try {
-            sourceBuffer = mediaSource.addSourceBuffer('video/mp4; codecs="avc1.640028"');
+            sourceBuffer = mediaSource.addSourceBuffer(mimeType);
           } catch (e) {
             log("addSourceBuffer failed", e);
             return;
@@ -1100,15 +1120,40 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
         // in the foreground if e.g. devtools has focus instead of the page.
         // Retry on every signal that more data/visibility changed, and stop
         // once genuinely playing.
+        //
+        // Separately: browsers block autoplay WITH sound unless the site has
+        // "high media engagement" or the play() call follows a user gesture
+        // -- there's no way around that from a live-updating background
+        // preview. So try unmuted first (works for a returning user Chrome
+        // already trusts); if blocked, fall back to muted (so the picture at
+        // least plays) and let a click on the video unmute + resume audio.
         let playing = false;
+        let mutedFallback = false;
         function tryPlay(reason) {
           if (playing || !video.paused) { playing = true; return; }
           video.play().then(() => {
             playing = true;
-            log("play() succeeded (" + reason + ")");
+            log("play() succeeded (" + reason + ")" + (video.muted ? " [muted]" : " [with audio]"));
           }).catch((e) => {
             log("play() blocked (" + reason + "):", e.message);
+            if (hasAudio && !video.muted) {
+              log("falling back to muted playback -- click the video to enable sound");
+              video.muted = true;
+              mutedFallback = true;
+              tryPlay(reason + "+muted-fallback");
+            }
           });
+        }
+        if (hasAudio) {
+          video.addEventListener("click", () => {
+            if (mutedFallback) {
+              video.muted = false;
+              mutedFallback = false;
+              video.play().then(() => log("unmuted after click")).catch((e) => log("unmute-play failed", e));
+            }
+          });
+        } else {
+          video.muted = true;  // no audio track exists at all -- avoid a pointless unmuted play() attempt
         }
         tryPlay("initial");
         video.addEventListener("loadeddata", () => tryPlay("loadeddata"));
@@ -1135,8 +1180,13 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
         }
         if (el && el.value && el.value !== lastRunId) {
           lastRunId = el.value;
-          log("new run id detected:", lastRunId);
-          connect(lastRunId);
+          // Trigger value is "<run_id>|<1-or-0>" -- the hasAudio flag has to
+          // travel with the run id since MSE's addSourceBuffer() MIME type
+          // must declare the exact track set the byte stream actually has
+          // (see connect() above).
+          const [runId, hasAudioFlag] = lastRunId.split("|");
+          log("new run id detected:", runId, "hasAudio:", hasAudioFlag === "1");
+          connect(runId, hasAudioFlag === "1");
         }
         setTimeout(poll, 200);
       }
@@ -1219,9 +1269,15 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                 generate_btn = gr.Button("🚀 Generate (streaming)", variant="primary", size="lg")
 
             with gr.Column(scale=1):
-                gr.Markdown("**Live preview** (streams continuously over WebSocket -- no per-block reload)")
+                gr.Markdown(
+                    "**Live preview** (streams continuously over WebSocket -- no per-block reload). "
+                    "If audio doesn't start automatically, click the video once to enable sound."
+                )
                 gr.HTML(
-                    '<video id="live-preview-video" autoplay muted playsinline '
+                    # No `muted` attribute here -- _mse_stream_js's connect() decides
+                    # whether to mute per-generation based on whether it actually has
+                    # audio, and manages the unmuted-autoplay-blocked fallback itself.
+                    '<video id="live-preview-video" autoplay playsinline '
                     'style="width:100%;max-height:300px;background:#000;"></video>'
                 )
                 # visible=False components are not just CSS-hidden in current
