@@ -234,6 +234,76 @@ def encode_video(
     logger.info(f"Video saved to {output_path}")
 
 
+class StreamingEncoder:
+    """Incremental H.264/fragmented-MP4 encoder for MSE-based live streaming
+    (MediaSource Extensions -> SourceBuffer.appendBuffer() in the browser).
+
+    Unlike encode_video() (one call = one complete standalone file),
+    write_chunk() can be called repeatedly on the same encoder instance and
+    each call returns only the newly-muxed bytes since the last call -- a
+    single continuous byte stream with exactly one MP4 init segment
+    (ftyp+moov) followed by pure media fragments (moof+mdat), which is what
+    MSE requires. Concatenating every write_chunk()/close() return value in
+    order reconstructs a normal playable MP4 file.
+
+    Validated standalone (no gradio/model dependency) before being wired in
+    here: ffprobe confirmed the reassembled output is playable with correct
+    duration/resolution, and a real browser via a WebSocket+MediaSource test
+    page confirmed live playback with no format errors.
+
+    Two settings are load-bearing, not incidental:
+    - gop_size=frames_per_chunk: forces a keyframe (and thus a new MP4
+      fragment boundary) at every chunk. Without this, the muxer only
+      starts a new fragment when it hits a keyframe, which for a typical
+      GOP size wouldn't align with chunk boundaries at all -- fragments
+      wouldn't flush until close(), defeating incremental streaming.
+    - There's an inherent ~1-chunk delay between write_chunk() and getting
+      that chunk's fragment back: the muxer can't close/flush a fragment
+      until it sees the *next* keyframe (which marks the current one as
+      complete). This is structural to fragmented MP4, not a bug.
+    """
+
+    def __init__(self, width: int, height: int, fps: int, frames_per_chunk: int):
+        self.buf = BytesIO()
+        self.container = av.open(
+            self.buf, mode="w", format="mp4",
+            options={"movflags": "frag_keyframe+empty_moov+default_base_moof"},
+        )
+        self.stream = self.container.add_stream("libx264", rate=int(fps))
+        self.stream.width = width
+        self.stream.height = height
+        self.stream.pix_fmt = "yuv420p"
+        self.stream.gop_size = frames_per_chunk
+        self._last_read_pos = 0
+
+    def write_chunk(self, video_chunk: torch.Tensor) -> bytes:
+        """video_chunk: [f, h, w, c] uint8 tensor (same shape encode_video()
+        takes for a single chunk). Returns newly-available bytes, possibly
+        empty (see class docstring re: 1-chunk flush delay)."""
+        video_chunk_cpu = video_chunk.to("cpu").numpy()
+        for frame_array in video_chunk_cpu:
+            frame = av.VideoFrame.from_ndarray(frame_array, format="rgb24")
+            for packet in self.stream.encode(frame):
+                self.container.mux_one(packet)
+        return self._extract_new_bytes()
+
+    def _extract_new_bytes(self) -> bytes:
+        end = self.buf.tell()
+        self.buf.seek(self._last_read_pos)
+        data = self.buf.read(end - self._last_read_pos)
+        self._last_read_pos = end
+        self.buf.seek(end)
+        return data
+
+    def close(self) -> bytes:
+        """Flushes the encoder and closes the container. Returns the final
+        bytes (the last fragment plus the mfra trailer box)."""
+        for packet in self.stream.encode():
+            self.container.mux_one(packet)
+        self.container.close()
+        return self._extract_new_bytes()
+
+
 _INT_FORMAT_MAX: dict[str, float] = {
     "u8": 128.0,
     "u8p": 128.0,

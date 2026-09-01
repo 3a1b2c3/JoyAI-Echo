@@ -15,6 +15,7 @@ Run:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import queue
@@ -22,13 +23,16 @@ import sys
 import threading
 import time
 import traceback
+import uuid
 from pathlib import Path
 
 print("[startup] script launched, importing gradio/torch/yaml...", flush=True)
 
 import gradio as gr
 import torch
+import uvicorn
 import yaml
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 print("[startup] gradio/torch/yaml imported, CUDA available:", torch.cuda.is_available(), flush=True)
 
@@ -78,7 +82,7 @@ from ltx_pipelines.causal_ti2vid import CausalTI2VidPipeline  # noqa: E402
 from ltx_core.model.video_vae.tiling import TilingConfig  # noqa: E402
 from ltx_core.model.video_vae.video_vae import get_video_chunks_number  # noqa: E402
 from ltx_pipelines.utils.args import ImageConditioningInput  # noqa: E402
-from ltx_pipelines.utils.media_io import encode_video  # noqa: E402
+from ltx_pipelines.utils.media_io import encode_video, StreamingEncoder  # noqa: E402
 
 print("[startup] ltx_* imported, importing helpers...", flush=True)
 
@@ -185,6 +189,35 @@ def discover_cases() -> dict[str, dict]:
 
 
 CASES = discover_cases()
+
+# Live-preview streaming bridge: the pipeline's on_block callback runs on a
+# plain (sync) worker thread (see EchoWMCausalEngine.generate below), but
+# delivering bytes to the browser happens over a WebSocket handled by the
+# asyncio event loop uvicorn runs. asyncio.Queue isn't thread-safe to push
+# into directly from another thread, so the sync side schedules the push via
+# loop.call_soon_threadsafe() instead of calling queue.put_nowait() itself.
+# Keyed by a per-generation run_id (created in on_generate, sent to the
+# browser via the hidden stream_trigger textbox, and used by the frontend JS
+# to open /ws/stream/<run_id>). A queue value of None is the end-of-stream
+# sentinel.
+_main_event_loop: asyncio.AbstractEventLoop | None = None
+_stream_queues: dict[str, "asyncio.Queue[bytes | None]"] = {}
+_stream_lock = threading.Lock()
+
+
+def _register_stream(run_id: str) -> None:
+    with _stream_lock:
+        _stream_queues[run_id] = asyncio.Queue()
+
+
+def _push_stream_chunk(run_id: str, data: bytes | None) -> None:
+    if _main_event_loop is None:
+        return
+    with _stream_lock:
+        q = _stream_queues.get(run_id)
+    if q is None:
+        return
+    _main_event_loop.call_soon_threadsafe(q.put_nowait, data)
 
 
 class EchoWMEngine:
@@ -409,6 +442,7 @@ class EchoWMCausalEngine:
         overlay: bool,
         out_dir: Path,
         timesteps: tuple[int, ...] | None = None,
+        on_stream_chunk=None,
     ):
         """Generator. Yields ("block", index, total, block_video_path) as each
         block finishes, then a final ("done", video_path, overlaid_path_or_None,
@@ -423,6 +457,12 @@ class EchoWMCausalEngine:
         scalar timestep value, so a warmup call can safely use fewer steps
         (cutting real per-step compute) while still exercising every kernel
         a real generation would use.
+
+        `on_stream_chunk(bytes | None)`, if given, is called (from the same
+        worker thread as on_block below -- caller is responsible for making
+        it thread-safe) with each newly-available fragmented-MP4 byte range
+        as blocks are decoded, for live MSE streaming to the browser. A
+        final call with None marks end-of-stream.
         """
         timing: dict[str, float] = {}
         parse_action_string(action_str)
@@ -452,6 +492,18 @@ class EchoWMCausalEngine:
         result_queue: queue.Queue = queue.Queue()
         frame_count = {"n": 0}
 
+        # A typical GOP (~0.5s at the configured fps) -- doesn't need to
+        # line up with the pipeline's own block boundaries. write_chunk()
+        # just returns whatever fragments happened to close since the last
+        # call (possibly none, possibly several); the encoder forces a
+        # keyframe/fragment boundary every gop_size frames regardless of how
+        # write_chunk() is called.
+        stream_encoder = (
+            StreamingEncoder(width=width, height=height, fps=int(fps), frames_per_chunk=max(int(fps) // 2, 1))
+            if on_stream_chunk is not None
+            else None
+        )
+
         def on_block(block_index: int, total_blocks: int, video_chunk, audio_chunk) -> None:
             # Some callbacks in this pipeline carry zero video frames (e.g.
             # audio-only/bookkeeping chunks) -- expected, not an error. There's
@@ -472,6 +524,13 @@ class EchoWMCausalEngine:
                 video_chunks_number=1,
             )
             frame_count["n"] += video_chunk.shape[0]
+            if stream_encoder is not None:
+                try:
+                    new_bytes = stream_encoder.write_chunk(video_chunk)
+                    if new_bytes:
+                        on_stream_chunk(new_bytes)
+                except Exception as exc:  # noqa: BLE001 - live preview is best-effort
+                    print(f"[stream] write_chunk failed (continuing without live stream): {exc}", flush=True)
             result_queue.put(("block", block_index, total_blocks, block_path, frame_count["n"]))
 
         def worker() -> None:
@@ -514,12 +573,25 @@ class EchoWMCausalEngine:
                 yield item
             elif item[0] == "error":
                 thread.join()
+                if stream_encoder is not None:
+                    # Don't leave the browser's WebSocket hanging on a
+                    # generation that errored out mid-stream.
+                    on_stream_chunk(None)
                 raise item[1]
             else:
                 _, video, audio = item
                 break
         thread.join()
         timing["generate"] = time.time() - t0
+
+        if stream_encoder is not None:
+            try:
+                tail_bytes = stream_encoder.close()
+                if tail_bytes:
+                    on_stream_chunk(tail_bytes)
+            except Exception as exc:  # noqa: BLE001 - live preview is best-effort
+                print(f"[stream] StreamingEncoder.close failed: {exc}", flush=True)
+            on_stream_chunk(None)
 
         video_path = out_dir / "output.mp4"
         t0 = time.time()
@@ -779,9 +851,19 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
         run_counter["n"] += 1
         out_dir = OUTPUT_ROOT / f"run_causal_{run_counter['n']:04d}"
 
+        # run_id addresses this generation's WebSocket stream
+        # (/ws/stream/<run_id>). Setting stream_trigger's value below sends
+        # it to the browser; the head JS polls that hidden textbox and opens
+        # the socket + MediaSource as soon as it changes.
+        run_id = uuid.uuid4().hex
+        _register_stream(run_id)
+
+        def on_stream_chunk(data: bytes | None) -> None:
+            _push_stream_chunk(run_id, data)
+
         yield (
             f"⏳ Streaming generation started…\naction=[{action_str}] seed={int(seed)}"
-        ), None, None, None
+        ), run_id, None, None
 
         t0 = time.time()
         try:
@@ -801,6 +883,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                 generate_audio=bool(gen_audio),
                 overlay=bool(overlay),
                 out_dir=out_dir,
+                on_stream_chunk=on_stream_chunk,
             ):
                 if item[0] == "block":
                     _, block_index, total_blocks, block_path, frames_so_far = item
@@ -810,7 +893,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                         f"⏳ Block {block_index + 1}/{total_blocks} ({elapsed:.1f}s elapsed, "
                         f"{frames_so_far} frames so far, ~{fps_estimate:.2f} fps generated)…\n"
                         f"  last update: {time.strftime('%H:%M:%S')} -- {block_path.name}"
-                    ), output_url(block_path), None, None
+                    ), gr.update(), None, None
                 elif item[0] == "progress":
                     _, block_index, total_blocks = item
                     elapsed = time.time() - t0
@@ -837,9 +920,10 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                     )
                     if overlaid_path:
                         msg += f"\n  overlay: {overlaid_path.name}"
-                    yield msg, output_url(shown), output_url(shown), str(video_path)
+                    yield msg, gr.update(), output_url(shown), str(video_path)
         except Exception as e:
-            yield f"❌ Generation failed: {e}\n{traceback.format_exc()}", None, None, None
+            on_stream_chunk(None)  # unstick the browser's WebSocket if we errored mid-stream
+            yield f"❌ Generation failed: {e}\n{traceback.format_exc()}", gr.update(), None, None
 
     # Watches every <video> element's `src` attribute for changes and logs
     # each one with a timestamp -- shows directly in the browser console
@@ -907,7 +991,121 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
     </script>
     """
 
-    with gr.Blocks(title="Echo-WM Flash Preview (Streaming)", head=_video_src_watch_js) as demo:
+    # Replaces gr.Video(streaming=True) (tried earlier, reverted -- see
+    # TROUBLESHOOTING.md item -1) with a raw <video> fed via MediaSource
+    # Extensions over a dedicated WebSocket (/ws/stream/<run_id>, mounted in
+    # main()). Avoids the block-swap reload stutter entirely: instead of the
+    # browser re-fetching+re-decoding a whole new file per block, bytes are
+    # appended incrementally to one continuous SourceBuffer.
+    #
+    # stream-trigger is a hidden textbox on_generate sets to a fresh run_id
+    # at the start of each generation; this script polls its DOM value
+    # (Gradio doesn't expose a clean JS hook for "value changed", and a
+    # MutationObserver on a controlled-input's value attribute is
+    # unreliable across frameworks -- polling is simple and cheap here)
+    # and opens a new WebSocket + MediaSource whenever it changes.
+    _mse_stream_js = """
+    <script>
+    (function() {
+      function log(...args) { console.log("[mse-stream]", new Date().toISOString(), ...args); }
+
+      let lastRunId = null;
+      let ws = null;
+      let mediaSource = null;
+      let sourceBuffer = null;
+      let pendingChunks = [];
+      let streamDone = false;
+
+      function teardown() {
+        if (ws) { try { ws.close(); } catch (e) {} }
+        ws = null;
+        mediaSource = null;
+        sourceBuffer = null;
+        pendingChunks = [];
+        streamDone = false;
+      }
+
+      function maybeEndStream() {
+        if (streamDone && sourceBuffer && !sourceBuffer.updating && pendingChunks.length === 0
+            && mediaSource && mediaSource.readyState === "open") {
+          try { mediaSource.endOfStream(); log("endOfStream()"); } catch (e) { log("endOfStream error", e); }
+        }
+      }
+
+      function appendNext() {
+        if (!sourceBuffer || sourceBuffer.updating || pendingChunks.length === 0) return;
+        const chunk = pendingChunks.shift();
+        try {
+          sourceBuffer.appendBuffer(chunk);
+        } catch (e) {
+          log("appendBuffer error (dropping chunk)", e);
+        }
+      }
+
+      function connect(runId) {
+        teardown();
+        const video = document.getElementById("live-preview-video");
+        if (!video) { log("no #live-preview-video element found yet"); return; }
+
+        mediaSource = new MediaSource();
+        video.src = URL.createObjectURL(mediaSource);
+
+        mediaSource.addEventListener("sourceopen", () => {
+          log("MediaSource opened for run", runId);
+          try {
+            sourceBuffer = mediaSource.addSourceBuffer('video/mp4; codecs="avc1.640028"');
+          } catch (e) {
+            log("addSourceBuffer failed", e);
+            return;
+          }
+          sourceBuffer.addEventListener("updateend", () => {
+            appendNext();
+            maybeEndStream();
+          });
+          appendNext();
+        });
+
+        const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsUrl = proto + "//" + window.location.host + "/ws/stream/" + runId;
+        ws = new WebSocket(wsUrl);
+        ws.binaryType = "arraybuffer";
+        ws.onopen = () => log("WebSocket connected", wsUrl);
+        ws.onmessage = (ev) => {
+          if (typeof ev.data === "string") {
+            if (ev.data === "__DONE__") {
+              log("stream done");
+              streamDone = true;
+              maybeEndStream();
+            }
+            return;
+          }
+          pendingChunks.push(ev.data);
+          appendNext();
+        };
+        ws.onerror = (e) => log("WebSocket error", e);
+        ws.onclose = () => log("WebSocket closed");
+
+        video.play().catch((e) => log("autoplay blocked (user gesture required)", e));
+      }
+
+      function poll() {
+        const el = document.querySelector("#stream-trigger textarea, #stream-trigger input");
+        if (el && el.value && el.value !== lastRunId) {
+          lastRunId = el.value;
+          log("new run id detected:", lastRunId);
+          connect(lastRunId);
+        }
+        setTimeout(poll, 200);
+      }
+      poll();
+    })();
+    </script>
+    """
+
+    with gr.Blocks(
+        title="Echo-WM Flash Preview (Streaming)",
+        head=_video_src_watch_js + _mse_stream_js,
+    ) as demo:
         gr.Markdown(
             f"# Echo-WM Flash Preview: 4-Step Autoregressive, Streaming\n"
             f"Checkpoint: `{engine.checkpoint.name}` · Gemma: `{engine.gemma_path.name}`\n\n"
@@ -978,10 +1176,12 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                 generate_btn = gr.Button("🚀 Generate (streaming)", variant="primary", size="lg")
 
             with gr.Column(scale=1):
-                stream_video = gr.Video(
-                    label="Live preview (updates block-by-block; each block replaces the last)",
-                    height=300, autoplay=True, loop=True,
+                gr.Markdown("**Live preview** (streams continuously over WebSocket -- no per-block reload)")
+                gr.HTML(
+                    '<video id="live-preview-video" autoplay muted playsinline '
+                    'style="width:100%;max-height:300px;background:#000;"></video>'
                 )
+                stream_trigger = gr.Textbox(value="", visible=False, elem_id="stream-trigger")
                 out_video = gr.Video(label="Result (final, full quality)", height=300)
                 status = gr.Textbox(label="Status", lines=6, interactive=False)
                 raw_file = gr.File(label="Raw video (no overlay)", interactive=False)
@@ -998,7 +1198,7 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
                 fov_deg, translation_speed, rotation_speed, pitch_limit,
                 gen_audio, overlay,
             ],
-            outputs=[status, stream_video, out_video, raw_file],
+            outputs=[status, stream_trigger, out_video, raw_file],
             concurrency_limit=1,
         )
 
@@ -1129,16 +1329,52 @@ def main() -> None:
     if not args.no_warmup:
         _warmup(engine, engine_kind)
 
-    print(f"[server] Engine: {engine_kind}", flush=True)
-    print(f"[server] Serving on http://127.0.0.1:{args.port} "
-          f"(forward port {args.port} if you are on a remote host)", flush=True)
-    demo.queue().launch(
-        server_name=args.host,
-        server_port=args.port,
-        share=args.share,
+    if args.share:
+        print("[server] --share is not supported in this build (we run our own uvicorn "
+              "server for the live-preview WebSocket route instead of demo.launch(), which "
+              "is the only thing that can set up a share tunnel) -- ignoring.", flush=True)
+
+    # demo.launch() can't be used anymore: the live-preview player needs a
+    # WebSocket route (/ws/stream/<run_id>) that Gradio's own launch() has no
+    # hook for. Mount Gradio into a FastAPI app we control instead, and run
+    # that app ourselves so both routes share one server/port.
+    app = FastAPI()
+
+    @app.websocket("/ws/stream/{run_id}")
+    async def stream_ws(websocket: WebSocket, run_id: str) -> None:
+        await websocket.accept()
+        with _stream_lock:
+            q = _stream_queues.setdefault(run_id, asyncio.Queue())
+        try:
+            while True:
+                data = await q.get()
+                if data is None:
+                    await websocket.send_text("__DONE__")
+                    break
+                await websocket.send_bytes(data)
+        except WebSocketDisconnect:
+            pass
+        finally:
+            with _stream_lock:
+                _stream_queues.pop(run_id, None)
+
+    @app.on_event("startup")
+    async def _capture_main_event_loop() -> None:
+        global _main_event_loop
+        _main_event_loop = asyncio.get_running_loop()
+
+    gr.mount_gradio_app(
+        app,
+        demo.queue(),
+        path="/",
         allowed_paths=[str(OUTPUT_ROOT), str(EXAMPLES_DIR)],
         show_error=True,
     )
+
+    print(f"[server] Engine: {engine_kind}", flush=True)
+    print(f"[server] Serving on http://127.0.0.1:{args.port} "
+          f"(forward port {args.port} if you are on a remote host)", flush=True)
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
