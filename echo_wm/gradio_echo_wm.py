@@ -1094,7 +1094,29 @@ def build_causal_ui(engine: EchoWMCausalEngine) -> gr.Blocks:
         ws.onerror = (e) => log("WebSocket error", e);
         ws.onclose = () => log("WebSocket closed");
 
-        video.play().catch((e) => log("autoplay blocked (user gesture required)", e));
+        // A single play() call at connect time is unreliable: Chrome's power
+        // saver can interrupt muted video-only autoplay (observed: "video-only
+        // background media was paused to save power") even while the tab is
+        // in the foreground if e.g. devtools has focus instead of the page.
+        // Retry on every signal that more data/visibility changed, and stop
+        // once genuinely playing.
+        let playing = false;
+        function tryPlay(reason) {
+          if (playing || !video.paused) { playing = true; return; }
+          video.play().then(() => {
+            playing = true;
+            log("play() succeeded (" + reason + ")");
+          }).catch((e) => {
+            log("play() blocked (" + reason + "):", e.message);
+          });
+        }
+        tryPlay("initial");
+        video.addEventListener("loadeddata", () => tryPlay("loadeddata"));
+        video.addEventListener("canplay", () => tryPlay("canplay"));
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) tryPlay("visibilitychange");
+        });
+        video.addEventListener("playing", () => { playing = true; log("playing event fired"); });
       }
 
       function poll() {
